@@ -1,0 +1,38 @@
+import { describe, expect, it } from "vitest";
+
+import { generateChunk } from "./generateChunk";
+import { worldToChunk } from "./chunkCoordinates";
+
+describe("deterministic chunk generation", () => {
+  it("repeats exactly for the same seed and coordinate", () => {
+    expect(generateChunk("alpine", { x: 4, z: -2 })).toEqual(generateChunk("alpine", { x: 4, z: -2 }));
+  });
+
+  it("changes with the seed", () => {
+    expect(generateChunk("alpine", { x: 0, z: 0 })).not.toEqual(generateChunk("coastal", { x: 0, z: 0 }));
+  });
+
+  it("uses mathematical floor for negative world coordinates", () => {
+    expect(worldToChunk(-0.01, -16.01)).toEqual({ x: -1, z: -2 });
+    expect(generateChunk(7, { x: -3, z: -5 }).id).toBe("-3,-5");
+  });
+
+  it("does not depend on generation order", () => {
+    const coordinates = [{ x: 2, z: 1 }, { x: -1, z: 8 }, { x: 0, z: 0 }] as const;
+    const forward = new Map(coordinates.map((coordinate) => [JSON.stringify(coordinate), generateChunk(42, coordinate)]));
+    const reverse = new Map([...coordinates].reverse().map((coordinate) => [JSON.stringify(coordinate), generateChunk(42, coordinate)]));
+    expect(forward).toEqual(reverse);
+  });
+
+  it("shares exact river and terrain conditions across east-west boundaries", () => {
+    const left = generateChunk("continuity", { x: -1, z: -3 });
+    const right = generateChunk("continuity", { x: 0, z: -3 });
+    expect(left.river.exit.z).toBe(right.river.entry.z);
+    expect(left.river.exit.width).toBe(right.river.entry.width);
+    expect(left.river.spine.at(-1)?.z).toBe(right.river.spine[0]?.z);
+    const side = left.terrainVerticesPerSide;
+    for (let z = 0; z < side; z += 1) {
+      expect(left.terrainHeights[z * side + side - 1]).toBe(right.terrainHeights[z * side]);
+    }
+  });
+});

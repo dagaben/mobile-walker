@@ -33,6 +33,8 @@ through GitHub Actions.
 - `src/rendering/` owns Three.js scene setup and viewport management.
 - `src/player/` collects browser input and owns testable movement math and
   player simulation systems.
+- `src/world/` owns pure seeded chunk generation and the presentation-only
+  chunk streamer/mesh factory.
 - `src/game/` composes the demo entities and presentation systems.
 
 Simulation runs at a fixed 60 Hz. Browser events update raw input asynchronously;
@@ -41,7 +43,7 @@ refresh rate from changing movement speed. Systems are registered in this order:
 
 1. **Fixed:** input snapshot.
 2. **Fixed:** player movement (also saves the previous transform).
-3. **Fixed:** ground-bounds collision.
+3. **Render:** stream the player's local chunk neighborhood.
 4. **Render:** transform history interpolation.
 5. **Render:** third-person camera presentation, using the interpolated target.
 
@@ -49,6 +51,23 @@ Simulation transforms, velocity, controls, bounds, and camera settings are plain
 data. Three.js objects are attached only as a presentation bridge and are never
 read by movement or collision systems. Pure `normalizeInput`, `integrateMovement`,
 and `interpolateTransform` functions provide unit-testable math boundaries.
+
+## Deterministic world generation
+
+`generateChunk(seed, coordinate)` is a pure data boundary: the normalized seed
+and integer `(x, z)` coordinate completely determine its plain-object result.
+Random-looking values are addressed by global integer lattice keys, rather than
+drawn from mutable state, so generation order, entity iteration order, the clock,
+and `Math.random()` cannot influence a chunk. Mathematical floor division keeps
+world-to-chunk conversion correct on the negative side of the origin.
+
+Rivers flow west-to-east. A river endpoint is hashed from the global boundary
+column and row, so a chunk's east endpoint and its eastern neighbor's west
+endpoint are the same sample (position and width). Terrain edge heights likewise
+use global lattice coordinates. The streamer keeps a 3-by-3 neighborhood around
+the player, generates plain chunk data first, and passes it to a Three.js mesh
+factory. Chunk geometries are disposed when they leave the radius, while terrain
+and river materials are shared for the streamer's lifetime.
 
 ## Controls
 
