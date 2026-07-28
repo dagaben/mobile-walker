@@ -11,12 +11,44 @@ export interface TerrainSample {
 }
 
 const LATTICE_SPACING = CHUNK_SIZE / TERRAIN_SEGMENTS;
+export const RIVER_BED_CLEARANCE = 0.18;
 
 /** Height at one vertex of the infinite, seeded terrain lattice. */
 export function sampleTerrainLatticeHeight(seed: number, latticeX: number, latticeZ: number): number {
   const broad = hashFloat(seed, Math.floor(latticeX / 2), Math.floor(latticeZ / 2), 13);
   const detail = hashFloat(seed, latticeX, latticeZ, 29);
   return (broad - 0.5) * 0.8 + (detail - 0.5) * 0.22;
+}
+
+/**
+ * Height of a rendered terrain-lattice vertex after carving the river channel.
+ * The extra lattice-cell margin ensures every terrain triangle beneath the
+ * water ribbon is capped below the surface rather than poking through it.
+ */
+export function sampleChannelTerrainLatticeHeight(
+  seed: number,
+  latticeX: number,
+  latticeZ: number,
+): number {
+  const worldX = latticeX * LATTICE_SPACING;
+  const worldZ = latticeZ * LATTICE_SPACING;
+  const coordinate = worldToChunk(worldX, worldZ);
+  const spine = sampleRiverSpine(seed, coordinate);
+  const local = (worldX - coordinate.x * CHUNK_SIZE) / CHUNK_SIZE;
+  const segmentPosition = Math.max(0, Math.min(1, local)) * (spine.length - 1);
+  const index = Math.min(spine.length - 2, Math.floor(segmentPosition));
+  const fraction = segmentPosition - index;
+  const start = spine[index];
+  const end = spine[index + 1];
+  const naturalHeight = sampleTerrainLatticeHeight(seed, latticeX, latticeZ);
+  if (!start || !end) return naturalHeight;
+
+  const centerZ = start.z + (end.z - start.z) * fraction;
+  const width = start.width + (end.width - start.width) * fraction;
+  if (Math.abs(worldZ - centerZ) > width / 2 + LATTICE_SPACING) return naturalHeight;
+  const surfaceElevation = start.surfaceElevation
+    + (end.surfaceElevation - start.surfaceElevation) * fraction;
+  return Math.min(naturalHeight, surfaceElevation - RIVER_BED_CLEARANCE);
 }
 
 /**
@@ -31,12 +63,12 @@ export function sampleTerrainHeight(seedInput: number | string, worldX: number, 
   const z0 = Math.floor(latticeZ);
   const x = latticeX - x0;
   const z = latticeZ - z0;
-  const topLeft = sampleTerrainLatticeHeight(seed, x0, z0);
-  const topRight = sampleTerrainLatticeHeight(seed, x0 + 1, z0);
-  const bottomLeft = sampleTerrainLatticeHeight(seed, x0, z0 + 1);
+  const topLeft = sampleChannelTerrainLatticeHeight(seed, x0, z0);
+  const topRight = sampleChannelTerrainLatticeHeight(seed, x0 + 1, z0);
+  const bottomLeft = sampleChannelTerrainLatticeHeight(seed, x0, z0 + 1);
 
   if (x + z <= 1) return topLeft + (topRight - topLeft) * x + (bottomLeft - topLeft) * z;
-  const bottomRight = sampleTerrainLatticeHeight(seed, x0 + 1, z0 + 1);
+  const bottomRight = sampleChannelTerrainLatticeHeight(seed, x0 + 1, z0 + 1);
   return bottomRight + (bottomLeft - bottomRight) * (1 - x) + (topRight - bottomRight) * (1 - z);
 }
 
