@@ -20,6 +20,22 @@ export interface CameraTargetComponent {
 
 export interface TerrainFollowerComponent { heightOffset: number }
 
+/** Seeded identity and interaction data. Kept independent of its Three.js view. */
+export interface InteractableComponent {
+  id: string;
+  kind: "waypoint";
+  collectionRadius: number;
+  chunkId: string;
+}
+
+export interface ProximityComponent { inRange: boolean }
+
+/** Long-lived exploration state. The owning entity is never streamed out. */
+export interface CollectionStateComponent {
+  collectedIds: Set<string>;
+  discovered: number;
+}
+
 export interface Entity {
   transform?: TransformComponent;
   previousTransform?: PreviousTransformComponent;
@@ -27,6 +43,9 @@ export interface Entity {
   playerControl?: PlayerControlComponent;
   cameraTarget?: CameraTargetComponent;
   terrainFollower?: TerrainFollowerComponent;
+  interactable?: InteractableComponent;
+  proximity?: ProximityComponent;
+  collectionState?: CollectionStateComponent;
   /** Presentation-only bridge; gameplay systems must not read this object. */
   renderable?: Object3D;
 }
