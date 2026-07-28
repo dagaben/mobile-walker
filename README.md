@@ -21,6 +21,7 @@ commit the resulting `package-lock.json` changes.
 - `npm run dev` starts the Vite development server.
 - `npm run build` type-checks the project and creates a production build.
 - `npm run typecheck` runs TypeScript without emitting files.
+- `npm test` runs the Vitest unit test suite once.
 - `npm run preview` serves the production build locally.
 
 ## CI
