@@ -1,5 +1,6 @@
 import { createEcsWorld } from "../ecs/createEcsWorld";
 import { SystemScheduler } from "../ecs/SystemScheduler";
+import { createGameplay } from "../game/createGameplay";
 import { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { GameLoop } from "./GameLoop";
 
@@ -13,6 +14,7 @@ export class Game {
     const world = createEcsWorld();
     this.renderer = new ThreeRenderer(canvas);
     this.systems = new SystemScheduler(world);
+    createGameplay(world, this.systems, this.renderer, canvas);
     this.loop = new GameLoop({
       fixedUpdate: (deltaSeconds) => this.systems.fixedUpdate(deltaSeconds),
       render: (interpolation, deltaSeconds) => {
