@@ -1,0 +1,36 @@
+import * as THREE from "three";
+import { describe, expect, it } from "vitest";
+
+import { ChunkMeshFactory, createRiverRibbonGeometry } from "./chunkMeshes";
+import { generateChunk } from "./generateChunk";
+
+describe("river ribbon geometry", () => {
+  it("winds its triangles counter-clockwise from above", () => {
+    const geometry = createRiverRibbonGeometry([
+      { x: 0, z: 0, width: 2, surfaceElevation: 0 },
+      { x: 4, z: 1, width: 2, surfaceElevation: 0 },
+    ]);
+    const positions = geometry.getAttribute("position");
+    const indices = geometry.getIndex();
+    const triangle = new THREE.Triangle(
+      new THREE.Vector3().fromBufferAttribute(positions, indices!.getX(0)),
+      new THREE.Vector3().fromBufferAttribute(positions, indices!.getX(1)),
+      new THREE.Vector3().fromBufferAttribute(positions, indices!.getX(2)),
+    );
+
+    expect(triangle.getNormal(new THREE.Vector3()).y).toBeGreaterThan(0);
+    geometry.dispose();
+  });
+
+  it("uses a front-sided production material", () => {
+    const factory = new ChunkMeshFactory();
+    const group = factory.create(generateChunk("river-material", { x: 0, z: 0 }));
+    const river = group.children[1] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+
+    expect(river.material.side).toBe(THREE.FrontSide);
+    expect(river.material.side).not.toBe(THREE.DoubleSide);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+});
