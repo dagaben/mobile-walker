@@ -10,6 +10,8 @@ export class InputController {
   constructor(private readonly element: HTMLElement) {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
+    window.addEventListener("blur", this.onBlur);
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
     element.addEventListener("pointerdown", this.onPointerDown);
     element.addEventListener("pointermove", this.onPointerMove);
     element.addEventListener("pointerup", this.onPointerUp);
@@ -31,6 +33,8 @@ export class InputController {
   dispose(): void {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
+    window.removeEventListener("blur", this.onBlur);
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
     this.element.removeEventListener("pointerdown", this.onPointerDown);
     this.element.removeEventListener("pointermove", this.onPointerMove);
     this.element.removeEventListener("pointerup", this.onPointerUp);
@@ -39,6 +43,10 @@ export class InputController {
 
   private readonly onKeyDown = (event: KeyboardEvent) => { this.keys.add(event.code); };
   private readonly onKeyUp = (event: KeyboardEvent) => { this.keys.delete(event.code); };
+  private readonly onBlur = () => { this.reset(); };
+  private readonly onVisibilityChange = () => {
+    if (document.hidden) this.reset();
+  };
   private readonly onPointerDown = (event: PointerEvent) => {
     if (this.pointerId !== undefined) return;
     this.pointerId = event.pointerId;
@@ -51,4 +59,11 @@ export class InputController {
   private readonly onPointerUp = (event: PointerEvent) => {
     if (event.pointerId === this.pointerId) this.pointerId = undefined;
   };
+
+  private reset(): void {
+    this.keys.clear();
+    this.pointerId = undefined;
+    this.pointerOrigin = { x: 0, y: 0 };
+    this.pointer = { x: 0, y: 0 };
+  }
 }
