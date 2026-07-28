@@ -4,9 +4,8 @@ const MAX_PIXEL_RATIO = 2;
 
 export class ThreeRenderer {
   private readonly renderer: THREE.WebGLRenderer;
-  private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-  private readonly horizon: THREE.Mesh;
+  readonly scene = new THREE.Scene();
+  readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -23,26 +22,22 @@ export class ThreeRenderer {
     sunlight.position.set(-4, 8, 5);
     this.scene.add(sunlight);
 
-    const geometry = new THREE.IcosahedronGeometry(3.6, 1);
-    const material = new THREE.MeshStandardMaterial({ color: 0xa8c8ad, flatShading: true, roughness: 1 });
-    this.horizon = new THREE.Mesh(geometry, material);
-    this.horizon.scale.set(1.8, 0.3, 1.2);
-    this.horizon.position.set(1, -2.2, -1);
-    this.scene.add(this.horizon);
-
     window.addEventListener("resize", this.resize);
     this.resize();
   }
 
-  render(deltaSeconds: number): void {
-    this.horizon.rotation.y += deltaSeconds * 0.015;
+  render(_deltaSeconds: number): void {
     this.renderer.render(this.scene, this.camera);
   }
 
   dispose(): void {
     window.removeEventListener("resize", this.resize);
-    this.horizon.geometry.dispose();
-    (this.horizon.material as THREE.Material).dispose();
+    this.scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.geometry.dispose();
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) material.dispose();
+    });
     this.renderer.dispose();
   }
 
