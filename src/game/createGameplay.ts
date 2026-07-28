@@ -7,6 +7,7 @@ import { InputSnapshotSystem, PlayerMovementSystem, TerrainSamplingSystem } from
 import type { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
 import { CameraPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
+import { CollectionSystem, createCollectionState, ExplorationPresentationSystem, ProximityDetectionSystem } from "./exploration";
 
 export function createGameplay(world: EcsWorld, systems: SystemScheduler, renderer: ThreeRenderer, inputElement: HTMLElement): ChunkStreamingSystem {
   const worldSeed = "mobile-walker-v1";
@@ -26,13 +27,19 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
     cameraTarget: { height: 4.5, distance: 6.5 },
     renderable: playerMesh,
   });
+  world.add({ collectionState: createCollectionState() });
   // Fixed order: snapshot event state, then integrate.
   systems.addFixedSystem(new InputSnapshotSystem(new InputController(inputElement)));
   systems.addFixedSystem(new PlayerMovementSystem());
   systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
+  systems.addFixedSystem(new ProximityDetectionSystem());
+  systems.addFixedSystem(new CollectionSystem());
   // Generate data before constructing meshes; then interpolate visuals and derive the camera pose.
   const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1);
   systems.addRenderSystem(chunks);
+  const status = document.querySelector<HTMLElement>(".status");
+  if (!status) throw new Error("Exploration status element could not be found.");
+  systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, status, 1));
   systems.addRenderSystem(new TransformInterpolationSystem());
   systems.addRenderSystem(new CameraPresentationSystem(renderer.camera));
   return chunks;
