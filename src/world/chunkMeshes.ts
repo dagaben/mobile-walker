@@ -58,7 +58,10 @@ export class ChunkMeshFactory {
     const positions: number[] = [];
     const indices: number[] = [];
     for (const point of data.river.spine) {
-      positions.push(point.x, 0.12, point.z - point.width / 2, point.x, 0.12, point.z + point.width / 2);
+      positions.push(
+        point.x, point.surfaceElevation, point.z - point.width / 2,
+        point.x, point.surfaceElevation, point.z + point.width / 2,
+      );
     }
     for (let index = 0; index < data.river.spine.length - 1; index += 1) {
       const left = index * 2;
