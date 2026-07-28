@@ -20,6 +20,21 @@ export interface CameraTargetComponent {
 
 export interface TerrainFollowerComponent { heightOffset: number }
 
+export interface InteractableComponent {
+  /** Stable simulation identity, independent of its streamed presentation. */
+  id: string;
+  kind: "waystone" | "memory";
+  collectionRadius: number;
+}
+
+export interface ProximityComponent { withinRange: boolean }
+export interface ChunkResidentComponent { chunkId: string }
+
+export interface CollectionStateComponent {
+  /** This state lives on a non-streamed entity, so unloading a chunk cannot erase it. */
+  collectedIds: Set<string>;
+}
+
 export interface Entity {
   transform?: TransformComponent;
   previousTransform?: PreviousTransformComponent;
@@ -27,6 +42,10 @@ export interface Entity {
   playerControl?: PlayerControlComponent;
   cameraTarget?: CameraTargetComponent;
   terrainFollower?: TerrainFollowerComponent;
+  interactable?: InteractableComponent;
+  proximity?: ProximityComponent;
+  chunkResident?: ChunkResidentComponent;
+  collectionState?: CollectionStateComponent;
   /** Presentation-only bridge; gameplay systems must not read this object. */
   renderable?: Object3D;
 }

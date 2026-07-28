@@ -6,6 +6,8 @@ import { InputController } from "../player/InputController";
 import { InputSnapshotSystem, PlayerMovementSystem, TerrainSamplingSystem } from "../player/systems";
 import type { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
+import { ExplorationPresentationSystem } from "./exploration/presentation";
+import { CollectionSystem, ProximityDetectionSystem } from "./exploration/systems";
 import { CameraPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
 
 export function createGameplay(world: EcsWorld, systems: SystemScheduler, renderer: ThreeRenderer, inputElement: HTMLElement): void {
@@ -26,12 +28,18 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
     cameraTarget: { height: 4.5, distance: 6.5 },
     renderable: playerMesh,
   });
+  world.add({ collectionState: { collectedIds: new Set() } });
   // Fixed order: snapshot event state, then integrate.
   systems.addFixedSystem(new InputSnapshotSystem(new InputController(inputElement)));
   systems.addFixedSystem(new PlayerMovementSystem());
   systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
+  systems.addFixedSystem(new ProximityDetectionSystem());
+  systems.addFixedSystem(new CollectionSystem());
   // Generate data before constructing meshes; then interpolate visuals and derive the camera pose.
   systems.addRenderSystem(new ChunkStreamingSystem(renderer.scene, worldSeed, 1));
+  const status = document.querySelector<HTMLElement>(".status");
+  if (!status) throw new Error("The exploration status element could not be found.");
+  systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, status, 1));
   systems.addRenderSystem(new TransformInterpolationSystem());
   systems.addRenderSystem(new CameraPresentationSystem(renderer.camera));
 }
