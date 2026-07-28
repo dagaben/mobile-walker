@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "miniplex": "^2.0.0",
@@ -16,6 +17,7 @@
   "devDependencies": {
     "@types/three": "^0.178.1",
     "typescript": "^5.8.3",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "vitest": "^4.1.10"
   }
 }
