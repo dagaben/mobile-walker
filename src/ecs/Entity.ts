@@ -18,7 +18,7 @@ export interface CameraTargetComponent {
   distance: number;
 }
 
-export interface BoundsComponent { halfWidth: number; halfDepth: number }
+export interface TerrainFollowerComponent { heightOffset: number }
 
 export interface Entity {
   transform?: TransformComponent;
@@ -26,7 +26,7 @@ export interface Entity {
   velocity?: VelocityComponent;
   playerControl?: PlayerControlComponent;
   cameraTarget?: CameraTargetComponent;
-  bounds?: BoundsComponent;
+  terrainFollower?: TerrainFollowerComponent;
   /** Presentation-only bridge; gameplay systems must not read this object. */
   renderable?: Object3D;
 }
