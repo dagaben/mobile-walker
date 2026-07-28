@@ -1,9 +1,10 @@
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { chunkId, type ChunkId } from "./chunkId";
-import { hashFloat, normalizeSeed } from "./random";
+import { normalizeSeed } from "./random";
 import { sampleRiverBoundary, sampleRiverSpine, type RiverBoundary, type RiverPoint } from "./river";
+import { sampleTerrainLatticeHeight, TERRAIN_SEGMENTS } from "./terrainSampling";
 
-export const TERRAIN_SEGMENTS = 8;
+export { TERRAIN_SEGMENTS } from "./terrainSampling";
 
 export interface GeneratedChunkData {
   readonly id: ChunkId;
@@ -28,9 +29,7 @@ export function generateChunk(seedInput: number | string, coordinate: ChunkCoord
       // Use global lattice coordinates so neighboring terrain edges also agree.
       const globalX = coordinate.x * TERRAIN_SEGMENTS + x;
       const globalZ = coordinate.z * TERRAIN_SEGMENTS + z;
-      const broad = hashFloat(seed, Math.floor(globalX / 2), Math.floor(globalZ / 2), 13);
-      const detail = hashFloat(seed, globalX, globalZ, 29);
-      terrainHeights.push((broad - 0.5) * 0.8 + (detail - 0.5) * 0.22);
+      terrainHeights.push(sampleTerrainLatticeHeight(seed, globalX, globalZ));
     }
   }
 

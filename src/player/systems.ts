@@ -1,4 +1,5 @@
 import type { FixedSystem } from "../ecs/System";
+import { sampleTerrain } from "../world/terrainSampling";
 import type { InputController } from "./InputController";
 import { integrateMovement, normalizeInput } from "./movement";
 
@@ -26,13 +27,24 @@ export class PlayerMovementSystem implements FixedSystem {
   }
 }
 
-export class BoundsCollisionSystem implements FixedSystem {
+/** Grounds moving entities and treats generated rivers as impassable hazards. */
+export class TerrainSamplingSystem implements FixedSystem {
+  constructor(private readonly seed: number | string) {}
+
   fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0]): void {
-    const ground = world.entities.find((entity) => entity.bounds);
-    if (!ground?.bounds || !ground.transform) return;
-    for (const entity of world.entities) if (entity.playerControl && entity.transform) {
-      entity.transform.x = Math.max(ground.transform.x - ground.bounds.halfWidth, Math.min(ground.transform.x + ground.bounds.halfWidth, entity.transform.x));
-      entity.transform.z = Math.max(ground.transform.z - ground.bounds.halfDepth, Math.min(ground.transform.z + ground.bounds.halfDepth, entity.transform.z));
+    for (const entity of world.entities) {
+      if (!entity.transform || !entity.previousTransform || !entity.terrainFollower) continue;
+      let sample = sampleTerrain(this.seed, entity.transform.x, entity.transform.z);
+      if (sample.surface === "river") {
+        entity.transform.x = entity.previousTransform.x;
+        entity.transform.z = entity.previousTransform.z;
+        if (entity.velocity) {
+          entity.velocity.x = 0;
+          entity.velocity.z = 0;
+        }
+        sample = sampleTerrain(this.seed, entity.transform.x, entity.transform.z);
+      }
+      entity.transform.y = sample.height + entity.terrainFollower.heightOffset;
     }
   }
 }

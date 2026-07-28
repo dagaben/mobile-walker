@@ -3,3 +3,4 @@ export * from "./chunkId";
 export * from "./generateChunk";
 export * from "./random";
 export * from "./river";
+export * from "./terrainSampling";
