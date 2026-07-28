@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import type { GeneratedChunkData } from "./generateChunk";
+import type { RiverPoint } from "./river";
 
 export interface DebugViewOptions {
   readonly wireframe: boolean;
@@ -10,6 +11,31 @@ export interface DebugViewOptions {
 
 const DEBUG_BOUNDARIES_NAME = "debug:walkable-boundaries";
 const DEBUG_RIVER_NAME = "debug:river-placement";
+
+/** Builds the shared river ribbon with front faces and normals pointing upward. */
+export function createRiverRibbonGeometry(
+  spine: readonly RiverPoint[],
+  elevationOffset = 0,
+): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (const point of spine) {
+    const elevation = point.surfaceElevation + elevationOffset;
+    positions.push(
+      point.x, elevation, point.z - point.width / 2,
+      point.x, elevation, point.z + point.width / 2,
+    );
+  }
+  for (let index = 0; index < spine.length - 1; index += 1) {
+    const left = index * 2;
+    indices.push(left + 1, left + 2, left, left + 3, left + 2, left + 1);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 /** Presentation-only conversion of plain generated data into disposable Three.js objects. */
 export class ChunkMeshFactory {
@@ -80,23 +106,7 @@ export class ChunkMeshFactory {
   }
 
   private createRiver(data: GeneratedChunkData): THREE.Mesh {
-    const positions: number[] = [];
-    const indices: number[] = [];
-    for (const point of data.river.spine) {
-      positions.push(
-        point.x, point.surfaceElevation, point.z - point.width / 2,
-        point.x, point.surfaceElevation, point.z + point.width / 2,
-      );
-    }
-    for (let index = 0; index < data.river.spine.length - 1; index += 1) {
-      const left = index * 2;
-      indices.push(left, left + 2, left + 1, left + 1, left + 2, left + 3);
-    }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    return new THREE.Mesh(geometry, this.riverMaterial);
+    return new THREE.Mesh(createRiverRibbonGeometry(data.river.spine), this.riverMaterial);
   }
 
   private createBoundaries(data: GeneratedChunkData): THREE.Group {
@@ -116,19 +126,7 @@ export class ChunkMeshFactory {
   }
 
   private createRiverPlacement(data: GeneratedChunkData): THREE.Mesh {
-    const positions: number[] = [];
-    const indices: number[] = [];
-    for (const point of data.river.spine) {
-      const elevation = point.surfaceElevation + 0.04;
-      positions.push(point.x, elevation, point.z - point.width / 2, point.x, elevation, point.z + point.width / 2);
-    }
-    for (let index = 0; index < data.river.spine.length - 1; index += 1) {
-      const left = index * 2;
-      indices.push(left, left + 2, left + 1, left + 1, left + 2, left + 3);
-    }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setIndex(indices);
+    const geometry = createRiverRibbonGeometry(data.river.spine, 0.04);
     const mesh = new THREE.Mesh(geometry, this.riverPlacementMaterial);
     mesh.name = DEBUG_RIVER_NAME;
     mesh.renderOrder = 21;
