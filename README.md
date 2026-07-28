@@ -11,8 +11,7 @@ npm install
 npm run dev
 ```
 
-Node.js 20.19 or newer is required. The npm dependency lockfile is tracked with
-the source.
+Node.js 20.19 or newer is required.
 
 ## Scripts
 
