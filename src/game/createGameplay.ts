@@ -8,7 +8,7 @@ import type { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
 import { CameraPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
 
-export function createGameplay(world: EcsWorld, systems: SystemScheduler, renderer: ThreeRenderer, inputElement: HTMLElement): void {
+export function createGameplay(world: EcsWorld, systems: SystemScheduler, renderer: ThreeRenderer, inputElement: HTMLElement): ChunkStreamingSystem {
   const worldSeed = "mobile-walker-v1";
   const playerMesh = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.38, 0.75, 4, 8),
@@ -31,7 +31,9 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   systems.addFixedSystem(new PlayerMovementSystem());
   systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
   // Generate data before constructing meshes; then interpolate visuals and derive the camera pose.
-  systems.addRenderSystem(new ChunkStreamingSystem(renderer.scene, worldSeed, 1));
+  const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1);
+  systems.addRenderSystem(chunks);
   systems.addRenderSystem(new TransformInterpolationSystem());
   systems.addRenderSystem(new CameraPresentationSystem(renderer.camera));
+  return chunks;
 }

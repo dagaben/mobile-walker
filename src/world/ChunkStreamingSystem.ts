@@ -16,6 +16,10 @@ export class ChunkStreamingSystem implements RenderSystem {
     private readonly radius = 1,
   ) {}
 
+  setDebugView(options: import("./chunkMeshes").DebugViewOptions): void {
+    this.meshes.setDebugView(options);
+  }
+
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0]): void {
     const player = world.entities.find((entity) => entity.playerControl && entity.transform);
     if (!player?.transform) return;
@@ -29,6 +33,7 @@ export class ChunkStreamingSystem implements RenderSystem {
         wanted.add(id);
         if (this.active.has(id)) continue;
         const group = this.meshes.create(generateChunk(this.seed, coordinate));
+        this.meshes.registerGroup(group);
         this.active.set(id, group);
         this.scene.add(group);
       }
@@ -36,13 +41,17 @@ export class ChunkStreamingSystem implements RenderSystem {
 
     for (const [id, group] of this.active) {
       if (wanted.has(id)) continue;
+      this.meshes.unregisterGroup(group);
       this.meshes.disposeChunk(group);
       this.active.delete(id);
     }
   }
 
   dispose(): void {
-    for (const group of this.active.values()) this.meshes.disposeChunk(group);
+    for (const group of this.active.values()) {
+      this.meshes.unregisterGroup(group);
+      this.meshes.disposeChunk(group);
+    }
     this.active.clear();
     this.meshes.dispose();
   }
