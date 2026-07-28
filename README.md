@@ -7,9 +7,12 @@ infrastructure—gameplay, procedural generation, and physics come later.
 ## Getting started
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
+
+Use `npm install` when intentionally adding or updating dependencies, and
+commit the resulting `package-lock.json` changes.
 
 ## Scripts
 
@@ -17,6 +20,11 @@ npm run dev
 - `npm run build` type-checks the project and creates a production build.
 - `npm run typecheck` runs TypeScript without emitting files.
 - `npm run preview` serves the production build locally.
+
+## CI
+
+Every pull request runs `npm ci`, `npm run typecheck`, and `npm run build`
+through GitHub Actions.
 
 ## Architecture
 
