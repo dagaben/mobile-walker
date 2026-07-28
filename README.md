@@ -4,6 +4,8 @@ A mobile-first 3D web game foundation built with TypeScript, Vite, Three.js, and
 Miniplex. It includes a small playable walking scene that demonstrates a
 frame-rate-independent ECS simulation and interpolated Three.js presentation.
 
+Play the published game at <https://durrri.github.io/mobile-walker/>.
+
 ## Getting started
 
 ```bash
