@@ -84,16 +84,16 @@ export class ChunkMeshFactory {
     color: 0x386f4b, flatShading: true, roughness: 1,
   });
   private readonly leafMaterial = new THREE.MeshStandardMaterial({
-    color: 0x5d8244, flatShading: true, roughness: 1, vertexColors: true,
+    color: 0x5d8244, flatShading: true, roughness: 1,
   });
   private readonly bushMaterial = new THREE.MeshStandardMaterial({
-    color: 0x527747, flatShading: true, roughness: 1, vertexColors: true,
+    color: 0x527747, flatShading: true, roughness: 1,
   });
   private readonly flowerStemMaterial = new THREE.MeshStandardMaterial({
     color: 0x668653, flatShading: true, roughness: 1,
   });
   private readonly flowerHeadMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffffff, flatShading: true, roughness: 0.9, vertexColors: true,
+    color: 0xffffff, flatShading: true, roughness: 0.9,
   });
   private readonly boundaryMaterial = new THREE.LineBasicMaterial({ color: 0xff4f4f, depthTest: false });
   private readonly riverPlacementMaterial = new THREE.MeshBasicMaterial({
