@@ -1,8 +1,61 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
-import { ChunkMeshFactory, createRiverRibbonGeometry } from "./chunkMeshes";
+import {
+  BOUNDARY_FADE_SHADER_KEY,
+  ChunkMeshFactory,
+  applyLoadedNeighborhoodFade,
+  createRiverRibbonGeometry,
+} from "./chunkMeshes";
 import { generateChunk } from "./generateChunk";
+
+describe("resident neighborhood material fade", () => {
+  it("injects world-space edge fading and exposes mutable neighborhood uniforms", () => {
+    const material = new THREE.MeshStandardMaterial();
+    applyLoadedNeighborhoodFade(material, {
+      centerX: 8, centerZ: 24, halfExtent: 24, width: 12, color: 0xd9ead8,
+    });
+    const shader = {
+      uniforms: {},
+      vertexShader: "void main() {\n#include <project_vertex>\n}",
+      fragmentShader: "void main() {\n#include <opaque_fragment>\n}",
+    } as unknown as THREE.WebGLProgramParametersWithUniforms;
+
+    material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+
+    expect(material.customProgramCacheKey()).toBe(BOUNDARY_FADE_SHADER_KEY);
+    expect(shader.vertexShader).toContain("instanceMatrix * loadedPosition");
+    expect(shader.fragmentShader).toContain("smoothstep(loadedHalfExtent - loadedFadeWidth");
+    expect(shader.fragmentShader).toContain("mix(outgoingLight, loadedBackground");
+    expect(shader.uniforms).toMatchObject({
+      loadedCenter: { value: new THREE.Vector2(8, 24) },
+      loadedHalfExtent: { value: 24 },
+      loadedFadeWidth: { value: 12 },
+    });
+    material.dispose();
+  });
+
+  it("shares the same fade configuration across terrain and vegetation", () => {
+    const factory = new ChunkMeshFactory({
+      centerX: 8, centerZ: 8, halfExtent: 24, width: 12, color: 0xd9ead8,
+    });
+    const group = factory.create(generateChunk("compatible-edge-fade", { x: 0, z: 0 }));
+    const terrain = group.getObjectByName("terrain") as THREE.Mesh;
+    const trees = group.getObjectByName("trees") as THREE.Group;
+    const materials = [terrain, ...trees.children].map((object) =>
+      (object as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>).material);
+
+    expect(materials.every((material) => material.customProgramCacheKey() === BOUNDARY_FADE_SHADER_KEY)).toBe(true);
+    factory.setLoadedNeighborhood(24, -8, 40);
+    for (const material of materials) {
+      expect(material.userData.loadedNeighborhoodFade.center.value).toEqual(new THREE.Vector2(24, -8));
+      expect(material.userData.loadedNeighborhoodFade.halfExtent.value).toBe(40);
+    }
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+});
 
 describe("river ribbon geometry", () => {
   it("winds its triangles counter-clockwise from above", () => {

@@ -7,15 +7,26 @@ import { ChunkMeshFactory } from "./chunkMeshes";
 import { generateChunk } from "./generateChunk";
 
 export class ChunkStreamingSystem implements RenderSystem {
+  /** The outer 3/4 chunk blends into the background; keep this below CHUNK_SIZE. */
+  static readonly EDGE_FADE_WIDTH = CHUNK_SIZE * 0.75;
   private readonly active = new Map<string, THREE.Group>();
-  private readonly meshes = new ChunkMeshFactory();
+  private readonly meshes: ChunkMeshFactory;
   private center: ChunkCoordinate = { x: 0, z: 0 };
 
   constructor(
     private readonly scene: THREE.Scene,
     private readonly seed: number | string,
     private readonly radius = 1,
-  ) {}
+  ) {
+    const center = this.getLoadedCenter();
+    this.meshes = new ChunkMeshFactory({
+      centerX: center.x,
+      centerZ: center.z,
+      halfExtent: this.getLoadedHalfExtent(),
+      width: ChunkStreamingSystem.EDGE_FADE_WIDTH,
+      color: 0xd9ead8,
+    });
+  }
 
   setDebugView(options: import("./chunkMeshes").DebugViewOptions): void {
     this.meshes.setDebugView(options);
@@ -26,6 +37,8 @@ export class ChunkStreamingSystem implements RenderSystem {
     if (!player?.transform) return;
     const center = worldToChunk(player.transform.x, player.transform.z);
     this.center = center;
+    const loadedCenter = this.getLoadedCenter();
+    this.meshes.setLoadedNeighborhood(loadedCenter.x, loadedCenter.z, this.getLoadedHalfExtent());
     const wanted = new Set<string>();
 
     for (let z = center.z - this.radius; z <= center.z + this.radius; z += 1) {
@@ -52,6 +65,11 @@ export class ChunkStreamingSystem implements RenderSystem {
   /** Center of the resident neighborhood, in world coordinates. */
   getLoadedCenter(): { x: number; z: number } {
     return { x: (this.center.x + 0.5) * CHUNK_SIZE, z: (this.center.z + 0.5) * CHUNK_SIZE };
+  }
+
+  /** Half-width of (2 * radius + 1) resident chunks in world units. */
+  getLoadedHalfExtent(): number {
+    return (this.radius + 0.5) * CHUNK_SIZE;
   }
 
   dispose(): void {

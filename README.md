@@ -75,7 +75,13 @@ global lattice coordinates in every row. The streamer keeps a 3-by-3
 neighborhood around the player, generates plain chunk data first, and passes it
 to a Three.js mesh factory. Chunk geometries are disposed when they leave the
 radius, while terrain and river materials are shared for the streamer's
-lifetime.
+lifetime. For a streaming `radius` of `r`, the resident square has a half-extent
+of `(r + 0.5) * CHUNK_SIZE` around the center chunk. Terrain, water, and
+vegetation share a background-color edge blend across the outer
+`0.75 * CHUNK_SIZE`; keeping that fade width below one chunk leaves the center
+neighborhood solid while ensuring trees fade with the ground. Camera-distance
+fog begins much farther away and is atmospheric only, rather than hiding the
+loaded-world boundary.
 
 ## Controls
 
