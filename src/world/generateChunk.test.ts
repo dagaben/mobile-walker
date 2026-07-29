@@ -4,7 +4,6 @@ import { generateChunk } from "./generateChunk";
 import { worldToChunk } from "./chunkCoordinates";
 import {
   isRiverAt,
-  RIVER_TERRAIN_SEGMENTS,
   sampleRiverCrossSection,
   TERRAIN_SEGMENTS,
 } from "./terrainSampling";
@@ -74,11 +73,12 @@ describe("deterministic chunk generation", () => {
     }
   });
 
-  it("renders a locally refined ribbon from the collision cross-section", () => {
+  it("builds a compact longitudinal channel from the collision cross-section", () => {
     const seed = "rendered-channel-agreement";
     const chunk = generateChunk(seed, { x: 0, z: 0 });
-    expect(chunk.terrainVerticesPerSide).toBe(RIVER_TERRAIN_SEGMENTS + 1);
-    expect(chunk.river!.spine.length).toBeGreaterThan(RIVER_TERRAIN_SEGMENTS + 1);
+    expect(chunk.terrainVerticesPerSide).toBe(TERRAIN_SEGMENTS + 1);
+    expect(chunk.river!.channelSections).toHaveLength(TERRAIN_SEGMENTS + 1);
+    expect(chunk.river!.channelSections.length * 6).toBeLessThan(64);
 
     for (const point of chunk.river!.spine) {
       const section = sampleRiverCrossSection(seed, point.x, point.z)!;
@@ -95,25 +95,27 @@ describe("deterministic chunk generation", () => {
     const riverChunk = generateChunk("local-river-detail", { x: 0, z: 0 });
 
     expect(dryChunk.terrainVerticesPerSide).toBe(TERRAIN_SEGMENTS + 1);
-    expect(riverChunk.terrainVerticesPerSide).toBe(RIVER_TERRAIN_SEGMENTS + 1);
+    expect(riverChunk.terrainVerticesPerSide).toBe(TERRAIN_SEGMENTS + 1);
     expect(dryChunk.terrainHeights).toHaveLength((TERRAIN_SEGMENTS + 1) ** 2);
+    expect(riverChunk.terrainHeights.length).toBeLessThanOrEqual(dryChunk.terrainHeights.length);
+    expect(riverChunk.irregularTerrain!.vertices.length).toBeLessThan(dryChunk.terrainHeights.length);
   });
 
-  it("keeps locally refined river-row edges on the neighboring coarse edge", () => {
+  it("keeps river-row edges on the neighboring coarse edge", () => {
     const riverChunk = generateChunk("local-edge-continuity", { x: 0, z: 0 });
     const southChunk = generateChunk("local-edge-continuity", { x: 0, z: 1 });
-    const fineSide = riverChunk.terrainVerticesPerSide;
+    const riverSide = riverChunk.terrainVerticesPerSide;
     const coarseSide = southChunk.terrainVerticesPerSide;
 
     for (let coarseX = 0; coarseX < coarseSide; coarseX += 1) {
-      expect(riverChunk.terrainHeights[(fineSide - 1) * fineSide + coarseX * 2])
+      expect(riverChunk.terrainHeights[(riverSide - 1) * riverSide + coarseX])
         .toBe(southChunk.terrainHeights[coarseX]);
     }
-    for (let coarseX = 0; coarseX < coarseSide - 1; coarseX += 1) {
-      const left = southChunk.terrainHeights[coarseX]!;
-      const right = southChunk.terrainHeights[coarseX + 1]!;
-      expect(riverChunk.terrainHeights[(fineSide - 1) * fineSide + coarseX * 2 + 1])
-        .toBeCloseTo((left + right) / 2);
-    }
+  });
+
+  it("shares exact channel sections between neighboring chunks", () => {
+    const left = generateChunk("channel-seams", { x: -1, z: 0 });
+    const right = generateChunk("channel-seams", { x: 0, z: 0 });
+    expect(left.river!.channelSections.at(-1)).toEqual(right.river!.channelSections[0]);
   });
 });

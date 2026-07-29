@@ -6,6 +6,7 @@ import {
   ChunkMeshFactory,
   applyLoadedNeighborhoodFade,
   createRiverRibbonGeometry,
+  createRiverChannelGeometry,
 } from "./chunkMeshes";
 import { generateChunk } from "./generateChunk";
 
@@ -58,6 +59,46 @@ describe("resident neighborhood material fade", () => {
 });
 
 describe("river ribbon geometry", () => {
+  it("uses a bounded shared strip and leaves the water corridor out of base terrain", () => {
+    const factory = new ChunkMeshFactory();
+    const data = generateChunk("open-channel", { x: 0, z: 0 });
+    const group = factory.create(data);
+    const terrain = group.getObjectByName("terrain") as THREE.Mesh;
+    const channel = group.getObjectByName("river-channel") as THREE.Mesh;
+
+    expect(channel.geometry.getAttribute("position").count).toBe(data.river!.channelSections.length * 6);
+    expect(channel.geometry.getAttribute("position").count).toBeLessThan(64);
+    expect(terrain.geometry.getAttribute("position").count).toBe(data.irregularTerrain!.vertices.length);
+    expect(data.irregularTerrain!.indices).toHaveLength((data.river!.channelSections.length - 1) * 12);
+
+    // Every base-terrain triangle belongs entirely north or south of its
+    // section shoulders; none bridges across the channel/water corridor.
+    for (let index = 0; index < data.irregularTerrain!.indices.length; index += 3) {
+      const triangle = data.irregularTerrain!.indices.slice(index, index + 3);
+      const zs = triangle.map((vertex) => data.irregularTerrain!.vertices[vertex]!.z);
+      const centers = triangle.map((vertex) => {
+        const section = data.river!.channelSections[Math.floor(vertex / 4)]!;
+        return section.centerZ;
+      });
+      expect(zs.every((z, vertex) => z <= centers[vertex]) || zs.every((z, vertex) => z >= centers[vertex])).toBe(true);
+    }
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
+  it("reuses each section boundary verbatim in adjacent channel triangles", () => {
+    const sections = generateChunk("shared-strip", { x: 0, z: 0 }).river!.channelSections;
+    const geometry = createRiverChannelGeometry(sections);
+    const positions = geometry.getAttribute("position");
+    for (let section = 1; section < sections.length - 1; section += 1) {
+      for (let cross = 0; cross < 6; cross += 1) {
+        const vertex = section * 6 + cross;
+        expect(positions.getX(vertex)).toBeCloseTo(sections[section]!.x);
+      }
+    }
+    geometry.dispose();
+  });
   it("winds its triangles counter-clockwise from above", () => {
     const geometry = createRiverRibbonGeometry([
       { x: 0, z: 0, width: 2, surfaceElevation: 0 },
@@ -171,7 +212,8 @@ describe("terrain biome colors", () => {
 
     expect(terrain.geometry.getAttribute("color").count)
       .toBe(terrain.geometry.getAttribute("position").count);
-    expect(terrain.geometry.getAttribute("color").count).toBe(data.terrainHeights.length);
+    expect(terrain.geometry.getAttribute("color").count)
+      .toBe(data.irregularTerrain?.vertices.length ?? data.terrainHeights.length);
     expect(terrain.material.vertexColors).toBe(true);
 
     factory.disposeChunk(group);
