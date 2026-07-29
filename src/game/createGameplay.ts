@@ -51,7 +51,8 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   });
   world.add({ collectionState: createCollectionState() });
   // Fixed order: snapshot event state, then integrate.
-  systems.addFixedSystem(new InputSnapshotSystem(new InputController(inputElement)));
+  const input = new InputController(inputElement);
+  systems.addFixedSystem(new InputSnapshotSystem(input));
   systems.addFixedSystem(new PlayerMovementSystem());
   systems.addFixedSystem(new TreeCollisionSystem(worldSeed));
   systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
@@ -64,7 +65,7 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   if (!status) throw new Error("Exploration status element could not be found.");
   systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, status, 1));
   systems.addRenderSystem(new TransformInterpolationSystem());
-  systems.addRenderSystem(new CameraPresentationSystem(renderer.camera));
+  systems.addRenderSystem(new CameraPresentationSystem(renderer.camera, input, chunks));
   const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");
   const biomeLabel = document.querySelector<HTMLElement>("#current-biome-name");
   if (!biomeOverlay || !biomeLabel) throw new Error("Biome guide elements could not be found.");
