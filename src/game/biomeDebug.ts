@@ -13,6 +13,16 @@ export function formatBiomeDistance(distance: number): string {
   return `${Math.round(distance)} wu`;
 }
 
+/** Converts a world-space X/Z delta to its CSS overlay X/Y displacement. */
+export function worldToOverlayDisplacement(
+  originX: number,
+  originZ: number,
+  targetX: number,
+  targetZ: number,
+): { readonly x: number; readonly y: number } {
+  return { x: targetX - originX, y: targetZ - originZ };
+}
+
 /** Finds representative points in the nearest sampled region of every biome. */
 export function findNearestBiomes(
   seed: number | string,
@@ -110,8 +120,7 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
       if (distance) distance.textContent = distanceLabel;
       indicator.title = label;
       indicator.setAttribute("aria-label", `Direction to nearest ${label}`);
-      const dx = target.x - x;
-      const dy = -(target.z - z);
+      const { x: dx, y: dy } = worldToOverlayDisplacement(x, z, target.x, target.z);
       const scale = Math.min(halfWidth / Math.max(Math.abs(dx), 0.001), halfHeight / Math.max(Math.abs(dy), 0.001));
       indicator.style.transform = `translate(${width / 2 + dx * scale}px, ${height / 2 + dy * scale}px) translate(-50%, -50%)`;
     }
