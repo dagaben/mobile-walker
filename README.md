@@ -85,3 +85,5 @@ lifetime.
   want to walk. Release to stop. Drag distance controls the input strength until
   it reaches full speed. Tap, lift, then press again to jump; keep the second
   press held and drag to move while jumping.
+- **Camera gestures:** pinch with two fingers to zoom, and drag two fingers
+  vertically to tilt between the standard view and a directly overhead view.
