@@ -8,8 +8,14 @@ import type { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
 import { CameraPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
 import { CollectionSystem, createCollectionState, ExplorationPresentationSystem, ProximityDetectionSystem } from "./exploration";
+import { BiomeDebugPresentationSystem } from "./biomeDebug";
 
-export function createGameplay(world: EcsWorld, systems: SystemScheduler, renderer: ThreeRenderer, inputElement: HTMLElement): ChunkStreamingSystem {
+export interface GameplayControllers {
+  readonly chunks: ChunkStreamingSystem;
+  readonly biomeDebug: BiomeDebugPresentationSystem;
+}
+
+export function createGameplay(world: EcsWorld, systems: SystemScheduler, renderer: ThreeRenderer, inputElement: HTMLElement): GameplayControllers {
   const worldSeed = "mobile-walker-v1";
   const player = new THREE.Group();
   const body = new THREE.Mesh(
@@ -59,5 +65,10 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, status, 1));
   systems.addRenderSystem(new TransformInterpolationSystem());
   systems.addRenderSystem(new CameraPresentationSystem(renderer.camera));
-  return chunks;
+  const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");
+  const biomeLabel = document.querySelector<HTMLElement>("#current-biome-name");
+  if (!biomeOverlay || !biomeLabel) throw new Error("Biome guide elements could not be found.");
+  const biomeDebug = new BiomeDebugPresentationSystem(worldSeed, biomeOverlay, biomeLabel);
+  systems.addRenderSystem(biomeDebug);
+  return { chunks, biomeDebug };
 }

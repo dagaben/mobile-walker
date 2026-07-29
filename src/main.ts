@@ -9,8 +9,9 @@ const debugPanel = document.querySelector<HTMLElement>("#debug-panel");
 const wireframeInput = document.querySelector<HTMLInputElement>("#debug-wireframe");
 const boundariesInput = document.querySelector<HTMLInputElement>("#debug-boundaries");
 const riverInput = document.querySelector<HTMLInputElement>("#debug-river");
+const biomesInput = document.querySelector<HTMLInputElement>("#debug-biomes");
 
-if (!canvas || !restartButton || !debugButton || !debugPanel || !wireframeInput || !boundariesInput || !riverInput) {
+if (!canvas || !restartButton || !debugButton || !debugPanel || !wireframeInput || !boundariesInput || !riverInput || !biomesInput) {
   throw new Error("The game interface could not be found.");
 }
 
@@ -25,18 +26,19 @@ const updateDebugView = (): void => game.setDebugView({
   wireframe: wireframeInput.checked,
   boundaries: boundariesInput.checked,
   riverPlacement: riverInput.checked,
+  biomeGuide: biomesInput.checked,
 });
 
 restartButton.addEventListener("click", restartGame);
 debugButton.addEventListener("click", toggleDebugPanel);
-for (const input of [wireframeInput, boundariesInput, riverInput]) input.addEventListener("change", updateDebugView);
+for (const input of [wireframeInput, boundariesInput, riverInput, biomesInput]) input.addEventListener("change", updateDebugView);
 game.start();
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     restartButton.removeEventListener("click", restartGame);
     debugButton.removeEventListener("click", toggleDebugPanel);
-    for (const input of [wireframeInput, boundariesInput, riverInput]) input.removeEventListener("change", updateDebugView);
+    for (const input of [wireframeInput, boundariesInput, riverInput, biomesInput]) input.removeEventListener("change", updateDebugView);
     game.dispose();
   });
 }
