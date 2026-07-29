@@ -22,6 +22,9 @@ export interface GeneratedVegetation {
   readonly flowers: readonly FlowerPlacement[];
 }
 
+/** Radius of broadleaf trunk geometry at ground level, before tree scaling. */
+export const LEAF_TREE_TRUNK_RADIUS = 0.2;
+
 type Profile = Readonly<Record<BiomeId, number>>;
 
 // Leaf trees favor damp lowlands and mixed forest edges, while shrubs can
