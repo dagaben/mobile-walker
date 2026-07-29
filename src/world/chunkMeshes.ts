@@ -17,9 +17,9 @@ const DEBUG_RIVER_NAME = "debug:river-placement";
 /** Muted natural colors keep blended biome transitions subtle rather than candy-bright. */
 const TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
   plains: new THREE.Color(0x829b69),
-  forest: new THREE.Color(0x49694d),
+  forest: new THREE.Color(0x35563b),
   wetland: new THREE.Color(0x71866a),
-  highlands: new THREE.Color(0x777871),
+  highlands: new THREE.Color(0x8b7358),
 };
 
 const DEBUG_TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
