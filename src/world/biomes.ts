@@ -18,6 +18,16 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
   highlands: { id: "highlands", label: "Highlands", moisture: 0.42, ruggedness: 0.86 },
 };
 
+/** High-contrast colors shared by the biome debug terrain and its HUD legend. */
+export const BIOME_DEBUG_COLORS: Readonly<Record<BiomeId, string>> = {
+  plains: "#d7c66f",
+  forest: "#2f8a57",
+  wetland: "#45a9bd",
+  highlands: "#9b75c8",
+};
+
+export const BIOME_IDS = Object.keys(BIOMES) as BiomeId[];
+
 export type BiomeWeights = Readonly<Record<BiomeId, number>>;
 
 export interface BiomeSample {
@@ -26,8 +36,6 @@ export interface BiomeSample {
   readonly moisture: number;
   readonly ruggedness: number;
 }
-
-const BIOME_IDS = Object.keys(BIOMES) as BiomeId[];
 
 function smoothstep(value: number): number {
   return value * value * (3 - 2 * value);

@@ -5,6 +5,7 @@ import { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { GameLoop } from "./GameLoop";
 import type { DebugViewOptions } from "../world/chunkMeshes";
 import type { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
+import type { BiomeDebugPresentationSystem } from "../game/biomeDebug";
 
 export class Game {
   private readonly renderer: ThreeRenderer;
@@ -12,12 +13,15 @@ export class Game {
   private readonly loop: GameLoop;
   private running = false;
   private readonly chunks: ChunkStreamingSystem;
+  private readonly biomeDebug: BiomeDebugPresentationSystem;
 
   constructor(canvas: HTMLCanvasElement) {
     const world = createEcsWorld();
     this.renderer = new ThreeRenderer(canvas);
     this.systems = new SystemScheduler(world);
-    this.chunks = createGameplay(world, this.systems, this.renderer, canvas);
+    const gameplay = createGameplay(world, this.systems, this.renderer, canvas);
+    this.chunks = gameplay.chunks;
+    this.biomeDebug = gameplay.biomeDebug;
     this.loop = new GameLoop({
       fixedUpdate: (deltaSeconds) => this.systems.fixedUpdate(deltaSeconds),
       render: (interpolation, deltaSeconds) => {
@@ -36,6 +40,7 @@ export class Game {
 
   setDebugView(options: DebugViewOptions): void {
     this.chunks.setDebugView(options);
+    this.biomeDebug.setEnabled(options.biomeGuide);
   }
 
   dispose(): void {
