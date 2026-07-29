@@ -34,3 +34,20 @@ describe("river ribbon geometry", () => {
     factory.dispose();
   });
 });
+
+describe("pine tree geometry", () => {
+  it("renders each tree with an instanced trunk and layered crown", () => {
+    const factory = new ChunkMeshFactory();
+    const data = generateChunk("forest-biomes", { x: -4, z: -4 });
+    const group = factory.create(data);
+    const trees = group.getObjectByName("trees") as THREE.Group;
+
+    expect(data.trees.length).toBeGreaterThan(0);
+    expect(trees.children).toHaveLength(3);
+    expect(trees.children.every((child) => child instanceof THREE.InstancedMesh)).toBe(true);
+    expect((trees.children[0] as THREE.InstancedMesh).count).toBe(data.trees.length);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+});

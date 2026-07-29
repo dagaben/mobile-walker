@@ -1,6 +1,7 @@
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { chunkId, type ChunkId } from "./chunkId";
 import { normalizeSeed } from "./random";
+import { generateTrees, type TreePlacement } from "./forest";
 import { sampleRiverBoundary, sampleRiverSpine, type RiverBoundary, type RiverPoint } from "./river";
 import { sampleChannelTerrainLatticeHeight, TERRAIN_SEGMENTS } from "./terrainSampling";
 
@@ -12,6 +13,7 @@ export interface GeneratedChunkData {
   readonly size: number;
   readonly terrainHeights: readonly number[];
   readonly terrainVerticesPerSide: number;
+  readonly trees: readonly TreePlacement[];
   readonly river: {
     readonly entry: RiverBoundary;
     readonly exit: RiverBoundary;
@@ -39,6 +41,7 @@ export function generateChunk(seedInput: number | string, coordinate: ChunkCoord
     size: CHUNK_SIZE,
     terrainHeights,
     terrainVerticesPerSide: verticesPerSide,
+    trees: generateTrees(seed, coordinate),
     river: {
       entry: sampleRiverBoundary(seed, coordinate, "west"),
       exit: sampleRiverBoundary(seed, coordinate, "east"),
