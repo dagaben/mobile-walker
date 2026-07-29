@@ -1,7 +1,7 @@
 import { hashFloat, normalizeSeed } from "./random";
 
 /** Stable identifiers used by terrain rendering and world-generation systems. */
-export type BiomeId = "plains" | "forest" | "wetland" | "highlands";
+export type BiomeId = "plains" | "forest" | "wetland" | "highlands" | "mountain";
 
 export interface BiomeDefinition {
   readonly id: BiomeId;
@@ -16,6 +16,7 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
   forest: { id: "forest", label: "Forest", moisture: 0.72, ruggedness: 0.38 },
   wetland: { id: "wetland", label: "Wetland", moisture: 0.9, ruggedness: 0.08 },
   highlands: { id: "highlands", label: "Highlands", moisture: 0.42, ruggedness: 0.86 },
+  mountain: { id: "mountain", label: "Mountain", moisture: 0.2, ruggedness: 1.02 },
 };
 
 /** High-contrast colors shared by the biome debug terrain and its HUD legend. */
@@ -24,6 +25,7 @@ export const BIOME_DEBUG_COLORS: Readonly<Record<BiomeId, string>> = {
   forest: "#2f8a57",
   wetland: "#45a9bd",
   highlands: "#9b75c8",
+  mountain: "#e8edf2",
 };
 
 export const BIOME_IDS = Object.keys(BIOMES) as BiomeId[];

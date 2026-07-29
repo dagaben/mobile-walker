@@ -21,6 +21,8 @@ const LATTICE_SPACING = CHUNK_SIZE / TERRAIN_SEGMENTS;
  * roughly 30% of their height while they cross a river.
  */
 export const RIVER_BED_DEPTH = 0.45;
+/** Terrain at and above this elevation is rendered as snow and has no vegetation. */
+export const MOUNTAIN_SNOW_LINE = 5.5;
 
 const ELEVATION_PROFILES: Readonly<Record<BiomeId, {
   readonly base: number;
@@ -33,6 +35,9 @@ const ELEVATION_PROFILES: Readonly<Record<BiomeId, {
   // Highlands deliberately have enough relief for tall hills and locally
   // steep faces, while biome blending still eases the transition into them.
   highlands: { base: 0.5, broad: 2.35, detail: 0.78 },
+  // A high base and two strong noise bands create tall, broken summits rather
+  // than simply recoloring the existing highland hills.
+  mountain: { base: 6.2, broad: 8.8, detail: 3.1 },
 };
 
 /** Height at one vertex of the infinite, seeded terrain lattice. */
