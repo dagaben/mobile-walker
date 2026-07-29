@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { sampleBiome } from "./biomes";
 import { CHUNK_SIZE } from "./chunkCoordinates";
-import { isRiverAt, sampleTerrainHeight } from "./terrainSampling";
+import { isRiverAt, MOUNTAIN_SNOW_LINE, sampleTerrainHeight } from "./terrainSampling";
 import { generateVegetation } from "./vegetation";
 
 describe("biome vegetation", () => {
@@ -35,5 +35,27 @@ describe("biome vegetation", () => {
       expect(plant.y).toBe(sampleTerrainHeight(seed, plant.x, plant.z));
       expect(isRiverAt(seed, plant.x, plant.z)).toBe(false);
     }
+  });
+
+  it("limits mountain rock to bushes and pines and clears all plants from snow", () => {
+    const seed = "snow-capped-mountains";
+    const coordinates = Array.from({ length: 41 * 41 }, (_, index) => ({
+      x: index % 41 - 20,
+      z: Math.floor(index / 41) - 20,
+    }));
+    const mountain = coordinates.find((coordinate) => sampleBiome(
+      seed,
+      (coordinate.x + 0.5) * CHUNK_SIZE,
+      (coordinate.z + 0.5) * CHUNK_SIZE,
+    ).dominant === "mountain");
+
+    expect(mountain).toBeDefined();
+    const vegetation = generateVegetation(seed, mountain!);
+    const all = [...vegetation.leafTrees, ...vegetation.bushes, ...vegetation.flowers];
+    expect(all.every((plant) => plant.y < MOUNTAIN_SNOW_LINE)).toBe(true);
+    expect(vegetation.leafTrees.every((plant) =>
+      sampleBiome(seed, plant.x, plant.z).dominant !== "mountain")).toBe(true);
+    expect(vegetation.flowers.every((plant) =>
+      sampleBiome(seed, plant.x, plant.z).dominant !== "mountain")).toBe(true);
   });
 });

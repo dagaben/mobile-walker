@@ -4,6 +4,7 @@ import { CHUNK_SIZE } from "./chunkCoordinates";
 import { generateChunk } from "./generateChunk";
 import {
   isRiverAt,
+  MOUNTAIN_SNOW_LINE,
   RIVER_BED_DEPTH,
   sampleChannelTerrainLatticeHeight,
   sampleTerrain,
@@ -91,5 +92,18 @@ describe("terrain sampling", () => {
       expect(isRiverAt(seed, -3.25, boundaryZ - epsilon)).toBe(false);
       expect(isRiverAt(seed, -3.25, boundaryZ + epsilon)).toBe(false);
     }
+  });
+
+  it("raises mountain terrain into tall, varied, snow-level summits", () => {
+    const seed = "snow-capped-mountains";
+    const mountainHeights: number[] = [];
+    for (let z = -160; z <= 160; z += 8) for (let x = -160; x <= 160; x += 8) {
+      const sample = sampleTerrain(seed, x, z);
+      if (sample.biome === "mountain") mountainHeights.push(sample.height);
+    }
+
+    expect(mountainHeights.length).toBeGreaterThan(0);
+    expect(Math.max(...mountainHeights)).toBeGreaterThan(MOUNTAIN_SNOW_LINE);
+    expect(Math.max(...mountainHeights) - Math.min(...mountainHeights)).toBeGreaterThan(3);
   });
 });

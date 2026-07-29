@@ -41,11 +41,12 @@ describe("forest generation", () => {
   });
 
   it("gives meadow, forest, and highland different biome-level densities", () => {
-    const oneHot = (id: "plains" | "forest" | "wetland" | "highlands") => ({
+    const oneHot = (id: "plains" | "forest" | "wetland" | "highlands" | "mountain") => ({
       plains: 0,
       forest: 0,
       wetland: 0,
       highlands: 0,
+      mountain: 0,
       [id]: 1,
     });
 

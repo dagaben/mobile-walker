@@ -1,7 +1,7 @@
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
-import { isRiverAt, sampleTerrainHeight } from "./terrainSampling";
+import { isRiverAt, MOUNTAIN_SNOW_LINE, sampleTerrainHeight } from "./terrainSampling";
 
 export interface TreePlacement {
   readonly x: number;
@@ -45,6 +45,7 @@ const TREE_PROFILES: Readonly<Record<BiomeId, {
   forest: { sparseChance: 0.12, denseChance: 0.76, minScale: 0.92, maxScale: 1.34 },
   wetland: { sparseChance: 0.005, denseChance: 0.07, minScale: 0.72, maxScale: 1.02 },
   highlands: { sparseChance: 0.025, denseChance: 0.24, minScale: 0.58, maxScale: 0.88 },
+  mountain: { sparseChance: 0.004, denseChance: 0.035, minScale: 0.55, maxScale: 0.78 },
 };
 
 /** Blends each biome's sparse-to-dense tree range at a world position. */
@@ -87,6 +88,9 @@ export function generateTrees(
         || isRiverAt(seed, x, z + RIVER_CLEARANCE)
       ) continue;
 
+      const height = sampleTerrainHeight(seed, x, z);
+      if (height >= MOUNTAIN_SNOW_LINE) continue;
+
       let minScale = 0;
       let maxScale = 0;
       for (const id of Object.keys(TREE_PROFILES) as BiomeId[]) {
@@ -96,7 +100,7 @@ export function generateTrees(
 
       trees.push({
         x,
-        y: sampleTerrainHeight(seed, x, z),
+        y: height,
         z,
         scale: minScale + hashFloat(seed, cellX, cellZ, 414) * (maxScale - minScale),
         rotation: hashFloat(seed, cellX, cellZ, 415) * Math.PI * 2,

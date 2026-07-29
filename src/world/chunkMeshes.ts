@@ -5,6 +5,7 @@ import { TREE_TRUNK_RADIUS } from "./forest";
 import type { GeneratedChunkData } from "./generateChunk";
 import type { RiverPoint } from "./river";
 import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
+import { MOUNTAIN_SNOW_LINE } from "./terrainSampling";
 
 export interface DebugViewOptions {
   readonly wireframe: boolean;
@@ -15,6 +16,7 @@ export interface DebugViewOptions {
 
 const DEBUG_BOUNDARIES_NAME = "debug:walkable-boundaries";
 const DEBUG_RIVER_NAME = "debug:river-placement";
+const SNOW_COLOR = new THREE.Color(0xf4f6f7);
 
 /** Muted natural colors keep blended biome transitions subtle rather than candy-bright. */
 const TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
@@ -22,6 +24,7 @@ const TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
   forest: new THREE.Color(0x35563b),
   wetland: new THREE.Color(0x71866a),
   highlands: new THREE.Color(0x8b7358),
+  mountain: new THREE.Color(0x34383d),
 };
 
 const DEBUG_TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
@@ -29,6 +32,7 @@ const DEBUG_TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
   forest: new THREE.Color(BIOME_DEBUG_COLORS.forest),
   wetland: new THREE.Color(BIOME_DEBUG_COLORS.wetland),
   highlands: new THREE.Color(BIOME_DEBUG_COLORS.highlands),
+  mountain: new THREE.Color(BIOME_DEBUG_COLORS.mountain),
 };
 
 function blendBiomeColor(weights: BiomeWeights, target: THREE.Color): THREE.Color {
@@ -160,6 +164,11 @@ export class ChunkMeshFactory {
         data.coordinate.z * data.size + z * data.size / (side - 1),
       );
       blendBiomeColor(data.terrainBiomeWeights[vertexIndex], color);
+      // Snow follows elevation, with a short blend below the snow line to
+      // avoid a harsh contour around the summit.
+      const height = data.terrainHeights[vertexIndex] ?? 0;
+      const snow = Math.max(0, Math.min(1, (height - (MOUNTAIN_SNOW_LINE - 0.65)) / 0.65));
+      color.lerp(SNOW_COLOR, snow);
       colors.push(color.r, color.g, color.b);
       const dominant = (Object.keys(data.terrainBiomeWeights[vertexIndex]) as BiomeId[])
         .reduce((best, id) => data.terrainBiomeWeights[vertexIndex][id] > data.terrainBiomeWeights[vertexIndex][best] ? id : best);
