@@ -99,6 +99,23 @@ describe("river ribbon geometry", () => {
     }
     geometry.dispose();
   });
+
+  it("gives the shoreline a material that does not require absent vertex colors", () => {
+    const factory = new ChunkMeshFactory();
+    const group = factory.create(generateChunk("visible-shoreline", { x: 0, z: 0 }));
+    const channel = group.getObjectByName("river-channel") as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshStandardMaterial
+    >;
+
+    expect(channel.geometry.getAttribute("color")).toBeUndefined();
+    expect(channel.material.vertexColors).toBe(false);
+    expect(channel.material.color.getHex()).not.toBe(0x000000);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
   it("winds its triangles counter-clockwise from above", () => {
     const geometry = createRiverRibbonGeometry([
       { x: 0, z: 0, width: 2, surfaceElevation: 0 },
