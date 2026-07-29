@@ -74,7 +74,9 @@ and river materials are shared for the streamer's lifetime.
 
 ## Controls
 
-- **Desktop:** move with <kbd>WASD</kbd> or the arrow keys.
+- **Desktop:** move with <kbd>WASD</kbd> or the arrow keys and jump with
+  <kbd>Space</kbd>.
 - **Touch / pointer:** press anywhere on the scene and drag in the direction you
   want to walk. Release to stop. Drag distance controls the input strength until
-  it reaches full speed.
+  it reaches full speed. Tap, lift, then press again to jump; keep the second
+  press held and drag to move while jumping.

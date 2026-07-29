@@ -11,7 +11,10 @@ export interface PlayerControlComponent {
   moveX: number;
   moveZ: number;
   active: boolean;
+  jump: boolean;
 }
+
+export interface JumpComponent { grounded: boolean }
 
 export interface CameraTargetComponent {
   height: number;
@@ -41,6 +44,7 @@ export interface Entity {
   previousTransform?: PreviousTransformComponent;
   velocity?: VelocityComponent;
   playerControl?: PlayerControlComponent;
+  jump?: JumpComponent;
   cameraTarget?: CameraTargetComponent;
   terrainFollower?: TerrainFollowerComponent;
   interactable?: InteractableComponent;

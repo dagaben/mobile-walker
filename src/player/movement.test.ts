@@ -21,7 +21,7 @@ describe("integrateMovement", () => {
     const velocity = { x: 9, y: 9, z: 9 };
     const result = integrateMovement(
       { x: 1, y: 2, z: 3, yaw: 1.25 },
-      { moveX: 0, moveZ: 0, active: false },
+      { moveX: 0, moveZ: 0, active: false, jump: false },
       velocity,
       0.5,
     );
@@ -34,17 +34,17 @@ describe("integrateMovement", () => {
 
     integrateMovement(
       { x: 0, y: 0, z: 0, yaw: 0 },
-      { moveX: 0.25, moveZ: -0.5, active: true },
+      { moveX: 0.25, moveZ: -0.5, active: true, jump: false },
       velocity,
       0.1,
       8,
     );
 
-    expect(velocity).toEqual({ x: 2, y: 0, z: -4 });
+    expect(velocity).toEqual({ x: 2, y: -1.4000000000000001, z: -4 });
   });
 
   it("moves the same distance over equal time at different frame rates", () => {
-    const control = { moveX: 0.6, moveZ: 0.8, active: true };
+    const control = { moveX: 0.6, moveZ: 0.8, active: true, jump: false };
     const simulate = (steps: number) => {
       let transform = { x: 0, y: 2, z: 0, yaw: 0 };
       const velocity = { x: 0, y: 0, z: 0 };
@@ -59,5 +59,20 @@ describe("integrateMovement", () => {
     expect(atThirtyFps.x).toBeCloseTo(atOneHundredTwentyFps.x);
     expect(atThirtyFps.z).toBeCloseTo(atOneHundredTwentyFps.z);
     expect(Math.hypot(atThirtyFps.x, atThirtyFps.z)).toBeCloseTo(4);
+  });
+
+  it("launches a grounded player and applies gravity in the air", () => {
+    const velocity = { x: 0, y: 0, z: 0 };
+    const launched = integrateMovement(
+      { x: 0, y: 1, z: 0, yaw: 0 },
+      { moveX: 0, moveZ: 0, active: false, jump: true },
+      velocity,
+      0.1,
+    );
+    expect(launched.y).toBeGreaterThan(1);
+    const upwardVelocity = velocity.y;
+
+    integrateMovement(launched, { moveX: 0, moveZ: 0, active: false, jump: false }, velocity, 0.1, 4, false);
+    expect(velocity.y).toBeLessThan(upwardVelocity);
   });
 });
