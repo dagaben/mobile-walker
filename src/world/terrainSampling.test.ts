@@ -24,6 +24,20 @@ describe("terrain sampling", () => {
     }
   });
 
+  it("matches every generated vertex with the random-access height sampler", () => {
+    const seed = "vertex-agreement";
+    const coordinate = { x: -3, z: 2 };
+    const chunk = generateChunk(seed, coordinate);
+    const side = chunk.terrainVerticesPerSide;
+
+    for (let z = 0; z < side; z += 1) for (let x = 0; x < side; x += 1) {
+      const worldX = (coordinate.x + x / (side - 1)) * CHUNK_SIZE;
+      const worldZ = (coordinate.z + z / (side - 1)) * CHUNK_SIZE;
+      expect(chunk.terrainHeights[z * side + x])
+        .toBe(sampleTerrainHeight(seed, worldX, worldZ));
+    }
+  });
+
   it.each([-CHUNK_SIZE, 0, CHUNK_SIZE])("is continuous around the x=%s chunk boundary", (boundaryX) => {
     const epsilon = 1e-7;
     const z = -5.375;

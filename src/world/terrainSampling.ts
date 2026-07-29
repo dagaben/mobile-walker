@@ -22,11 +22,36 @@ const LATTICE_SPACING = CHUNK_SIZE / TERRAIN_SEGMENTS;
  */
 export const RIVER_BED_DEPTH = 0.45;
 
+const ELEVATION_PROFILES: Readonly<Record<BiomeId, {
+  readonly base: number;
+  readonly broad: number;
+  readonly detail: number;
+}>> = {
+  plains: { base: -0.04, broad: 0.42, detail: 0.1 },
+  forest: { base: 0.04, broad: 0.68, detail: 0.18 },
+  wetland: { base: -0.12, broad: 0.25, detail: 0.07 },
+  highlands: { base: 0.28, broad: 1.18, detail: 0.38 },
+};
+
 /** Height at one vertex of the infinite, seeded terrain lattice. */
 export function sampleTerrainLatticeHeight(seed: number, latticeX: number, latticeZ: number): number {
   const broad = hashFloat(seed, Math.floor(latticeX / 2), Math.floor(latticeZ / 2), 13);
   const detail = hashFloat(seed, latticeX, latticeZ, 29);
-  return (broad - 0.5) * 0.8 + (detail - 0.5) * 0.22;
+  const worldX = latticeX * LATTICE_SPACING;
+  const worldZ = latticeZ * LATTICE_SPACING;
+  const weights = sampleBiome(seed, worldX, worldZ).weights;
+
+  let base = 0;
+  let broadAmplitude = 0;
+  let detailAmplitude = 0;
+  for (const id of Object.keys(ELEVATION_PROFILES) as BiomeId[]) {
+    const profile = ELEVATION_PROFILES[id];
+    base += weights[id] * profile.base;
+    broadAmplitude += weights[id] * profile.broad;
+    detailAmplitude += weights[id] * profile.detail;
+  }
+
+  return base + (broad - 0.5) * broadAmplitude + (detail - 0.5) * detailAmplitude;
 }
 
 /**

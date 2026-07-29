@@ -1,4 +1,5 @@
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
+import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
 import { isRiverAt, sampleTerrainHeight } from "./terrainSampling";
 
@@ -34,10 +35,28 @@ export function sampleForestDensity(seed: number, worldX: number, worldZ: number
   return top * (1 - z) + bottom * z;
 }
 
-function treeChance(density: number): number {
-  if (density < 0.38) return 0.01;
-  if (density < 0.58) return 0.08 + (density - 0.38) * 0.8;
-  return Math.min(0.78, 0.42 + (density - 0.58) * 1.2);
+const TREE_PROFILES: Readonly<Record<BiomeId, {
+  readonly sparseChance: number;
+  readonly denseChance: number;
+  readonly minScale: number;
+  readonly maxScale: number;
+}>> = {
+  plains: { sparseChance: 0.005, denseChance: 0.12, minScale: 0.68, maxScale: 0.98 },
+  forest: { sparseChance: 0.12, denseChance: 0.76, minScale: 0.92, maxScale: 1.34 },
+  wetland: { sparseChance: 0.005, denseChance: 0.07, minScale: 0.72, maxScale: 1.02 },
+  highlands: { sparseChance: 0.025, denseChance: 0.24, minScale: 0.58, maxScale: 0.88 },
+};
+
+/** Blends each biome's sparse-to-dense tree range at a world position. */
+export function treeChance(density: number, weights: BiomeWeights): number {
+  const shapedDensity = smoothstep(Math.max(0, Math.min(1, density)));
+  let chance = 0;
+  for (const id of Object.keys(TREE_PROFILES) as BiomeId[]) {
+    const profile = TREE_PROFILES[id];
+    chance += weights[id]
+      * (profile.sparseChance + (profile.denseChance - profile.sparseChance) * shapedDensity);
+  }
+  return chance;
 }
 
 /** Deterministic, globally addressed tree placements for one chunk. */
@@ -58,7 +77,8 @@ export function generateTrees(
       const x = (cellX + 0.5) * TREE_CELL_SIZE + (hashFloat(seed, cellX, cellZ, 411) - 0.5) * 1.3;
       const z = (cellZ + 0.5) * TREE_CELL_SIZE + (hashFloat(seed, cellX, cellZ, 412) - 0.5) * 1.3;
       const density = sampleForestDensity(seed, x, z);
-      if (hashFloat(seed, cellX, cellZ, 413) >= treeChance(density)) continue;
+      const biomeWeights = sampleBiome(seed, x, z).weights;
+      if (hashFloat(seed, cellX, cellZ, 413) >= treeChance(density, biomeWeights)) continue;
 
       // Keep the banks readable and leave room to walk beside the water.
       if (
@@ -67,11 +87,18 @@ export function generateTrees(
         || isRiverAt(seed, x, z + RIVER_CLEARANCE)
       ) continue;
 
+      let minScale = 0;
+      let maxScale = 0;
+      for (const id of Object.keys(TREE_PROFILES) as BiomeId[]) {
+        minScale += biomeWeights[id] * TREE_PROFILES[id].minScale;
+        maxScale += biomeWeights[id] * TREE_PROFILES[id].maxScale;
+      }
+
       trees.push({
         x,
         y: sampleTerrainHeight(seed, x, z),
         z,
-        scale: 0.78 + hashFloat(seed, cellX, cellZ, 414) * 0.48,
+        scale: minScale + hashFloat(seed, cellX, cellZ, 414) * (maxScale - minScale),
         rotation: hashFloat(seed, cellX, cellZ, 415) * Math.PI * 2,
         shade: hashFloat(seed, cellX, cellZ, 416),
       });
