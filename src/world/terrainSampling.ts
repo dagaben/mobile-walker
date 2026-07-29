@@ -1,4 +1,5 @@
 import { CHUNK_SIZE, worldToChunk } from "./chunkCoordinates";
+import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
 import { sampleRiverSpine } from "./river";
 
@@ -8,6 +9,8 @@ export const TERRAIN_SEGMENTS = 8;
 export interface TerrainSample {
   readonly height: number;
   readonly surface: TerrainSurface;
+  readonly biome: BiomeId;
+  readonly biomeWeights: BiomeWeights;
 }
 
 const LATTICE_SPACING = CHUNK_SIZE / TERRAIN_SEGMENTS;
@@ -96,8 +99,11 @@ export function isRiverAt(seedInput: number | string, worldX: number, worldZ: nu
 }
 
 export function sampleTerrain(seed: number | string, worldX: number, worldZ: number): TerrainSample {
+  const biome = sampleBiome(seed, worldX, worldZ);
   return {
     height: sampleTerrainHeight(seed, worldX, worldZ),
     surface: isRiverAt(seed, worldX, worldZ) ? "river" : "land",
+    biome: biome.dominant,
+    biomeWeights: biome.weights,
   };
 }
