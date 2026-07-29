@@ -1,6 +1,7 @@
 import type { TransformComponent } from "../ecs/Entity";
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { generateTrees, TREE_TRUNK_RADIUS, type TreePlacement } from "./forest";
+import { generateVegetation, LEAF_TREE_TRUNK_RADIUS, type VegetationPlacement } from "./vegetation";
 
 export const PLAYER_COLLISION_RADIUS = 0.38;
 
@@ -20,11 +21,18 @@ function chunksBetween(
   return chunks;
 }
 
-function overlapsTrunk(x: number, z: number, trees: readonly TreePlacement[], playerRadius: number): boolean {
-  return trees.some((tree) => {
-    const collisionRadius = playerRadius + TREE_TRUNK_RADIUS * tree.scale;
+type TrunkPlacement = TreePlacement | VegetationPlacement;
+
+interface TrunkGroup {
+  readonly placements: readonly TrunkPlacement[];
+  readonly radius: number;
+}
+
+function overlapsTrunk(x: number, z: number, groups: readonly TrunkGroup[], playerRadius: number): boolean {
+  return groups.some(({ placements, radius }) => placements.some((tree) => {
+    const collisionRadius = playerRadius + radius * tree.scale;
     return (x - tree.x) ** 2 + (z - tree.z) ** 2 < collisionRadius ** 2;
-  });
+  }));
 }
 
 /**
@@ -38,9 +46,15 @@ export function resolveTreeTrunkMovement(
   to: TransformComponent,
   playerRadius = PLAYER_COLLISION_RADIUS,
 ): TransformComponent {
-  const trees = chunksBetween(from, to, playerRadius + TREE_TRUNK_RADIUS * 1.26)
-    .flatMap((coordinate) => generateTrees(seed, coordinate));
-  const x = overlapsTrunk(to.x, from.z, trees, playerRadius) ? from.x : to.x;
-  const z = overlapsTrunk(x, to.z, trees, playerRadius) ? from.z : to.z;
+  const chunks = chunksBetween(from, to, playerRadius + LEAF_TREE_TRUNK_RADIUS * 1.18);
+  const trunks: TrunkGroup[] = [
+    { placements: chunks.flatMap((coordinate) => generateTrees(seed, coordinate)), radius: TREE_TRUNK_RADIUS },
+    {
+      placements: chunks.flatMap((coordinate) => generateVegetation(seed, coordinate).leafTrees),
+      radius: LEAF_TREE_TRUNK_RADIUS,
+    },
+  ];
+  const x = overlapsTrunk(to.x, from.z, trunks, playerRadius) ? from.x : to.x;
+  const z = overlapsTrunk(x, to.z, trunks, playerRadius) ? from.z : to.z;
   return { ...to, x, z };
 }

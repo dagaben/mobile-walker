@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { TransformComponent } from "../ecs/Entity";
 import { generateTrees, TREE_TRUNK_RADIUS } from "./forest";
 import { PLAYER_COLLISION_RADIUS, resolveTreeTrunkMovement } from "./treeCollision";
+import { generateVegetation, LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
 
 describe("resolveTreeTrunkMovement", () => {
   const seed = "tree-collision-test";
@@ -13,6 +14,21 @@ describe("resolveTreeTrunkMovement", () => {
     const radius = PLAYER_COLLISION_RADIUS + TREE_TRUNK_RADIUS * tree.scale;
     const from: TransformComponent = { x: tree.x - radius - 0.1, y: tree.y + 0.76, z: tree.z, yaw: 1 };
     const to: TransformComponent = { ...from, x: tree.x - radius + 0.05 };
+
+    expect(resolveTreeTrunkMovement(seed, from, to)).toEqual({ ...to, x: from.x });
+  });
+
+  it("blocks movement into a generated leaf tree trunk", () => {
+    const leafTree = generateVegetation(seed, { x: 0, z: 0 }).leafTrees[0]!;
+    expect(leafTree).toBeDefined();
+    const radius = PLAYER_COLLISION_RADIUS + LEAF_TREE_TRUNK_RADIUS * leafTree.scale;
+    const from: TransformComponent = {
+      x: leafTree.x - radius - 0.1,
+      y: leafTree.y + 0.76,
+      z: leafTree.z,
+      yaw: 1,
+    };
+    const to: TransformComponent = { ...from, x: leafTree.x - radius + 0.05 };
 
     expect(resolveTreeTrunkMovement(seed, from, to)).toEqual({ ...to, x: from.x });
   });

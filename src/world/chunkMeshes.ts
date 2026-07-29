@@ -1,8 +1,10 @@
 import * as THREE from "three";
 
 import { BIOME_DEBUG_COLORS, type BiomeId, type BiomeWeights } from "./biomes";
+import { TREE_TRUNK_RADIUS } from "./forest";
 import type { GeneratedChunkData } from "./generateChunk";
 import type { RiverPoint } from "./river";
+import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
 
 export interface DebugViewOptions {
   readonly wireframe: boolean;
@@ -192,7 +194,7 @@ export class ChunkMeshFactory {
     if (data.trees.length === 0) return group;
 
     const trunks = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.11, 0.16, 1.1, 5), this.trunkMaterial, data.trees.length,
+      new THREE.CylinderGeometry(0.11, TREE_TRUNK_RADIUS, 1.1, 5), this.trunkMaterial, data.trees.length,
     );
     const crowns = new THREE.InstancedMesh(
       new THREE.ConeGeometry(0.82, 2.25, 7), this.foliageMaterial, data.trees.length,
@@ -243,7 +245,7 @@ export class ChunkMeshFactory {
     const placements = data.vegetation.leafTrees;
     if (placements.length === 0) return group;
     const trunk = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.13, 0.2, 1.35, 6), this.trunkMaterial, placements.length,
+      new THREE.CylinderGeometry(0.13, LEAF_TREE_TRUNK_RADIUS, 1.35, 6), this.trunkMaterial, placements.length,
     );
     const crown = new THREE.InstancedMesh(
       new THREE.IcosahedronGeometry(0.9, 1), this.leafMaterial, placements.length,
