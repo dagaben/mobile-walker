@@ -6,3 +6,4 @@ export * from "./forest";
 export * from "./random";
 export * from "./river";
 export * from "./terrainSampling";
+export * from "./vegetation";
