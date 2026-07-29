@@ -11,21 +11,36 @@ import { CollectionSystem, createCollectionState, ExplorationPresentationSystem,
 
 export function createGameplay(world: EcsWorld, systems: SystemScheduler, renderer: ThreeRenderer, inputElement: HTMLElement): ChunkStreamingSystem {
   const worldSeed = "mobile-walker-v1";
-  const playerMesh = new THREE.Mesh(
+  const player = new THREE.Group();
+  const body = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.38, 0.75, 4, 8),
     new THREE.MeshStandardMaterial({ color: 0xf28f8f, flatShading: true, roughness: 0.9 }),
   );
-  playerMesh.castShadow = true;
-  renderer.scene.add(playerMesh);
+  body.castShadow = true;
+  player.add(body);
+
+  const eyeGeometry = new THREE.SphereGeometry(0.105, 12, 8);
+  const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0xfffbf2, roughness: 0.65 });
+  const pupilGeometry = new THREE.SphereGeometry(0.048, 10, 8);
+  const pupilMaterial = new THREE.MeshStandardMaterial({ color: 0x31473a, roughness: 0.75 });
+  for (const x of [-0.14, 0.14]) {
+    const eye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    eye.position.set(x, 0.42, 0.32);
+    const pupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
+    pupil.position.set(0, 0, 0.09);
+    eye.add(pupil);
+    player.add(eye);
+  }
+  renderer.scene.add(player);
 
   world.add({
-    transform: { x: 0, y: 0.76, z: 0, yaw: Math.PI },
-    previousTransform: { x: 0, y: 0.76, z: 0, yaw: Math.PI },
+    transform: { x: 0, y: 0.76, z: 0, yaw: 0 },
+    previousTransform: { x: 0, y: 0.76, z: 0, yaw: 0 },
     velocity: { x: 0, y: 0, z: 0 },
     playerControl: { moveX: 0, moveZ: 0, active: false },
     terrainFollower: { heightOffset: 0.76 },
     cameraTarget: { height: 4.5, distance: 6.5 },
-    renderable: playerMesh,
+    renderable: player,
   });
   world.add({ collectionState: createCollectionState() });
   // Fixed order: snapshot event state, then integrate.
