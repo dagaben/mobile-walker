@@ -74,12 +74,31 @@ describe("biome vegetation geometry", () => {
     const leafTrees = vegetation.getObjectByName("leaf-trees") as THREE.Group;
     const bushes = vegetation.getObjectByName("bushes") as THREE.Group;
     const flowers = vegetation.getObjectByName("flowers") as THREE.Group;
+    const leafCrown = leafTrees.children[1] as THREE.InstancedMesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    const bushMesh = bushes.children[0] as THREE.InstancedMesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    const flowerHeads = flowers.children[1] as THREE.InstancedMesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
 
     expect(vegetation.children).toHaveLength(3);
     expect(leafTrees.children.every((child) => child instanceof THREE.InstancedMesh)).toBe(true);
     expect(bushes.children.every((child) => child instanceof THREE.InstancedMesh)).toBe(true);
     expect(flowers.children.every((child) => child instanceof THREE.InstancedMesh)).toBe(true);
     expect((flowers.children[0] as THREE.InstancedMesh).count).toBe(data.vegetation.flowers.length);
+
+    const coloredMeshes = [
+      [leafCrown, data.vegetation.leafTrees.length],
+      [bushMesh, data.vegetation.bushes.length],
+      [flowerHeads, data.vegetation.flowers.length],
+    ] as const;
+    for (const [mesh, placementCount] of coloredMeshes) {
+      const representativeColor = new THREE.Color();
+      mesh.getColorAt(0, representativeColor);
+
+      expect(placementCount).toBeGreaterThan(0);
+      expect(mesh.instanceColor).not.toBeNull();
+      expect(mesh.instanceColor?.count).toBe(placementCount);
+      expect(representativeColor.getHex()).not.toBe(0x000000);
+      expect(mesh.material.vertexColors).toBe(false);
+    }
 
     factory.disposeChunk(group);
     factory.dispose();
