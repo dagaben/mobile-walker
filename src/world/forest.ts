@@ -1,4 +1,5 @@
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
+import { sampleBiomeWeights, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
 import { isRiverAt, sampleTerrainHeight } from "./terrainSampling";
 
@@ -34,10 +35,13 @@ export function sampleForestDensity(seed: number, worldX: number, worldZ: number
   return top * (1 - z) + bottom * z;
 }
 
-function treeChance(density: number): number {
-  if (density < 0.38) return 0.01;
-  if (density < 0.58) return 0.08 + (density - 0.38) * 0.8;
-  return Math.min(0.78, 0.42 + (density - 0.58) * 1.2);
+export function treeChance(density: number, biomes: BiomeWeights): number {
+  const meadowChance = 0.005 + density * 0.035;
+  const forestChance = 0.16 + density * 0.64;
+  const highlandChance = 0.025 + density * 0.16;
+  return meadowChance * biomes.meadow
+    + forestChance * biomes.forest
+    + highlandChance * biomes.highland;
 }
 
 /** Deterministic, globally addressed tree placements for one chunk. */
@@ -58,7 +62,8 @@ export function generateTrees(
       const x = (cellX + 0.5) * TREE_CELL_SIZE + (hashFloat(seed, cellX, cellZ, 411) - 0.5) * 1.3;
       const z = (cellZ + 0.5) * TREE_CELL_SIZE + (hashFloat(seed, cellX, cellZ, 412) - 0.5) * 1.3;
       const density = sampleForestDensity(seed, x, z);
-      if (hashFloat(seed, cellX, cellZ, 413) >= treeChance(density)) continue;
+      const biomes = sampleBiomeWeights(seed, x, z);
+      if (hashFloat(seed, cellX, cellZ, 413) >= treeChance(density, biomes)) continue;
 
       // Keep the banks readable and leave room to walk beside the water.
       if (
@@ -67,11 +72,13 @@ export function generateTrees(
         || isRiverAt(seed, x, z + RIVER_CLEARANCE)
       ) continue;
 
+      const minimumScale = biomes.meadow * 0.62 + biomes.forest * 0.88 + biomes.highland * 0.7;
+      const scaleRange = biomes.meadow * 0.28 + biomes.forest * 0.48 + biomes.highland * 0.34;
       trees.push({
         x,
         y: sampleTerrainHeight(seed, x, z),
         z,
-        scale: 0.78 + hashFloat(seed, cellX, cellZ, 414) * 0.48,
+        scale: minimumScale + hashFloat(seed, cellX, cellZ, 414) * scaleRange,
         rotation: hashFloat(seed, cellX, cellZ, 415) * Math.PI * 2,
         shade: hashFloat(seed, cellX, cellZ, 416),
       });

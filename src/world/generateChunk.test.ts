@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { generateChunk } from "./generateChunk";
 import { worldToChunk } from "./chunkCoordinates";
+import { sampleTerrainHeight } from "./terrainSampling";
 
 describe("deterministic chunk generation", () => {
   it("repeats exactly for the same seed and coordinate", () => {
@@ -47,6 +48,17 @@ describe("deterministic chunk generation", () => {
       const x = Math.round((point.x - chunk.coordinate.x * chunk.size) / chunk.size * (side - 1));
       const z = Math.round((point.z - chunk.coordinate.z * chunk.size) / chunk.size * (side - 1));
       expect(chunk.terrainHeights[z * side + x]).toBeLessThan(point.surfaceElevation);
+    }
+  });
+
+  it("uses the public terrain sampler for every generated vertex", () => {
+    const seed = "biome-vertex-agreement";
+    const chunk = generateChunk(seed, { x: -3, z: 2 });
+    const side = chunk.terrainVerticesPerSide;
+    for (let z = 0; z < side; z += 1) for (let x = 0; x < side; x += 1) {
+      const worldX = chunk.coordinate.x * chunk.size + x * chunk.size / (side - 1);
+      const worldZ = chunk.coordinate.z * chunk.size + z * chunk.size / (side - 1);
+      expect(chunk.terrainHeights[z * side + x]).toBe(sampleTerrainHeight(seed, worldX, worldZ));
     }
   });
 });

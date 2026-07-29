@@ -1,4 +1,5 @@
 import { CHUNK_SIZE, worldToChunk } from "./chunkCoordinates";
+import { sampleBiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
 import { sampleRiverSpine } from "./river";
 
@@ -23,7 +24,15 @@ export const RIVER_BED_DEPTH = 0.45;
 export function sampleTerrainLatticeHeight(seed: number, latticeX: number, latticeZ: number): number {
   const broad = hashFloat(seed, Math.floor(latticeX / 2), Math.floor(latticeZ / 2), 13);
   const detail = hashFloat(seed, latticeX, latticeZ, 29);
-  return (broad - 0.5) * 0.8 + (detail - 0.5) * 0.22;
+  const biomes = sampleBiomeWeights(
+    seed,
+    latticeX * LATTICE_SPACING,
+    latticeZ * LATTICE_SPACING,
+  );
+  const baseElevation = biomes.highland * 0.48 - biomes.meadow * 0.08;
+  const broadAmplitude = biomes.meadow * 0.35 + biomes.forest * 0.72 + biomes.highland * 1.5;
+  const detailAmplitude = biomes.meadow * 0.08 + biomes.forest * 0.2 + biomes.highland * 0.4;
+  return baseElevation + (broad - 0.5) * broadAmplitude + (detail - 0.5) * detailAmplitude;
 }
 
 /**

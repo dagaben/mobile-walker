@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { CHUNK_SIZE } from "./chunkCoordinates";
-import { generateTrees, sampleForestDensity } from "./forest";
+import { sampleBiomeWeights } from "./biomes";
+import { generateTrees, sampleForestDensity, treeChance } from "./forest";
 import { normalizeSeed } from "./random";
 import { isRiverAt, sampleTerrainHeight } from "./terrainSampling";
 
@@ -33,5 +34,34 @@ describe("forest generation", () => {
     expect(Math.max(...densities)).toBeGreaterThan(0.8);
     expect(Math.min(...counts)).toBeLessThanOrEqual(2);
     expect(Math.max(...counts)).toBeGreaterThanOrEqual(25);
+  });
+
+  it("gives biome blends distinct tree density and scale ranges", () => {
+    const density = 0.7;
+    const meadow = { meadow: 1, forest: 0, highland: 0 };
+    const forest = { meadow: 0, forest: 1, highland: 0 };
+    const highland = { meadow: 0, forest: 0, highland: 1 };
+
+    expect(treeChance(density, forest)).toBeGreaterThan(treeChance(density, highland));
+    expect(treeChance(density, highland)).toBeGreaterThan(treeChance(density, meadow));
+
+    const seed = normalizeSeed("biome-scale-ranges");
+    const forestScales: number[] = [];
+    const meadowScales: number[] = [];
+    const highlandScales: number[] = [];
+    for (let z = -12; z <= 12; z += 1) for (let x = -12; x <= 12; x += 1) {
+      for (const tree of generateTrees(seed, { x, z })) {
+        const weights = sampleBiomeWeights(seed, tree.x, tree.z);
+        if (weights.forest > 0.65) forestScales.push(tree.scale);
+        if (weights.meadow > 0.65) meadowScales.push(tree.scale);
+        if (weights.highland > 0.65) highlandScales.push(tree.scale);
+      }
+    }
+    expect(forestScales.length).toBeGreaterThan(0);
+    expect(meadowScales.length).toBeGreaterThan(0);
+    expect(highlandScales.length).toBeGreaterThan(0);
+    const average = (values: readonly number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    expect(average(forestScales)).toBeGreaterThan(average(meadowScales));
+    expect(average(forestScales)).toBeGreaterThan(average(highlandScales));
   });
 });

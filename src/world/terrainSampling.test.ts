@@ -24,6 +24,16 @@ describe("terrain sampling", () => {
     }
   });
 
+  it("shares exact vertices across north-south chunk edges", () => {
+    const north = generateChunk("biome-edge", { x: 3, z: -2 });
+    const south = generateChunk("biome-edge", { x: 3, z: -1 });
+    const side = north.terrainVerticesPerSide;
+
+    for (let x = 0; x < side; x += 1) {
+      expect(north.terrainHeights[(side - 1) * side + x]).toBe(south.terrainHeights[x]);
+    }
+  });
+
   it.each([-CHUNK_SIZE, 0, CHUNK_SIZE])("is continuous around the x=%s chunk boundary", (boundaryX) => {
     const epsilon = 1e-7;
     const z = -5.375;
