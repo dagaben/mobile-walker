@@ -12,7 +12,9 @@ export class ThreeRenderer {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PIXEL_RATIO));
     this.scene.background = new THREE.Color(0xd9ead8);
-    this.scene.fog = new THREE.Fog(0xd9ead8, 9, 24);
+    // Boundary concealment belongs to streamed-world materials. This optional,
+    // much longer range fog only adds atmosphere within and beyond that blend.
+    this.scene.fog = new THREE.Fog(0xd9ead8, 72, 120);
 
     this.camera.position.set(6, 5, 8);
     this.camera.lookAt(0, 0, 0);

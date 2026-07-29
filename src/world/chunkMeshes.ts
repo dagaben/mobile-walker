@@ -7,6 +7,64 @@ import type { RiverPoint } from "./river";
 import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
 import { MOUNTAIN_SNOW_LINE } from "./terrainSampling";
 
+export interface LoadedNeighborhoodFade {
+  readonly centerX: number;
+  readonly centerZ: number;
+  readonly halfExtent: number;
+  readonly width: number;
+  readonly color: THREE.ColorRepresentation;
+}
+
+export const BOUNDARY_FADE_SHADER_KEY = "resident-neighborhood-fade-v1";
+
+/** Adds an opaque background-color blend at the edge of the resident square. */
+export function applyLoadedNeighborhoodFade(
+  material: THREE.MeshStandardMaterial,
+  fade: LoadedNeighborhoodFade,
+): void {
+  const uniforms = {
+    center: { value: new THREE.Vector2(fade.centerX, fade.centerZ) },
+    halfExtent: { value: fade.halfExtent },
+    width: { value: fade.width },
+    color: { value: new THREE.Color(fade.color) },
+  };
+  material.userData.loadedNeighborhoodFade = uniforms;
+  material.customProgramCacheKey = () => BOUNDARY_FADE_SHADER_KEY;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, {
+      loadedCenter: uniforms.center,
+      loadedHalfExtent: uniforms.halfExtent,
+      loadedFadeWidth: uniforms.width,
+      loadedBackground: uniforms.color,
+    });
+    shader.vertexShader = shader.vertexShader
+      .replace("void main() {", "varying vec2 vLoadedWorldPosition;\nvoid main() {")
+      .replace("#include <project_vertex>", `
+        vec4 loadedPosition = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          loadedPosition = instanceMatrix * loadedPosition;
+        #endif
+        vLoadedWorldPosition = (modelMatrix * loadedPosition).xz;
+        #include <project_vertex>
+      `);
+    shader.fragmentShader = shader.fragmentShader
+      .replace("void main() {", `
+        uniform vec2 loadedCenter;
+        uniform float loadedHalfExtent;
+        uniform float loadedFadeWidth;
+        uniform vec3 loadedBackground;
+        varying vec2 vLoadedWorldPosition;
+        void main() {
+      `)
+      .replace("#include <opaque_fragment>", `
+        float loadedEdgeDistance = max(abs(vLoadedWorldPosition.x - loadedCenter.x), abs(vLoadedWorldPosition.y - loadedCenter.y));
+        float loadedEdgeFade = smoothstep(loadedHalfExtent - loadedFadeWidth, loadedHalfExtent, loadedEdgeDistance);
+        outgoingLight = mix(outgoingLight, loadedBackground, loadedEdgeFade);
+        #include <opaque_fragment>
+      `);
+  };
+}
+
 export interface DebugViewOptions {
   readonly wireframe: boolean;
   readonly boundaries: boolean;
@@ -106,6 +164,29 @@ export class ChunkMeshFactory {
     color: 0x1677ff, depthTest: false, transparent: true, opacity: 0.72, side: THREE.DoubleSide,
   });
   private debugView: DebugViewOptions = { wireframe: false, boundaries: false, riverPlacement: false, biomeGuide: false };
+
+  constructor(fade?: LoadedNeighborhoodFade) {
+    if (!fade) return;
+    for (const material of this.fadedMaterials()) applyLoadedNeighborhoodFade(material, fade);
+  }
+
+  setLoadedNeighborhood(centerX: number, centerZ: number, halfExtent: number): void {
+    for (const material of this.fadedMaterials()) {
+      const uniforms = material.userData.loadedNeighborhoodFade as
+        | { center: { value: THREE.Vector2 }; halfExtent: { value: number } }
+        | undefined;
+      uniforms?.center.value.set(centerX, centerZ);
+      if (uniforms) uniforms.halfExtent.value = halfExtent;
+    }
+  }
+
+  private fadedMaterials(): THREE.MeshStandardMaterial[] {
+    return [
+      this.terrainMaterial, this.debugTerrainMaterial, this.riverMaterial,
+      this.trunkMaterial, this.foliageMaterial, this.leafMaterial, this.bushMaterial,
+      this.flowerStemMaterial, this.flowerHeadMaterial,
+    ];
+  }
 
   create(data: GeneratedChunkData): THREE.Group {
     const group = new THREE.Group();
