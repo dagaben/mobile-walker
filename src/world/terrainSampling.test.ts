@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import { CHUNK_SIZE } from "./chunkCoordinates";
 import { generateChunk } from "./generateChunk";
+import { normalizeSeed } from "./random";
 import {
   isRiverAt,
   MOUNTAIN_SNOW_LINE,
+  RIVER_BANK_WIDTH,
   RIVER_BED_DEPTH,
+  RIVER_TRANSITION_WIDTH,
+  sampleChannelTerrainHeight,
   sampleChannelTerrainLatticeHeight,
+  sampleRiverCrossSection,
+  sampleNaturalTerrainHeight,
   sampleTerrain,
   sampleTerrainHeight,
   sampleTerrainLatticeHeight,
@@ -79,10 +85,42 @@ describe("terrain sampling", () => {
       expect(isRiverAt(seed, 3, worldZ)).toBe(false);
       expect(sampleTerrain(seed, 3, worldZ).surface).toBe("land");
     }
-    for (const latticeZ of [-4, 12]) {
+    for (const latticeZ of [-4, 20]) {
       expect(sampleChannelTerrainLatticeHeight(41, 2, latticeZ))
         .toBe(sampleTerrainLatticeHeight(41, 2, latticeZ));
     }
+  });
+
+  it("rises monotonically through the bank blend and leaves terrain beyond its transition unchanged", () => {
+    const seed = normalizeSeed("bank-profile");
+    const worldX = 8;
+    const section = sampleRiverCrossSection(seed, worldX, CHUNK_SIZE / 2)!;
+    const bedEdge = section.surfaceElevation - RIVER_BED_DEPTH + RIVER_BED_DEPTH * 0.08;
+    const samples = [11, 12, 13].map((worldZ) => {
+      const natural = sampleNaturalTerrainHeight(seed, worldX, worldZ);
+      const carved = sampleChannelTerrainHeight(seed, worldX, worldZ);
+      return (carved - bedEdge) / (natural - bedEdge);
+    });
+
+    expect(samples[0]).toBeLessThan(samples[1]);
+    expect(samples[1]).toBeLessThanOrEqual(samples[2]);
+    expect(samples[2]).toBe(1);
+    const untouchedZ = Math.ceil(
+      section.centerZ + section.waterWidth / 2 + RIVER_BANK_WIDTH + RIVER_TRANSITION_WIDTH,
+    );
+    expect(sampleChannelTerrainHeight(seed, worldX, untouchedZ))
+      .toBe(sampleNaturalTerrainHeight(seed, worldX, untouchedZ));
+  });
+
+  it("uses the shared cross-section for collision at the rendered water edges", () => {
+    const seed = "cross-section-agreement";
+    const section = sampleRiverCrossSection(seed, 6.5, CHUNK_SIZE / 2)!;
+    const halfWidth = section.waterWidth / 2;
+
+    expect(isRiverAt(seed, 6.5, section.centerZ - halfWidth)).toBe(true);
+    expect(isRiverAt(seed, 6.5, section.centerZ + halfWidth)).toBe(true);
+    expect(isRiverAt(seed, 6.5, section.centerZ - halfWidth - 1e-6)).toBe(false);
+    expect(isRiverAt(seed, 6.5, section.centerZ + halfWidth + 1e-6)).toBe(false);
   });
 
   it("does not invent a collision jump at negative north-south boundaries", () => {
