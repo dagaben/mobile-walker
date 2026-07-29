@@ -46,6 +46,12 @@ export class ChunkMeshFactory {
   private readonly riverMaterial = new THREE.MeshStandardMaterial({
     color: 0x5da9c9, flatShading: true, roughness: 0.65,
   });
+  private readonly trunkMaterial = new THREE.MeshStandardMaterial({
+    color: 0x77553d, flatShading: true, roughness: 1,
+  });
+  private readonly foliageMaterial = new THREE.MeshStandardMaterial({
+    color: 0x386f4b, flatShading: true, roughness: 1,
+  });
   private readonly boundaryMaterial = new THREE.LineBasicMaterial({ color: 0xff4f4f, depthTest: false });
   private readonly riverPlacementMaterial = new THREE.MeshBasicMaterial({
     color: 0x1677ff, depthTest: false, transparent: true, opacity: 0.72, side: THREE.DoubleSide,
@@ -55,7 +61,7 @@ export class ChunkMeshFactory {
   create(data: GeneratedChunkData): THREE.Group {
     const group = new THREE.Group();
     group.name = `chunk:${data.id}`;
-    group.add(this.createTerrain(data), this.createRiver(data), this.createBoundaries(data), this.createRiverPlacement(data));
+    group.add(this.createTerrain(data), this.createRiver(data), this.createTrees(data), this.createBoundaries(data), this.createRiverPlacement(data));
     return group;
   }
 
@@ -77,6 +83,8 @@ export class ChunkMeshFactory {
   dispose(): void {
     this.terrainMaterial.dispose();
     this.riverMaterial.dispose();
+    this.trunkMaterial.dispose();
+    this.foliageMaterial.dispose();
     this.boundaryMaterial.dispose();
     this.riverPlacementMaterial.dispose();
   }
@@ -107,6 +115,46 @@ export class ChunkMeshFactory {
 
   private createRiver(data: GeneratedChunkData): THREE.Mesh {
     return new THREE.Mesh(createRiverRibbonGeometry(data.river.spine), this.riverMaterial);
+  }
+
+  private createTrees(data: GeneratedChunkData): THREE.Group {
+    const group = new THREE.Group();
+    group.name = "trees";
+    if (data.trees.length === 0) return group;
+
+    const trunks = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.11, 0.16, 1.1, 5), this.trunkMaterial, data.trees.length,
+    );
+    const crowns = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(0.82, 2.25, 7), this.foliageMaterial, data.trees.length,
+    );
+    const upperCrowns = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(0.59, 1.75, 7), this.foliageMaterial, data.trees.length,
+    );
+    const transform = new THREE.Object3D();
+    const color = new THREE.Color();
+    data.trees.forEach((tree, index) => {
+      transform.position.set(tree.x, tree.y + 0.55 * tree.scale, tree.z);
+      transform.rotation.y = tree.rotation;
+      transform.scale.setScalar(tree.scale);
+      transform.updateMatrix();
+      trunks.setMatrixAt(index, transform.matrix);
+
+      transform.position.y = tree.y + 1.45 * tree.scale;
+      transform.updateMatrix();
+      crowns.setMatrixAt(index, transform.matrix);
+      color.setHSL(0.36 + tree.shade * 0.025, 0.34, 0.27 + tree.shade * 0.08);
+      crowns.setColorAt(index, color);
+
+      transform.position.y = tree.y + 2.15 * tree.scale;
+      transform.updateMatrix();
+      upperCrowns.setMatrixAt(index, transform.matrix);
+      upperCrowns.setColorAt(index, color);
+    });
+    trunks.castShadow = crowns.castShadow = upperCrowns.castShadow = true;
+    trunks.receiveShadow = crowns.receiveShadow = upperCrowns.receiveShadow = true;
+    group.add(trunks, crowns, upperCrowns);
+    return group;
   }
 
   private createBoundaries(data: GeneratedChunkData): THREE.Group {
