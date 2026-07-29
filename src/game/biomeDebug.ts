@@ -58,6 +58,7 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     this.overlay.hidden = !enabled;
+    this.currentLabel.parentElement!.hidden = !enabled;
     this.elapsed = Number.POSITIVE_INFINITY;
   }
 

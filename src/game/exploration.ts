@@ -126,8 +126,7 @@ export class ExplorationPresentationSystem implements RenderSystem {
         entity.renderable.visible = !state.collectedIds.has(entity.interactable.id);
       }
     }
-    const nearbyTotal = [...this.active.values()].reduce((sum, entities) => sum + entities.length, 0);
-    this.status.textContent = `Waypoints found: ${state.discovered} · ${nearbyTotal} nearby`;
+    this.status.textContent = `Waypoints · ${state.discovered}`;
   }
 
   dispose(): void {
