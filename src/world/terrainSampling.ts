@@ -72,7 +72,7 @@ export function sampleTerrainHeight(seedInput: number | string, worldX: number, 
   return bottomRight + (bottomLeft - bottomRight) * (1 - x) + (topRight - bottomRight) * (1 - z);
 }
 
-/** Rivers are solid hazards: movement may approach a bank but cannot enter water. */
+/** Returns whether a point is inside the generated river ribbon. */
 export function isRiverAt(seedInput: number | string, worldX: number, worldZ: number): boolean {
   const seed = normalizeSeed(seedInput);
   const chunk = worldToChunk(worldX, worldZ);
