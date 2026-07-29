@@ -83,6 +83,18 @@ export class ChunkMeshFactory {
   private readonly foliageMaterial = new THREE.MeshStandardMaterial({
     color: 0x386f4b, flatShading: true, roughness: 1,
   });
+  private readonly leafMaterial = new THREE.MeshStandardMaterial({
+    color: 0x5d8244, flatShading: true, roughness: 1, vertexColors: true,
+  });
+  private readonly bushMaterial = new THREE.MeshStandardMaterial({
+    color: 0x527747, flatShading: true, roughness: 1, vertexColors: true,
+  });
+  private readonly flowerStemMaterial = new THREE.MeshStandardMaterial({
+    color: 0x668653, flatShading: true, roughness: 1,
+  });
+  private readonly flowerHeadMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff, flatShading: true, roughness: 0.9, vertexColors: true,
+  });
   private readonly boundaryMaterial = new THREE.LineBasicMaterial({ color: 0xff4f4f, depthTest: false });
   private readonly riverPlacementMaterial = new THREE.MeshBasicMaterial({
     color: 0x1677ff, depthTest: false, transparent: true, opacity: 0.72, side: THREE.DoubleSide,
@@ -95,6 +107,7 @@ export class ChunkMeshFactory {
     group.add(this.createTerrain(data));
     if (data.river) group.add(this.createRiver(data.river.spine));
     group.add(this.createTrees(data));
+    group.add(this.createVegetation(data));
     if (data.river) group.add(this.createBoundaries(data.river.spine), this.createRiverPlacement(data.river.spine));
     return group;
   }
@@ -122,6 +135,10 @@ export class ChunkMeshFactory {
     this.riverMaterial.dispose();
     this.trunkMaterial.dispose();
     this.foliageMaterial.dispose();
+    this.leafMaterial.dispose();
+    this.bushMaterial.dispose();
+    this.flowerStemMaterial.dispose();
+    this.flowerHeadMaterial.dispose();
     this.boundaryMaterial.dispose();
     this.riverPlacementMaterial.dispose();
   }
@@ -206,6 +223,101 @@ export class ChunkMeshFactory {
     trunks.castShadow = crowns.castShadow = upperCrowns.castShadow = true;
     trunks.receiveShadow = crowns.receiveShadow = upperCrowns.receiveShadow = true;
     group.add(trunks, crowns, upperCrowns);
+    return group;
+  }
+
+  private createVegetation(data: GeneratedChunkData): THREE.Group {
+    const group = new THREE.Group();
+    group.name = "vegetation";
+    group.add(
+      this.createLeafTrees(data),
+      this.createBushes(data),
+      this.createFlowers(data),
+    );
+    return group;
+  }
+
+  private createLeafTrees(data: GeneratedChunkData): THREE.Group {
+    const group = new THREE.Group();
+    group.name = "leaf-trees";
+    const placements = data.vegetation.leafTrees;
+    if (placements.length === 0) return group;
+    const trunk = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.13, 0.2, 1.35, 6), this.trunkMaterial, placements.length,
+    );
+    const crown = new THREE.InstancedMesh(
+      new THREE.IcosahedronGeometry(0.9, 1), this.leafMaterial, placements.length,
+    );
+    const transform = new THREE.Object3D();
+    const color = new THREE.Color();
+    placements.forEach((tree, index) => {
+      transform.position.set(tree.x, tree.y + 0.675 * tree.scale, tree.z);
+      transform.rotation.y = tree.rotation;
+      transform.scale.setScalar(tree.scale);
+      transform.updateMatrix();
+      trunk.setMatrixAt(index, transform.matrix);
+      transform.position.set(tree.x, tree.y + 1.65 * tree.scale, tree.z);
+      transform.scale.set(1.15 * tree.scale, 0.92 * tree.scale, tree.scale);
+      transform.updateMatrix();
+      crown.setMatrixAt(index, transform.matrix);
+      color.setHSL(0.25 + tree.shade * 0.05, 0.36, 0.33 + tree.shade * 0.08);
+      crown.setColorAt(index, color);
+    });
+    trunk.castShadow = crown.castShadow = true;
+    trunk.receiveShadow = crown.receiveShadow = true;
+    group.add(trunk, crown);
+    return group;
+  }
+
+  private createBushes(data: GeneratedChunkData): THREE.Group {
+    const group = new THREE.Group();
+    group.name = "bushes";
+    const placements = data.vegetation.bushes;
+    if (placements.length === 0) return group;
+    const bushes = new THREE.InstancedMesh(
+      new THREE.DodecahedronGeometry(0.42, 0), this.bushMaterial, placements.length,
+    );
+    const transform = new THREE.Object3D();
+    const color = new THREE.Color();
+    placements.forEach((bush, index) => {
+      transform.position.set(bush.x, bush.y + 0.3 * bush.scale, bush.z);
+      transform.rotation.y = bush.rotation;
+      transform.scale.set(1.3 * bush.scale, 0.72 * bush.scale, bush.scale);
+      transform.updateMatrix();
+      bushes.setMatrixAt(index, transform.matrix);
+      color.setHSL(0.27 + bush.shade * 0.04, 0.32, 0.31 + bush.shade * 0.08);
+      bushes.setColorAt(index, color);
+    });
+    bushes.castShadow = bushes.receiveShadow = true;
+    group.add(bushes);
+    return group;
+  }
+
+  private createFlowers(data: GeneratedChunkData): THREE.Group {
+    const group = new THREE.Group();
+    group.name = "flowers";
+    const placements = data.vegetation.flowers;
+    if (placements.length === 0) return group;
+    const stems = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.018, 0.025, 0.3, 4), this.flowerStemMaterial, placements.length,
+    );
+    const heads = new THREE.InstancedMesh(
+      new THREE.OctahedronGeometry(0.105, 0), this.flowerHeadMaterial, placements.length,
+    );
+    const transform = new THREE.Object3D();
+    const color = new THREE.Color();
+    placements.forEach((flower, index) => {
+      transform.position.set(flower.x, flower.y + 0.15 * flower.scale, flower.z);
+      transform.rotation.y = flower.rotation;
+      transform.scale.setScalar(flower.scale);
+      transform.updateMatrix();
+      stems.setMatrixAt(index, transform.matrix);
+      transform.position.y = flower.y + 0.34 * flower.scale;
+      transform.updateMatrix();
+      heads.setMatrixAt(index, transform.matrix);
+      heads.setColorAt(index, color.setHex(flower.color));
+    });
+    group.add(stems, heads);
     return group;
   }
 

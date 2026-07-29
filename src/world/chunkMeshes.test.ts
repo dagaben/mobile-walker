@@ -38,7 +38,7 @@ describe("river ribbon geometry", () => {
     const factory = new ChunkMeshFactory();
     const group = factory.create(generateChunk("dry-row", { x: 0, z: 1 }));
 
-    expect(group.children).toHaveLength(2);
+    expect(group.children).toHaveLength(3);
     expect(group.getObjectByName("debug:walkable-boundaries")).toBeUndefined();
     expect(group.getObjectByName("debug:river-placement")).toBeUndefined();
     expect(() => factory.registerGroup(group)).not.toThrow();
@@ -59,6 +59,27 @@ describe("pine tree geometry", () => {
     expect(trees.children).toHaveLength(3);
     expect(trees.children.every((child) => child instanceof THREE.InstancedMesh)).toBe(true);
     expect((trees.children[0] as THREE.InstancedMesh).count).toBe(data.trees.length);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+});
+
+describe("biome vegetation geometry", () => {
+  it("renders leaf trees, bushes, and flowers as low-poly instances", () => {
+    const factory = new ChunkMeshFactory();
+    const data = generateChunk("garden-geometry", { x: -2, z: 1 });
+    const group = factory.create(data);
+    const vegetation = group.getObjectByName("vegetation") as THREE.Group;
+    const leafTrees = vegetation.getObjectByName("leaf-trees") as THREE.Group;
+    const bushes = vegetation.getObjectByName("bushes") as THREE.Group;
+    const flowers = vegetation.getObjectByName("flowers") as THREE.Group;
+
+    expect(vegetation.children).toHaveLength(3);
+    expect(leafTrees.children.every((child) => child instanceof THREE.InstancedMesh)).toBe(true);
+    expect(bushes.children.every((child) => child instanceof THREE.InstancedMesh)).toBe(true);
+    expect(flowers.children.every((child) => child instanceof THREE.InstancedMesh)).toBe(true);
+    expect((flowers.children[0] as THREE.InstancedMesh).count).toBe(data.vegetation.flowers.length);
 
     factory.disposeChunk(group);
     factory.dispose();
