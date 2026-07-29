@@ -175,6 +175,9 @@ export class ChunkMeshFactory {
   private readonly riverMaterial = new THREE.MeshStandardMaterial({
     color: 0x5da9c9, flatShading: true, roughness: 0.65,
   });
+  private readonly riverChannelMaterial = new THREE.MeshStandardMaterial({
+    color: 0x71875c, flatShading: true, roughness: 1,
+  });
   private readonly wetlandWaterMaterial = new THREE.MeshStandardMaterial({
     color: 0x6599a0, flatShading: true, roughness: 0.42, transparent: true, opacity: 0.82,
   });
@@ -219,7 +222,8 @@ export class ChunkMeshFactory {
 
   private fadedMaterials(): THREE.MeshStandardMaterial[] {
     return [
-      this.terrainMaterial, this.debugTerrainMaterial, this.riverMaterial, this.wetlandWaterMaterial,
+      this.terrainMaterial, this.debugTerrainMaterial, this.riverMaterial, this.riverChannelMaterial,
+      this.wetlandWaterMaterial,
       this.trunkMaterial, this.foliageMaterial, this.leafMaterial, this.bushMaterial,
       this.flowerStemMaterial, this.flowerHeadMaterial,
     ];
@@ -259,6 +263,7 @@ export class ChunkMeshFactory {
     this.terrainMaterial.dispose();
     this.debugTerrainMaterial.dispose();
     this.riverMaterial.dispose();
+    this.riverChannelMaterial.dispose();
     this.wetlandWaterMaterial.dispose();
     this.trunkMaterial.dispose();
     this.foliageMaterial.dispose();
@@ -323,7 +328,10 @@ export class ChunkMeshFactory {
   }
 
   private createRiverChannel(sections: readonly RiverChannelSection[]): THREE.Mesh {
-    const mesh = new THREE.Mesh(createRiverChannelGeometry(sections), this.terrainMaterial);
+    // Channel geometry does not carry the biome vertex-color attribute used by
+    // the base terrain. A dedicated material keeps its banks naturally colored
+    // instead of allowing the missing attribute to multiply them to black.
+    const mesh = new THREE.Mesh(createRiverChannelGeometry(sections), this.riverChannelMaterial);
     mesh.name = "river-channel";
     mesh.receiveShadow = true;
     return mesh;
