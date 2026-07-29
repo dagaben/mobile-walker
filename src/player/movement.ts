@@ -18,11 +18,12 @@ export function integrateMovement(
   deltaSeconds: number,
   speed = PLAYER_SPEED,
   grounded = true,
+  terrainSpeedMultiplier = 1,
 ): TransformComponent {
-  velocity.x = control.moveX * speed;
+  velocity.x = control.moveX * speed * terrainSpeedMultiplier;
   if (grounded) velocity.y = control.jump ? JUMP_SPEED : 0;
   velocity.y -= GRAVITY * deltaSeconds;
-  velocity.z = control.moveZ * speed;
+  velocity.z = control.moveZ * speed * terrainSpeedMultiplier;
   return {
     x: transform.x + velocity.x * deltaSeconds,
     y: transform.y + velocity.y * deltaSeconds,

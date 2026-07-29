@@ -43,6 +43,23 @@ describe("integrateMovement", () => {
     expect(velocity).toEqual({ x: 2, y: -1.4000000000000001, z: -4 });
   });
 
+  it("applies a terrain speed multiplier to horizontal movement only", () => {
+    const velocity = { x: 0, y: 0, z: 0 };
+    const result = integrateMovement(
+      { x: 0, y: 2, z: 0, yaw: 0 },
+      { moveX: 0.6, moveZ: 0.8, active: true, jump: false },
+      velocity,
+      1,
+      4,
+      true,
+      0.5,
+    );
+
+    expect(result.x).toBeCloseTo(1.2);
+    expect(result.z).toBeCloseTo(1.6);
+    expect(velocity.y).toBe(-14);
+  });
+
   it("moves the same distance over equal time at different frame rates", () => {
     const control = { moveX: 0.6, moveZ: 0.8, active: true, jump: false };
     const simulate = (steps: number) => {

@@ -53,7 +53,7 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   // Fixed order: snapshot event state, then integrate.
   const input = new InputController(inputElement);
   systems.addFixedSystem(new InputSnapshotSystem(input));
-  systems.addFixedSystem(new PlayerMovementSystem());
+  systems.addFixedSystem(new PlayerMovementSystem(worldSeed));
   systems.addFixedSystem(new TreeCollisionSystem(worldSeed));
   systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
   systems.addFixedSystem(new ProximityDetectionSystem());

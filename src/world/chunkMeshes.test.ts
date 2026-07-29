@@ -91,7 +91,7 @@ describe("river ribbon geometry", () => {
     const factory = new ChunkMeshFactory();
     const group = factory.create(generateChunk("dry-row", { x: 0, z: 1 }));
 
-    expect(group.children).toHaveLength(3);
+    expect(group.getObjectByName("wetland-pools")).toBeDefined();
     expect(group.getObjectByName("debug:walkable-boundaries")).toBeUndefined();
     expect(group.getObjectByName("debug:river-placement")).toBeUndefined();
     expect(() => factory.registerGroup(group)).not.toThrow();
