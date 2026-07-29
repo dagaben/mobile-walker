@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { generateChunk } from "./generateChunk";
 import { worldToChunk } from "./chunkCoordinates";
+import {
+  isRiverAt,
+  RIVER_TERRAIN_SEGMENTS,
+  sampleRiverCrossSection,
+  TERRAIN_SEGMENTS,
+} from "./terrainSampling";
 
 describe("deterministic chunk generation", () => {
   it("repeats exactly for the same seed and coordinate", () => {
@@ -65,6 +71,49 @@ describe("deterministic chunk generation", () => {
       const x = Math.round((point.x - chunk.coordinate.x * chunk.size) / chunk.size * (side - 1));
       const z = Math.round((point.z - chunk.coordinate.z * chunk.size) / chunk.size * (side - 1));
       expect(chunk.terrainHeights[z * side + x]).toBeLessThan(point.surfaceElevation);
+    }
+  });
+
+  it("renders a locally refined ribbon from the collision cross-section", () => {
+    const seed = "rendered-channel-agreement";
+    const chunk = generateChunk(seed, { x: 0, z: 0 });
+    expect(chunk.terrainVerticesPerSide).toBe(RIVER_TERRAIN_SEGMENTS + 1);
+    expect(chunk.river!.spine.length).toBeGreaterThan(RIVER_TERRAIN_SEGMENTS + 1);
+
+    for (const point of chunk.river!.spine) {
+      const section = sampleRiverCrossSection(seed, point.x, point.z)!;
+      expect(point.z).toBe(section.centerZ);
+      expect(point.width).toBe(section.waterWidth);
+      expect(point.surfaceElevation).toBe(section.surfaceElevation);
+      expect(isRiverAt(seed, point.x, point.z - point.width / 2)).toBe(true);
+      expect(isRiverAt(seed, point.x, point.z + point.width / 2)).toBe(true);
+    }
+  });
+
+  it("keeps the base terrain resolution outside the river row", () => {
+    const dryChunk = generateChunk("local-river-detail", { x: 0, z: 1 });
+    const riverChunk = generateChunk("local-river-detail", { x: 0, z: 0 });
+
+    expect(dryChunk.terrainVerticesPerSide).toBe(TERRAIN_SEGMENTS + 1);
+    expect(riverChunk.terrainVerticesPerSide).toBe(RIVER_TERRAIN_SEGMENTS + 1);
+    expect(dryChunk.terrainHeights).toHaveLength((TERRAIN_SEGMENTS + 1) ** 2);
+  });
+
+  it("keeps locally refined river-row edges on the neighboring coarse edge", () => {
+    const riverChunk = generateChunk("local-edge-continuity", { x: 0, z: 0 });
+    const southChunk = generateChunk("local-edge-continuity", { x: 0, z: 1 });
+    const fineSide = riverChunk.terrainVerticesPerSide;
+    const coarseSide = southChunk.terrainVerticesPerSide;
+
+    for (let coarseX = 0; coarseX < coarseSide; coarseX += 1) {
+      expect(riverChunk.terrainHeights[(fineSide - 1) * fineSide + coarseX * 2])
+        .toBe(southChunk.terrainHeights[coarseX]);
+    }
+    for (let coarseX = 0; coarseX < coarseSide - 1; coarseX += 1) {
+      const left = southChunk.terrainHeights[coarseX]!;
+      const right = southChunk.terrainHeights[coarseX + 1]!;
+      expect(riverChunk.terrainHeights[(fineSide - 1) * fineSide + coarseX * 2 + 1])
+        .toBeCloseTo((left + right) / 2);
     }
   });
 });
