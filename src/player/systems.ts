@@ -12,6 +12,7 @@ export class InputSnapshotSystem implements FixedSystem {
       entity.playerControl.moveX = movement.x;
       entity.playerControl.moveZ = movement.z;
       entity.playerControl.active = Math.hypot(movement.x, movement.z) > 0.01;
+      entity.playerControl.jump = raw.jump;
     }
   }
   dispose(): void { this.input.dispose(); }
@@ -22,7 +23,10 @@ export class PlayerMovementSystem implements FixedSystem {
     for (const entity of world.entities) {
       if (!entity.transform || !entity.previousTransform || !entity.playerControl || !entity.velocity) continue;
       Object.assign(entity.previousTransform, entity.transform);
-      Object.assign(entity.transform, integrateMovement(entity.transform, entity.playerControl, entity.velocity, deltaSeconds));
+      Object.assign(entity.transform, integrateMovement(
+        entity.transform, entity.playerControl, entity.velocity, deltaSeconds, undefined, entity.jump?.grounded,
+      ));
+      if (entity.playerControl.jump && entity.jump?.grounded) entity.jump.grounded = false;
     }
   }
 }
@@ -44,7 +48,14 @@ export class TerrainSamplingSystem implements FixedSystem {
         }
         sample = sampleTerrain(this.seed, entity.transform.x, entity.transform.z);
       }
-      entity.transform.y = sample.height + entity.terrainFollower.heightOffset;
+      const groundY = sample.height + entity.terrainFollower.heightOffset;
+      if (entity.transform.y <= groundY && (!entity.velocity || entity.velocity.y <= 0)) {
+        entity.transform.y = groundY;
+        if (entity.velocity) entity.velocity.y = 0;
+        if (entity.jump) entity.jump.grounded = true;
+      } else if (entity.jump) {
+        entity.jump.grounded = false;
+      }
     }
   }
 }
