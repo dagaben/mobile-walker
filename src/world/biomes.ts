@@ -63,8 +63,10 @@ function sampleClimateField(
   broadSalt: number,
   detailSalt: number,
 ): number {
-  return sampleField(seed, worldX, worldZ, 128, broadSalt) * 0.72
-    + sampleField(seed, worldX, worldZ, 48, detailSalt) * 0.28;
+  // Keep climate features relatively compact so explorers encounter biome
+  // changes regularly instead of crossing one very large region at a time.
+  return sampleField(seed, worldX, worldZ, 72, broadSalt) * 0.72
+    + sampleField(seed, worldX, worldZ, 28, detailSalt) * 0.28;
 }
 
 /**

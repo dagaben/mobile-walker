@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { BIOME_IDS, sampleBiome } from "../world/biomes";
-import { findNearestBiomes } from "./biomeDebug";
+import { findNearestBiomes, formatBiomeDistance } from "./biomeDebug";
+
+describe("formatBiomeDistance", () => {
+  it("reports rounded distances in world units", () => {
+    expect(formatBiomeDistance(47.6)).toBe("48 wu");
+  });
+});
 
 describe("findNearestBiomes", () => {
   it("finds a matching nearby region for every generated biome", () => {

@@ -99,12 +99,26 @@ body { overscroll-behavior: none; touch-action: none; }
   position: absolute;
   top: 0;
   left: 0;
-  width: 1.15rem;
-  height: 1.15rem;
-  border: 2px solid rgb(255 255 255 / 90%);
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .22rem .38rem .22rem .25rem;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 999px;
+  color: #24362c;
+  background: rgb(255 255 255 / 88%);
+  box-shadow: 0 .15rem .55rem rgb(25 38 30 / 38%);
+  font-size: .66rem;
+  font-weight: 700;
+  white-space: nowrap;
+  backdrop-filter: blur(.35rem);
+}
+.biome-indicator-marker {
+  width: .72rem;
+  height: .72rem;
+  flex: 0 0 auto;
   border-radius: 50%;
   background: var(--biome-color);
-  box-shadow: 0 .15rem .55rem rgb(25 38 30 / 38%);
 }
 
 .intro {
