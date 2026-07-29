@@ -1,3 +1,4 @@
+export * from "./biomes";
 export * from "./chunkCoordinates";
 export * from "./chunkId";
 export * from "./generateChunk";
