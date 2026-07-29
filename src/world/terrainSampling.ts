@@ -11,7 +11,13 @@ export interface TerrainSample {
 }
 
 const LATTICE_SPACING = CHUNK_SIZE / TERRAIN_SEGMENTS;
-export const RIVER_BED_CLEARANCE = 0.18;
+/**
+ * Vertical distance from the water surface to the walkable river bed.
+ *
+ * The player is approximately 1.5 world units tall, so this submerges them by
+ * roughly 30% of their height while they cross a river.
+ */
+export const RIVER_BED_DEPTH = 0.45;
 
 /** Height at one vertex of the infinite, seeded terrain lattice. */
 export function sampleTerrainLatticeHeight(seed: number, latticeX: number, latticeZ: number): number {
@@ -48,7 +54,7 @@ export function sampleChannelTerrainLatticeHeight(
   if (Math.abs(worldZ - centerZ) > width / 2 + LATTICE_SPACING) return naturalHeight;
   const surfaceElevation = start.surfaceElevation
     + (end.surfaceElevation - start.surfaceElevation) * fraction;
-  return Math.min(naturalHeight, surfaceElevation - RIVER_BED_CLEARANCE);
+  return surfaceElevation - RIVER_BED_DEPTH;
 }
 
 /**

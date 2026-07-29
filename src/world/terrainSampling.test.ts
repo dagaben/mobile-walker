@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { CHUNK_SIZE } from "./chunkCoordinates";
 import { generateChunk } from "./generateChunk";
-import { isRiverAt, sampleTerrain, sampleTerrainHeight } from "./terrainSampling";
+import {
+  isRiverAt,
+  RIVER_BED_DEPTH,
+  sampleTerrain,
+  sampleTerrainHeight,
+} from "./terrainSampling";
 
 describe("terrain sampling", () => {
   it("returns the exact generated lattice heights on both sides of a negative chunk boundary", () => {
@@ -36,6 +41,19 @@ describe("terrain sampling", () => {
     expect(isRiverAt(seed, epsilon, riverZ)).toBe(true);
     expect(sampleTerrain(seed, -epsilon, riverZ).surface)
       .toBe(sampleTerrain(seed, epsilon, riverZ).surface);
+  });
+
+  it("sets the walkable river bed deep enough to submerge about 30% of the player", () => {
+    const chunk = generateChunk("deeper-river", { x: 0, z: 0 });
+    const side = chunk.terrainVerticesPerSide;
+    const river = chunk.river.entry;
+    const z = Math.round(river.z / CHUNK_SIZE * (side - 1));
+
+    expect(chunk.terrainHeights[z * side]).toBeCloseTo(
+      river.surfaceElevation - RIVER_BED_DEPTH,
+    );
+    expect(RIVER_BED_DEPTH).toBeGreaterThanOrEqual(1.5 * 0.2);
+    expect(RIVER_BED_DEPTH).toBeLessThanOrEqual(1.5 * 0.4);
   });
 
   it("does not invent a collision jump at negative north-south boundaries", () => {
