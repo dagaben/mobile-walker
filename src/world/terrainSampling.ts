@@ -30,7 +30,9 @@ const ELEVATION_PROFILES: Readonly<Record<BiomeId, {
   plains: { base: -0.04, broad: 0.42, detail: 0.1 },
   forest: { base: 0.04, broad: 0.68, detail: 0.18 },
   wetland: { base: -0.12, broad: 0.25, detail: 0.07 },
-  highlands: { base: 0.28, broad: 1.18, detail: 0.38 },
+  // Highlands deliberately have enough relief for tall hills and locally
+  // steep faces, while biome blending still eases the transition into them.
+  highlands: { base: 0.5, broad: 2.35, detail: 0.78 },
 };
 
 /** Height at one vertex of the infinite, seeded terrain lattice. */

@@ -8,6 +8,11 @@ export interface BiomeDirection {
   readonly distance: number;
 }
 
+/** Formats world-space distance for the compact biome direction markers. */
+export function formatBiomeDistance(distance: number): string {
+  return `${Math.round(distance)} wu`;
+}
+
 /** Finds representative points in the nearest sampled region of every biome. */
 export function findNearestBiomes(
   seed: number | string,
@@ -50,6 +55,12 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
       indicator.style.setProperty("--biome-color", BIOME_DEBUG_COLORS[id]);
       indicator.title = BIOMES[id].label;
       indicator.setAttribute("aria-label", `Direction to nearest ${BIOMES[id].label}`);
+      const marker = document.createElement("span");
+      marker.className = "biome-indicator-marker";
+      marker.setAttribute("aria-hidden", "true");
+      const distance = document.createElement("span");
+      distance.className = "biome-indicator-distance";
+      indicator.append(marker, distance);
       this.overlay.append(indicator);
       this.indicators.set(id, indicator);
     }
@@ -92,6 +103,12 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
         continue;
       }
       indicator.hidden = false;
+      const distanceLabel = formatBiomeDistance(target.distance);
+      const label = `${BIOMES[id].label}: ${distanceLabel}`;
+      const distance = indicator.querySelector<HTMLElement>(".biome-indicator-distance");
+      if (distance) distance.textContent = distanceLabel;
+      indicator.title = label;
+      indicator.setAttribute("aria-label", `Direction to nearest ${label}`);
       const dx = target.x - x;
       const dy = -(target.z - z);
       const scale = Math.min(halfWidth / Math.max(Math.abs(dx), 0.001), halfHeight / Math.max(Math.abs(dy), 0.001));
