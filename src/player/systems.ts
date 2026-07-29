@@ -1,5 +1,6 @@
 import type { FixedSystem } from "../ecs/System";
 import { sampleTerrain } from "../world/terrainSampling";
+import { resolveTreeTrunkMovement } from "../world/treeCollision";
 import type { InputController } from "./InputController";
 import { integrateMovement, normalizeInput } from "./movement";
 
@@ -27,6 +28,23 @@ export class PlayerMovementSystem implements FixedSystem {
         entity.transform, entity.playerControl, entity.velocity, deltaSeconds, undefined, entity.jump?.grounded,
       ));
       if (entity.playerControl.jump && entity.jump?.grounded) entity.jump.grounded = false;
+    }
+  }
+}
+
+/** Blocks players at tree trunks while allowing movement beneath their crowns. */
+export class TreeCollisionSystem implements FixedSystem {
+  constructor(private readonly seed: number | string) {}
+
+  fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0]): void {
+    for (const entity of world.entities) {
+      if (!entity.transform || !entity.previousTransform || !entity.playerControl) continue;
+      const resolved = resolveTreeTrunkMovement(this.seed, entity.previousTransform, entity.transform);
+      if (entity.velocity) {
+        if (resolved.x !== entity.transform.x) entity.velocity.x = 0;
+        if (resolved.z !== entity.transform.z) entity.velocity.z = 0;
+      }
+      Object.assign(entity.transform, resolved);
     }
   }
 }
