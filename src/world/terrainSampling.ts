@@ -6,8 +6,6 @@ import { isRiverRow, sampleRiverSpine } from "./river";
 export type TerrainSurface = "land" | "river";
 /** Default chunk resolution; dry chunks retain the original generation cost. */
 export const TERRAIN_SEGMENTS = 8;
-/** River-row chunks alone use a one-unit lattice to resolve the channel banks. */
-export const RIVER_TERRAIN_SEGMENTS = 16;
 
 export interface TerrainSample {
   readonly height: number;
@@ -176,10 +174,7 @@ export function sampleChannelTerrainHeight(seed: number, worldX: number, worldZ:
  */
 export function sampleTerrainHeight(seedInput: number | string, worldX: number, worldZ: number): number {
   const seed = normalizeSeed(seedInput);
-  const segments = isRiverRow(worldToChunk(worldX, worldZ))
-    ? RIVER_TERRAIN_SEGMENTS
-    : TERRAIN_SEGMENTS;
-  const spacing = CHUNK_SIZE / segments;
+  const spacing = CHUNK_SIZE / TERRAIN_SEGMENTS;
   const latticeX = worldX / spacing;
   const latticeZ = worldZ / spacing;
   const x0 = Math.floor(latticeX);

@@ -2,10 +2,10 @@ import * as THREE from "three";
 
 import { BIOME_DEBUG_COLORS, type BiomeId, type BiomeWeights } from "./biomes";
 import { TREE_TRUNK_RADIUS } from "./forest";
-import type { GeneratedChunkData } from "./generateChunk";
+import type { GeneratedChunkData, RiverChannelSection } from "./generateChunk";
 import type { RiverPoint } from "./river";
 import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
-import { MOUNTAIN_SNOW_LINE } from "./terrainSampling";
+import { MOUNTAIN_SNOW_LINE, RIVER_BED_DEPTH } from "./terrainSampling";
 
 export interface LoadedNeighborhoodFade {
   readonly centerX: number;
@@ -129,6 +129,40 @@ export function createRiverRibbonGeometry(
   return geometry;
 }
 
+/** Builds the banks and bed as one deliberately faceted six-vertex strip. */
+export function createRiverChannelGeometry(
+  sections: readonly RiverChannelSection[],
+): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (const section of sections) {
+    const northWater = section.centerZ - section.waterHalfWidth;
+    const southWater = section.centerZ + section.waterHalfWidth;
+    const bedHeight = section.surfaceElevation - RIVER_BED_DEPTH;
+    const lipHeight = section.surfaceElevation + 0.04;
+    positions.push(
+      section.x, section.northShoulderHeight, northWater - section.bankWidth,
+      section.x, lipHeight, northWater,
+      section.x, bedHeight, northWater + section.waterHalfWidth * 0.1,
+      section.x, bedHeight, southWater - section.waterHalfWidth * 0.1,
+      section.x, lipHeight, southWater,
+      section.x, section.southShoulderHeight, southWater + section.bankWidth,
+    );
+  }
+  for (let section = 0; section < sections.length - 1; section += 1) {
+    for (let cross = 0; cross < 5; cross += 1) {
+      const current = section * 6 + cross;
+      const next = current + 6;
+      indices.push(current, current + 1, next, current + 1, next + 1, next);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 /** Presentation-only conversion of plain generated data into disposable Three.js objects. */
 export class ChunkMeshFactory {
   private readonly groups = new Set<THREE.Group>();
@@ -196,6 +230,7 @@ export class ChunkMeshFactory {
     group.name = `chunk:${data.id}`;
     group.add(this.createTerrain(data));
     if (data.river) group.add(this.createRiver(data.river.spine));
+    if (data.river) group.add(this.createRiverChannel(data.river.channelSections));
     group.add(this.createWetlandPools(data));
     group.add(this.createTrees(data));
     group.add(this.createVegetation(data));
@@ -242,29 +277,31 @@ export class ChunkMeshFactory {
     const debugColors: number[] = [];
     const indices: number[] = [];
     const color = new THREE.Color();
-    for (let z = 0; z < side; z += 1) for (let x = 0; x < side; x += 1) {
-      const vertexIndex = z * side + x;
-      positions.push(
-        data.coordinate.x * data.size + x * data.size / (side - 1),
-        data.terrainHeights[vertexIndex] ?? 0,
-        data.coordinate.z * data.size + z * data.size / (side - 1),
-      );
-      blendBiomeColor(data.terrainBiomeWeights[vertexIndex], color);
+    const renderedVertices = data.irregularTerrain?.vertices ?? data.terrainHeights.map((height, vertexIndex) => ({
+      x: data.coordinate.x * data.size + vertexIndex % side * data.size / (side - 1),
+      z: data.coordinate.z * data.size + Math.floor(vertexIndex / side) * data.size / (side - 1),
+      height,
+      biomeWeights: data.terrainBiomeWeights[vertexIndex],
+    }));
+    for (const vertex of renderedVertices) {
+      positions.push(vertex.x, vertex.height, vertex.z);
+      blendBiomeColor(vertex.biomeWeights, color);
       // Snow follows elevation, with a short blend below the snow line to
       // avoid a harsh contour around the summit.
-      const height = data.terrainHeights[vertexIndex] ?? 0;
+      const height = vertex.height;
       const snow = Math.max(0, Math.min(1, (height - (MOUNTAIN_SNOW_LINE - 0.65)) / 0.65));
       color.lerp(SNOW_COLOR, snow);
       colors.push(color.r, color.g, color.b);
-      const dominant = (Object.keys(data.terrainBiomeWeights[vertexIndex]) as BiomeId[])
-        .reduce((best, id) => data.terrainBiomeWeights[vertexIndex][id] > data.terrainBiomeWeights[vertexIndex][best] ? id : best);
+      const dominant = (Object.keys(vertex.biomeWeights) as BiomeId[])
+        .reduce((best, id) => vertex.biomeWeights[id] > vertex.biomeWeights[best] ? id : best);
       const debugColor = DEBUG_TERRAIN_PALETTE[dominant];
       debugColors.push(debugColor.r, debugColor.g, debugColor.b);
     }
-    for (let z = 0; z < side - 1; z += 1) for (let x = 0; x < side - 1; x += 1) {
-      const topLeft = z * side + x;
-      indices.push(topLeft, topLeft + side, topLeft + 1, topLeft + 1, topLeft + side, topLeft + side + 1);
-    }
+    if (data.irregularTerrain) indices.push(...data.irregularTerrain.indices);
+    else for (let z = 0; z < side - 1; z += 1) for (let x = 0; x < side - 1; x += 1) {
+        const topLeft = z * side + x;
+        indices.push(topLeft, topLeft + side, topLeft + 1, topLeft + 1, topLeft + side, topLeft + side + 1);
+      }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     const biomeColorAttribute = new THREE.Float32BufferAttribute(colors, 3);
@@ -280,7 +317,16 @@ export class ChunkMeshFactory {
   }
 
   private createRiver(spine: readonly RiverPoint[]): THREE.Mesh {
-    return new THREE.Mesh(createRiverRibbonGeometry(spine), this.riverMaterial);
+    const mesh = new THREE.Mesh(createRiverRibbonGeometry(spine), this.riverMaterial);
+    mesh.name = "river";
+    return mesh;
+  }
+
+  private createRiverChannel(sections: readonly RiverChannelSection[]): THREE.Mesh {
+    const mesh = new THREE.Mesh(createRiverChannelGeometry(sections), this.terrainMaterial);
+    mesh.name = "river-channel";
+    mesh.receiveShadow = true;
+    return mesh;
   }
 
   private createWetlandPools(data: GeneratedChunkData): THREE.Group {
