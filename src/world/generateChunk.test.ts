@@ -25,19 +25,22 @@ describe("deterministic chunk generation", () => {
   });
 
   it("shares exact river and terrain conditions across east-west boundaries", () => {
-    const left = generateChunk("continuity", { x: -1, z: -3 });
-    const right = generateChunk("continuity", { x: 0, z: -3 });
-    expect(left.river.exit.z).toBe(right.river.entry.z);
-    expect(left.river.exit.width).toBe(right.river.entry.width);
-    expect(left.river.exit.surfaceElevation).toBe(right.river.entry.surfaceElevation);
-    expect(left.river.spine.at(-1)?.z).toBe(right.river.spine[0]?.z);
-    expect(left.river.spine.at(-1)?.width).toBe(right.river.spine[0]?.width);
-    expect(left.river.spine.at(-1)?.surfaceElevation)
-      .toBe(right.river.spine[0]?.surfaceElevation);
+    const left = generateChunk("continuity", { x: -1, z: 0 });
+    const right = generateChunk("continuity", { x: 0, z: 0 });
+    expect(left.river!.exit.z).toBe(right.river!.entry.z);
+    expect(left.river!.exit.width).toBe(right.river!.entry.width);
+    expect(left.river!.exit.surfaceElevation).toBe(right.river!.entry.surfaceElevation);
+    expect(left.river!.spine.at(-1)).toEqual(right.river!.spine[0]);
     const side = left.terrainVerticesPerSide;
     for (let z = 0; z < side; z += 1) {
       expect(left.terrainHeights[z * side + side - 1]).toBe(right.terrainHeights[z * side]);
     }
+  });
+
+  it("only includes river data in chunk row zero", () => {
+    expect(generateChunk("one-river", { x: 8, z: 0 }).river).toBeDefined();
+    expect(generateChunk("one-river", { x: 8, z: -1 }).river).toBeUndefined();
+    expect(generateChunk("one-river", { x: 8, z: 1 }).river).toBeUndefined();
   });
 
   it("shares exact terrain vertices on every edge of adjacent chunks", () => {
@@ -56,9 +59,9 @@ describe("deterministic chunk generation", () => {
   });
 
   it("carves terrain below the generated water surface along the river", () => {
-    const chunk = generateChunk("channel", { x: 2, z: -1 });
+    const chunk = generateChunk("channel", { x: 2, z: 0 });
     const side = chunk.terrainVerticesPerSide;
-    for (const point of chunk.river.spine) {
+    for (const point of chunk.river!.spine) {
       const x = Math.round((point.x - chunk.coordinate.x * chunk.size) / chunk.size * (side - 1));
       const z = Math.round((point.z - chunk.coordinate.z * chunk.size) / chunk.size * (side - 1));
       expect(chunk.terrainHeights[z * side + x]).toBeLessThan(point.surfaceElevation);

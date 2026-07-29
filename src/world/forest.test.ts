@@ -35,6 +35,11 @@ describe("forest generation", () => {
     expect(Math.max(...counts)).toBeGreaterThanOrEqual(25);
   });
 
+  it("clears trees from the actual row-zero river", () => {
+    const trees = generateTrees("river-forest", { x: 0, z: 0 });
+    for (const tree of trees) expect(isRiverAt("river-forest", tree.x, tree.z)).toBe(false);
+  });
+
   it("gives meadow, forest, and highland different biome-level densities", () => {
     const oneHot = (id: "plains" | "forest" | "wetland" | "highlands") => ({
       plains: 0,

@@ -33,6 +33,19 @@ describe("river ribbon geometry", () => {
     factory.disposeChunk(group);
     factory.dispose();
   });
+
+  it("omits water and river debug geometry outside row zero", () => {
+    const factory = new ChunkMeshFactory();
+    const group = factory.create(generateChunk("dry-row", { x: 0, z: 1 }));
+
+    expect(group.children).toHaveLength(2);
+    expect(group.getObjectByName("debug:walkable-boundaries")).toBeUndefined();
+    expect(group.getObjectByName("debug:river-placement")).toBeUndefined();
+    expect(() => factory.registerGroup(group)).not.toThrow();
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
 });
 
 describe("pine tree geometry", () => {
