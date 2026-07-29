@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { integrateMovement, normalizeInput } from "./movement";
+import { integrateMovement, normalizeInput, resolveTreeTrunkCollisions } from "./movement";
 
 describe("normalizeInput", () => {
   it("normalizes diagonal input to unit magnitude", () => {
@@ -13,6 +13,27 @@ describe("normalizeInput", () => {
 
   it("preserves analog input below unit magnitude", () => {
     expect(normalizeInput(0.3, -0.4)).toEqual({ x: 0.3, z: -0.4 });
+  });
+});
+
+describe("resolveTreeTrunkCollisions", () => {
+  const tree = { x: 2, y: 0, z: 3, scale: 1, rotation: 0, shade: 0 };
+
+  it("keeps the player outside the scaled trunk radius", () => {
+    const result = resolveTreeTrunkCollisions(2.1, 3, [tree]);
+
+    expect(result.x).toBeCloseTo(2.54);
+    expect(result.z).toBe(3);
+  });
+
+  it("does not use the much wider foliage footprint for collision", () => {
+    expect(resolveTreeTrunkCollisions(2.7, 3, [tree])).toEqual({ x: 2.7, z: 3 });
+  });
+
+  it("scales the trunk collider with the rendered tree", () => {
+    const result = resolveTreeTrunkCollisions(2.5, 3, [{ ...tree, scale: 2 }]);
+
+    expect(result.x).toBeCloseTo(2.7);
   });
 });
 

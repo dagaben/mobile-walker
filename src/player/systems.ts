@@ -1,7 +1,9 @@
 import type { FixedSystem } from "../ecs/System";
+import { worldToChunk } from "../world/chunkCoordinates";
+import { generateTrees, type TreePlacement } from "../world/forest";
 import { sampleTerrain } from "../world/terrainSampling";
 import type { InputController } from "./InputController";
-import { integrateMovement, normalizeInput } from "./movement";
+import { integrateMovement, normalizeInput, resolveTreeTrunkCollisions } from "./movement";
 
 export class InputSnapshotSystem implements FixedSystem {
   constructor(private readonly input: InputController) {}
@@ -27,6 +29,37 @@ export class PlayerMovementSystem implements FixedSystem {
         entity.transform, entity.playerControl, entity.velocity, deltaSeconds, undefined, entity.jump?.grounded,
       ));
       if (entity.playerControl.jump && entity.jump?.grounded) entity.jump.grounded = false;
+    }
+  }
+}
+
+/** Resolves simulation entities against the narrow trunk footprint, not tree foliage. */
+export class TreeCollisionSystem implements FixedSystem {
+  private readonly treeCache = new Map<string, readonly TreePlacement[]>();
+
+  constructor(private readonly seed: number | string) {}
+
+  fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0]): void {
+    for (const entity of world.entities) {
+      if (!entity.transform || !entity.playerControl) continue;
+      const center = worldToChunk(entity.transform.x, entity.transform.z);
+      const nearbyTrees: TreePlacement[] = [];
+      for (let z = center.z - 1; z <= center.z + 1; z += 1) {
+        for (let x = center.x - 1; x <= center.x + 1; x += 1) {
+          const key = `${x},${z}`;
+          let trees = this.treeCache.get(key);
+          if (!trees) {
+            trees = generateTrees(this.seed, { x, z });
+            this.treeCache.set(key, trees);
+          }
+          nearbyTrees.push(...trees);
+        }
+      }
+      const resolved = resolveTreeTrunkCollisions(entity.transform.x, entity.transform.z, nearbyTrees);
+      if (resolved.x !== entity.transform.x && entity.velocity) entity.velocity.x = 0;
+      if (resolved.z !== entity.transform.z && entity.velocity) entity.velocity.z = 0;
+      entity.transform.x = resolved.x;
+      entity.transform.z = resolved.z;
     }
   }
 }

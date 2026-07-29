@@ -1,8 +1,11 @@
 import type { PlayerControlComponent, TransformComponent, VelocityComponent } from "../ecs/Entity";
+import type { TreePlacement } from "../world/forest";
 
 export const PLAYER_SPEED = 4;
 export const JUMP_SPEED = 5.5;
 export const GRAVITY = 14;
+export const PLAYER_COLLISION_RADIUS = 0.38;
+export const TREE_TRUNK_BASE_RADIUS = 0.16;
 
 export function normalizeInput(x: number, z: number): { x: number; z: number } {
   const length = Math.hypot(x, z);
@@ -29,4 +32,36 @@ export function integrateMovement(
     z: transform.z + velocity.z * deltaSeconds,
     yaw: control.active ? Math.atan2(control.moveX, control.moveZ) : transform.yaw,
   };
+}
+
+/** Pushes a player out of tree trunks; foliage deliberately has no collider. */
+export function resolveTreeTrunkCollisions(
+  x: number,
+  z: number,
+  trees: readonly TreePlacement[],
+  playerRadius = PLAYER_COLLISION_RADIUS,
+): { x: number; z: number } {
+  let resolvedX = x;
+  let resolvedZ = z;
+
+  // A few passes handle the uncommon case where neighboring trunk colliders overlap.
+  for (let pass = 0; pass < 3; pass += 1) {
+    let changed = false;
+    for (const tree of trees) {
+      const minimumDistance = playerRadius + TREE_TRUNK_BASE_RADIUS * tree.scale;
+      const dx = resolvedX - tree.x;
+      const dz = resolvedZ - tree.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance >= minimumDistance) continue;
+
+      // Deterministic fallback for a player positioned exactly at a trunk center.
+      const normalX = distance > 1e-8 ? dx / distance : 1;
+      const normalZ = distance > 1e-8 ? dz / distance : 0;
+      resolvedX = tree.x + normalX * minimumDistance;
+      resolvedZ = tree.z + normalZ * minimumDistance;
+      changed = true;
+    }
+    if (!changed) break;
+  }
+  return { x: resolvedX, z: resolvedZ };
 }

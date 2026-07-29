@@ -3,7 +3,7 @@ import * as THREE from "three";
 import type { EcsWorld } from "../ecs/createEcsWorld";
 import type { SystemScheduler } from "../ecs/SystemScheduler";
 import { InputController } from "../player/InputController";
-import { InputSnapshotSystem, PlayerMovementSystem, TerrainSamplingSystem } from "../player/systems";
+import { InputSnapshotSystem, PlayerMovementSystem, TerrainSamplingSystem, TreeCollisionSystem } from "../player/systems";
 import type { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
 import { CameraPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
@@ -47,6 +47,7 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   // Fixed order: snapshot event state, then integrate.
   systems.addFixedSystem(new InputSnapshotSystem(new InputController(inputElement)));
   systems.addFixedSystem(new PlayerMovementSystem());
+  systems.addFixedSystem(new TreeCollisionSystem(worldSeed));
   systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
   systems.addFixedSystem(new ProximityDetectionSystem());
   systems.addFixedSystem(new CollectionSystem());
