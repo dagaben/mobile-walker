@@ -64,13 +64,18 @@ drawn from mutable state, so generation order, entity iteration order, the clock
 and `Math.random()` cannot influence a chunk. Mathematical floor division keeps
 world-to-chunk conversion correct on the negative side of the origin.
 
-Rivers flow west-to-east. A river endpoint is hashed from the global boundary
-column and row, so a chunk's east endpoint and its eastern neighbor's west
-endpoint are the same sample (position and width). Terrain edge heights likewise
-use global lattice coordinates. The streamer keeps a 3-by-3 neighborhood around
-the player, generates plain chunk data first, and passes it to a Three.js mesh
-factory. Chunk geometries are disposed when they leave the radius, while terrain
-and river materials are shared for the streamer's lifetime.
+A single river flows west-to-east exclusively through chunk row `z === 0`, which
+contains the initial chunk `(0, 0)`. Each endpoint is hashed from its global
+boundary column, so a row-zero chunk's east endpoint and its eastern neighbor's
+west endpoint are the exact same position, width, and elevation. The shared
+river spine drives water rendering, terrain carving, collision sampling, and
+forest clearance; chunks in other rows have uninterrupted terrain and
+vegetation, with no river or river-debug geometry. Terrain edge heights use
+global lattice coordinates in every row. The streamer keeps a 3-by-3
+neighborhood around the player, generates plain chunk data first, and passes it
+to a Three.js mesh factory. Chunk geometries are disposed when they leave the
+radius, while terrain and river materials are shared for the streamer's
+lifetime.
 
 ## Controls
 

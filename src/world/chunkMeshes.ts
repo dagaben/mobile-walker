@@ -81,7 +81,10 @@ export class ChunkMeshFactory {
   create(data: GeneratedChunkData): THREE.Group {
     const group = new THREE.Group();
     group.name = `chunk:${data.id}`;
-    group.add(this.createTerrain(data), this.createRiver(data), this.createTrees(data), this.createBoundaries(data), this.createRiverPlacement(data));
+    group.add(this.createTerrain(data));
+    if (data.river) group.add(this.createRiver(data.river.spine));
+    group.add(this.createTrees(data));
+    if (data.river) group.add(this.createBoundaries(data.river.spine), this.createRiverPlacement(data.river.spine));
     return group;
   }
 
@@ -139,8 +142,8 @@ export class ChunkMeshFactory {
     return mesh;
   }
 
-  private createRiver(data: GeneratedChunkData): THREE.Mesh {
-    return new THREE.Mesh(createRiverRibbonGeometry(data.river.spine), this.riverMaterial);
+  private createRiver(spine: readonly RiverPoint[]): THREE.Mesh {
+    return new THREE.Mesh(createRiverRibbonGeometry(spine), this.riverMaterial);
   }
 
   private createTrees(data: GeneratedChunkData): THREE.Group {
@@ -183,11 +186,11 @@ export class ChunkMeshFactory {
     return group;
   }
 
-  private createBoundaries(data: GeneratedChunkData): THREE.Group {
+  private createBoundaries(spine: readonly RiverPoint[]): THREE.Group {
     const group = new THREE.Group();
     group.name = DEBUG_BOUNDARIES_NAME;
     const makeBank = (direction: -1 | 1): THREE.Line => {
-      const points = data.river.spine.map((point) => new THREE.Vector3(
+      const points = spine.map((point) => new THREE.Vector3(
         point.x, point.surfaceElevation + 0.08, point.z + direction * point.width / 2,
       ));
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), this.boundaryMaterial);
@@ -199,8 +202,8 @@ export class ChunkMeshFactory {
     return group;
   }
 
-  private createRiverPlacement(data: GeneratedChunkData): THREE.Mesh {
-    const geometry = createRiverRibbonGeometry(data.river.spine, 0.04);
+  private createRiverPlacement(spine: readonly RiverPoint[]): THREE.Mesh {
+    const geometry = createRiverRibbonGeometry(spine, 0.04);
     const mesh = new THREE.Mesh(geometry, this.riverPlacementMaterial);
     mesh.name = DEBUG_RIVER_NAME;
     mesh.renderOrder = 21;
@@ -218,7 +221,9 @@ export class ChunkMeshFactory {
   }
 
   private applyDebugVisibility(group: THREE.Group): void {
-    group.getObjectByName(DEBUG_BOUNDARIES_NAME)!.visible = this.debugView.boundaries;
-    group.getObjectByName(DEBUG_RIVER_NAME)!.visible = this.debugView.riverPlacement;
+    const boundaries = group.getObjectByName(DEBUG_BOUNDARIES_NAME);
+    const riverPlacement = group.getObjectByName(DEBUG_RIVER_NAME);
+    if (boundaries) boundaries.visible = this.debugView.boundaries;
+    if (riverPlacement) riverPlacement.visible = this.debugView.riverPlacement;
   }
 }

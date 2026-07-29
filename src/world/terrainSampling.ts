@@ -1,7 +1,7 @@
 import { CHUNK_SIZE, worldToChunk } from "./chunkCoordinates";
 import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
-import { sampleRiverSpine } from "./river";
+import { isRiverRow, sampleRiverSpine } from "./river";
 
 export type TerrainSurface = "land" | "river";
 export const TERRAIN_SEGMENTS = 8;
@@ -67,6 +67,8 @@ export function sampleChannelTerrainLatticeHeight(
   const worldX = latticeX * LATTICE_SPACING;
   const worldZ = latticeZ * LATTICE_SPACING;
   const coordinate = worldToChunk(worldX, worldZ);
+  const naturalHeight = sampleTerrainLatticeHeight(seed, latticeX, latticeZ);
+  if (!isRiverRow(coordinate)) return naturalHeight;
   const spine = sampleRiverSpine(seed, coordinate);
   const local = (worldX - coordinate.x * CHUNK_SIZE) / CHUNK_SIZE;
   const segmentPosition = Math.max(0, Math.min(1, local)) * (spine.length - 1);
@@ -74,7 +76,6 @@ export function sampleChannelTerrainLatticeHeight(
   const fraction = segmentPosition - index;
   const start = spine[index];
   const end = spine[index + 1];
-  const naturalHeight = sampleTerrainLatticeHeight(seed, latticeX, latticeZ);
   if (!start || !end) return naturalHeight;
 
   const centerZ = start.z + (end.z - start.z) * fraction;
@@ -110,6 +111,7 @@ export function sampleTerrainHeight(seedInput: number | string, worldX: number, 
 export function isRiverAt(seedInput: number | string, worldX: number, worldZ: number): boolean {
   const seed = normalizeSeed(seedInput);
   const chunk = worldToChunk(worldX, worldZ);
+  if (!isRiverRow(chunk)) return false;
   const spine = sampleRiverSpine(seed, chunk);
   const local = (worldX - chunk.x * CHUNK_SIZE) / CHUNK_SIZE;
   const segmentPosition = Math.max(0, Math.min(1, local)) * (spine.length - 1);

@@ -17,6 +17,11 @@ export interface RiverPoint {
   readonly surfaceElevation: number;
 }
 
+/** The single chunk row that carries the world's continuous west-to-east river. */
+export function isRiverRow(coordinate: Pick<ChunkCoordinate, "z">): boolean {
+  return coordinate.z === 0;
+}
+
 /**
  * Samples a boundary from its world-grid identity, not from either owning chunk.
  * Thus (x,z).east is exactly (x+1,z).west, including at negative coordinates.

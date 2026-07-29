@@ -5,8 +5,10 @@ import { generateChunk } from "./generateChunk";
 import {
   isRiverAt,
   RIVER_BED_DEPTH,
+  sampleChannelTerrainLatticeHeight,
   sampleTerrain,
   sampleTerrainHeight,
+  sampleTerrainLatticeHeight,
 } from "./terrainSampling";
 
 describe("terrain sampling", () => {
@@ -47,8 +49,8 @@ describe("terrain sampling", () => {
 
   it("keeps river collision classification stable across an east-west boundary", () => {
     const seed = "river-boundary";
-    const left = generateChunk(seed, { x: -1, z: -1 });
-    const riverZ = left.river.exit.z;
+    const left = generateChunk(seed, { x: -1, z: 0 });
+    const riverZ = left.river!.exit.z;
     const epsilon = 1e-7;
 
     expect(isRiverAt(seed, -epsilon, riverZ)).toBe(true);
@@ -60,7 +62,7 @@ describe("terrain sampling", () => {
   it("sets the walkable river bed deep enough to submerge about 30% of the player", () => {
     const chunk = generateChunk("deeper-river", { x: 0, z: 0 });
     const side = chunk.terrainVerticesPerSide;
-    const river = chunk.river.entry;
+    const river = chunk.river!.entry;
     const z = Math.round(river.z / CHUNK_SIZE * (side - 1));
 
     expect(chunk.terrainHeights[z * side]).toBeCloseTo(
@@ -68,6 +70,18 @@ describe("terrain sampling", () => {
     );
     expect(RIVER_BED_DEPTH).toBeGreaterThanOrEqual(1.5 * 0.2);
     expect(RIVER_BED_DEPTH).toBeLessThanOrEqual(1.5 * 0.4);
+  });
+
+  it("neither classifies nor carves a river outside chunk row zero", () => {
+    const seed = "row-zero-only";
+    for (const worldZ of [-CHUNK_SIZE / 2, CHUNK_SIZE * 1.5]) {
+      expect(isRiverAt(seed, 3, worldZ)).toBe(false);
+      expect(sampleTerrain(seed, 3, worldZ).surface).toBe("land");
+    }
+    for (const latticeZ of [-4, 12]) {
+      expect(sampleChannelTerrainLatticeHeight(41, 2, latticeZ))
+        .toBe(sampleTerrainLatticeHeight(41, 2, latticeZ));
+    }
   });
 
   it("does not invent a collision jump at negative north-south boundaries", () => {

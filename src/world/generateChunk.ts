@@ -3,7 +3,7 @@ import { chunkId, type ChunkId } from "./chunkId";
 import { sampleBiome, type BiomeWeights } from "./biomes";
 import { generateTrees, type TreePlacement } from "./forest";
 import { normalizeSeed } from "./random";
-import { sampleRiverBoundary, sampleRiverSpine, type RiverBoundary, type RiverPoint } from "./river";
+import { isRiverRow, sampleRiverBoundary, sampleRiverSpine, type RiverBoundary, type RiverPoint } from "./river";
 import { sampleChannelTerrainLatticeHeight, TERRAIN_SEGMENTS } from "./terrainSampling";
 
 export { TERRAIN_SEGMENTS } from "./terrainSampling";
@@ -17,7 +17,7 @@ export interface GeneratedChunkData {
   readonly terrainBiomeWeights: readonly BiomeWeights[];
   readonly terrainVerticesPerSide: number;
   readonly trees: readonly TreePlacement[];
-  readonly river: {
+  readonly river?: {
     readonly entry: RiverBoundary;
     readonly exit: RiverBoundary;
     readonly spine: readonly RiverPoint[];
@@ -50,10 +50,10 @@ export function generateChunk(seedInput: number | string, coordinate: ChunkCoord
     terrainBiomeWeights,
     terrainVerticesPerSide: verticesPerSide,
     trees: generateTrees(seed, coordinate),
-    river: {
+    river: isRiverRow(coordinate) ? {
       entry: sampleRiverBoundary(seed, coordinate, "west"),
       exit: sampleRiverBoundary(seed, coordinate, "east"),
       spine: sampleRiverSpine(seed, coordinate),
-    },
+    } : undefined,
   };
 }
