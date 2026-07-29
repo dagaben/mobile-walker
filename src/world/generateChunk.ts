@@ -6,6 +6,7 @@ import { normalizeSeed } from "./random";
 import { isRiverRow, sampleRiverBoundary, sampleRiverSpine, type RiverBoundary, type RiverPoint } from "./river";
 import { sampleChannelTerrainLatticeHeight, TERRAIN_SEGMENTS } from "./terrainSampling";
 import { generateVegetation, type GeneratedVegetation } from "./vegetation";
+import { generateWetlandPools, type WetlandPoolPlacement } from "./wetlands";
 
 export { TERRAIN_SEGMENTS } from "./terrainSampling";
 
@@ -19,6 +20,7 @@ export interface GeneratedChunkData {
   readonly terrainVerticesPerSide: number;
   readonly trees: readonly TreePlacement[];
   readonly vegetation: GeneratedVegetation;
+  readonly wetlandPools: readonly WetlandPoolPlacement[];
   readonly river?: {
     readonly entry: RiverBoundary;
     readonly exit: RiverBoundary;
@@ -53,6 +55,7 @@ export function generateChunk(seedInput: number | string, coordinate: ChunkCoord
     terrainVerticesPerSide: verticesPerSide,
     trees: generateTrees(seed, coordinate),
     vegetation: generateVegetation(seed, coordinate),
+    wetlandPools: generateWetlandPools(seed, coordinate),
     river: isRiverRow(coordinate) ? {
       entry: sampleRiverBoundary(seed, coordinate, "west"),
       exit: sampleRiverBoundary(seed, coordinate, "east"),

@@ -80,7 +80,7 @@ const SNOW_COLOR = new THREE.Color(0xf4f6f7);
 const TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
   plains: new THREE.Color(0x829b69),
   forest: new THREE.Color(0x35563b),
-  wetland: new THREE.Color(0x71866a),
+  wetland: new THREE.Color(0x665746),
   highlands: new THREE.Color(0x8b7358),
   mountain: new THREE.Color(0x34383d),
 };
@@ -141,6 +141,9 @@ export class ChunkMeshFactory {
   private readonly riverMaterial = new THREE.MeshStandardMaterial({
     color: 0x5da9c9, flatShading: true, roughness: 0.65,
   });
+  private readonly wetlandWaterMaterial = new THREE.MeshStandardMaterial({
+    color: 0x6599a0, flatShading: true, roughness: 0.42, transparent: true, opacity: 0.82,
+  });
   private readonly trunkMaterial = new THREE.MeshStandardMaterial({
     color: 0x77553d, flatShading: true, roughness: 1,
   });
@@ -182,7 +185,7 @@ export class ChunkMeshFactory {
 
   private fadedMaterials(): THREE.MeshStandardMaterial[] {
     return [
-      this.terrainMaterial, this.debugTerrainMaterial, this.riverMaterial,
+      this.terrainMaterial, this.debugTerrainMaterial, this.riverMaterial, this.wetlandWaterMaterial,
       this.trunkMaterial, this.foliageMaterial, this.leafMaterial, this.bushMaterial,
       this.flowerStemMaterial, this.flowerHeadMaterial,
     ];
@@ -193,6 +196,7 @@ export class ChunkMeshFactory {
     group.name = `chunk:${data.id}`;
     group.add(this.createTerrain(data));
     if (data.river) group.add(this.createRiver(data.river.spine));
+    group.add(this.createWetlandPools(data));
     group.add(this.createTrees(data));
     group.add(this.createVegetation(data));
     if (data.river) group.add(this.createBoundaries(data.river.spine), this.createRiverPlacement(data.river.spine));
@@ -220,6 +224,7 @@ export class ChunkMeshFactory {
     this.terrainMaterial.dispose();
     this.debugTerrainMaterial.dispose();
     this.riverMaterial.dispose();
+    this.wetlandWaterMaterial.dispose();
     this.trunkMaterial.dispose();
     this.foliageMaterial.dispose();
     this.leafMaterial.dispose();
@@ -276,6 +281,27 @@ export class ChunkMeshFactory {
 
   private createRiver(spine: readonly RiverPoint[]): THREE.Mesh {
     return new THREE.Mesh(createRiverRibbonGeometry(spine), this.riverMaterial);
+  }
+
+  private createWetlandPools(data: GeneratedChunkData): THREE.Group {
+    const group = new THREE.Group();
+    group.name = "wetland-pools";
+    if (data.wetlandPools.length === 0) return group;
+    const pools = new THREE.InstancedMesh(
+      new THREE.CircleGeometry(1, 10), this.wetlandWaterMaterial, data.wetlandPools.length,
+    );
+    const transform = new THREE.Object3D();
+    for (const [index, pool] of data.wetlandPools.entries()) {
+      transform.position.set(pool.x, pool.y, pool.z);
+      transform.rotation.set(-Math.PI / 2, 0, pool.rotation);
+      transform.scale.set(pool.radiusX, pool.radiusZ, 1);
+      transform.updateMatrix();
+      pools.setMatrixAt(index, transform.matrix);
+    }
+    pools.receiveShadow = true;
+    pools.renderOrder = 1;
+    group.add(pools);
+    return group;
   }
 
   private createTrees(data: GeneratedChunkData): THREE.Group {

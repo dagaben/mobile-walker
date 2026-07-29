@@ -1,6 +1,7 @@
 import type { FixedSystem } from "../ecs/System";
 import { sampleTerrain } from "../world/terrainSampling";
 import { resolveTreeTrunkMovement } from "../world/treeCollision";
+import { sampleWetlandSpeedMultiplier } from "../world/wetlands";
 import type { InputController } from "./InputController";
 import { integrateMovement, normalizeInput } from "./movement";
 
@@ -20,12 +21,18 @@ export class InputSnapshotSystem implements FixedSystem {
 }
 
 export class PlayerMovementSystem implements FixedSystem {
+  constructor(private readonly seed?: number | string) {}
+
   fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0], deltaSeconds: number): void {
     for (const entity of world.entities) {
       if (!entity.transform || !entity.previousTransform || !entity.playerControl || !entity.velocity) continue;
       Object.assign(entity.previousTransform, entity.transform);
+      const speedMultiplier = this.seed === undefined
+        ? 1
+        : sampleWetlandSpeedMultiplier(this.seed, entity.transform.x, entity.transform.z);
       Object.assign(entity.transform, integrateMovement(
         entity.transform, entity.playerControl, entity.velocity, deltaSeconds, undefined, entity.jump?.grounded,
+        speedMultiplier,
       ));
       if (entity.playerControl.jump && entity.jump?.grounded) entity.jump.grounded = false;
     }
