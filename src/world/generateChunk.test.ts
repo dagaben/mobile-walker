@@ -40,6 +40,21 @@ describe("deterministic chunk generation", () => {
     }
   });
 
+  it("shares exact terrain vertices on every edge of adjacent chunks", () => {
+    const seed = "four-way-continuity";
+    const center = generateChunk(seed, { x: -2, z: 1 });
+    const east = generateChunk(seed, { x: -1, z: 1 });
+    const south = generateChunk(seed, { x: -2, z: 2 });
+    const side = center.terrainVerticesPerSide;
+
+    for (let index = 0; index < side; index += 1) {
+      expect(center.terrainHeights[index * side + side - 1])
+        .toBe(east.terrainHeights[index * side]);
+      expect(center.terrainHeights[(side - 1) * side + index])
+        .toBe(south.terrainHeights[index]);
+    }
+  });
+
   it("carves terrain below the generated water surface along the river", () => {
     const chunk = generateChunk("channel", { x: 2, z: -1 });
     const side = chunk.terrainVerticesPerSide;

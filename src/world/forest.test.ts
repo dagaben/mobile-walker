@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CHUNK_SIZE } from "./chunkCoordinates";
-import { generateTrees, sampleForestDensity } from "./forest";
+import { generateTrees, sampleForestDensity, treeChance } from "./forest";
 import { normalizeSeed } from "./random";
 import { isRiverAt, sampleTerrainHeight } from "./terrainSampling";
 
@@ -33,5 +33,21 @@ describe("forest generation", () => {
     expect(Math.max(...densities)).toBeGreaterThan(0.8);
     expect(Math.min(...counts)).toBeLessThanOrEqual(2);
     expect(Math.max(...counts)).toBeGreaterThanOrEqual(25);
+  });
+
+  it("gives meadow, forest, and highland different biome-level densities", () => {
+    const oneHot = (id: "plains" | "forest" | "wetland" | "highlands") => ({
+      plains: 0,
+      forest: 0,
+      wetland: 0,
+      highlands: 0,
+      [id]: 1,
+    });
+
+    const meadowChance = treeChance(0.7, oneHot("plains"));
+    const forestChance = treeChance(0.7, oneHot("forest"));
+    const highlandChance = treeChance(0.7, oneHot("highlands"));
+    expect(forestChance).toBeGreaterThan(highlandChance);
+    expect(highlandChance).toBeGreaterThan(meadowChance);
   });
 });
