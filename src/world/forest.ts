@@ -14,6 +14,8 @@ export interface TreePlacement {
 const TREE_CELL_SIZE = 2;
 const FOREST_CELL_SIZE = 32;
 const RIVER_CLEARANCE = 1.15;
+/** Radius of the trunk geometry at ground level, before tree scaling. */
+export const TREE_TRUNK_RADIUS = 0.16;
 
 function smoothstep(value: number): number {
   return value * value * (3 - 2 * value);
