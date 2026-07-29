@@ -31,23 +31,14 @@ export class PlayerMovementSystem implements FixedSystem {
   }
 }
 
-/** Grounds moving entities and treats generated rivers as impassable hazards. */
+/** Grounds moving entities on the generated terrain, including river beds. */
 export class TerrainSamplingSystem implements FixedSystem {
   constructor(private readonly seed: number | string) {}
 
   fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0]): void {
     for (const entity of world.entities) {
       if (!entity.transform || !entity.previousTransform || !entity.terrainFollower) continue;
-      let sample = sampleTerrain(this.seed, entity.transform.x, entity.transform.z);
-      if (sample.surface === "river") {
-        entity.transform.x = entity.previousTransform.x;
-        entity.transform.z = entity.previousTransform.z;
-        if (entity.velocity) {
-          entity.velocity.x = 0;
-          entity.velocity.z = 0;
-        }
-        sample = sampleTerrain(this.seed, entity.transform.x, entity.transform.z);
-      }
+      const sample = sampleTerrain(this.seed, entity.transform.x, entity.transform.z);
       const groundY = sample.height + entity.terrainFollower.heightOffset;
       if (entity.transform.y <= groundY && (!entity.velocity || entity.velocity.y <= 0)) {
         entity.transform.y = groundY;
