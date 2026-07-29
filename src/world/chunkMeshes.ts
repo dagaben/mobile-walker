@@ -1,5 +1,6 @@
 import * as THREE from "three";
 
+import type { BiomeId, BiomeWeights } from "./biomes";
 import type { GeneratedChunkData } from "./generateChunk";
 import type { RiverPoint } from "./river";
 
@@ -11,6 +12,25 @@ export interface DebugViewOptions {
 
 const DEBUG_BOUNDARIES_NAME = "debug:walkable-boundaries";
 const DEBUG_RIVER_NAME = "debug:river-placement";
+
+/** Muted natural colors keep blended biome transitions subtle rather than candy-bright. */
+const TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
+  plains: new THREE.Color(0x829b69),
+  forest: new THREE.Color(0x49694d),
+  wetland: new THREE.Color(0x71866a),
+  highlands: new THREE.Color(0x777871),
+};
+
+function blendBiomeColor(weights: BiomeWeights, target: THREE.Color): THREE.Color {
+  target.setRGB(0, 0, 0);
+  for (const id of Object.keys(TERRAIN_PALETTE) as BiomeId[]) {
+    const color = TERRAIN_PALETTE[id];
+    target.r += color.r * weights[id];
+    target.g += color.g * weights[id];
+    target.b += color.b * weights[id];
+  }
+  return target;
+}
 
 /** Builds the shared river ribbon with front faces and normals pointing upward. */
 export function createRiverRibbonGeometry(
@@ -41,7 +61,7 @@ export function createRiverRibbonGeometry(
 export class ChunkMeshFactory {
   private readonly groups = new Set<THREE.Group>();
   private readonly terrainMaterial = new THREE.MeshStandardMaterial({
-    color: 0x9fc98e, flatShading: true, roughness: 1,
+    color: 0xffffff, vertexColors: true, flatShading: true, roughness: 1,
   });
   private readonly riverMaterial = new THREE.MeshStandardMaterial({
     color: 0x5da9c9, flatShading: true, roughness: 0.65,
@@ -92,13 +112,18 @@ export class ChunkMeshFactory {
   private createTerrain(data: GeneratedChunkData): THREE.Mesh {
     const side = data.terrainVerticesPerSide;
     const positions: number[] = [];
+    const colors: number[] = [];
     const indices: number[] = [];
+    const color = new THREE.Color();
     for (let z = 0; z < side; z += 1) for (let x = 0; x < side; x += 1) {
+      const vertexIndex = z * side + x;
       positions.push(
         data.coordinate.x * data.size + x * data.size / (side - 1),
-        data.terrainHeights[z * side + x] ?? 0,
+        data.terrainHeights[vertexIndex] ?? 0,
         data.coordinate.z * data.size + z * data.size / (side - 1),
       );
+      blendBiomeColor(data.terrainBiomeWeights[vertexIndex], color);
+      colors.push(color.r, color.g, color.b);
     }
     for (let z = 0; z < side - 1; z += 1) for (let x = 0; x < side - 1; x += 1) {
       const topLeft = z * side + x;
@@ -106,6 +131,7 @@ export class ChunkMeshFactory {
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
     const mesh = new THREE.Mesh(geometry, this.terrainMaterial);

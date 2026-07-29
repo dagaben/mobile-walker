@@ -51,3 +51,57 @@ describe("pine tree geometry", () => {
     factory.dispose();
   });
 });
+
+describe("terrain biome colors", () => {
+  const terrainOf = (factory: ChunkMeshFactory, seed: string, x: number, z: number) => {
+    const data = generateChunk(seed, { x, z });
+    const group = factory.create(data);
+    return { data, group, terrain: group.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> };
+  };
+
+  it("provides one vertex color for every terrain vertex", () => {
+    const factory = new ChunkMeshFactory();
+    const { data, group, terrain } = terrainOf(factory, "colored-terrain", 0, 0);
+
+    expect(terrain.geometry.getAttribute("color").count)
+      .toBe(terrain.geometry.getAttribute("position").count);
+    expect(terrain.geometry.getAttribute("color").count).toBe(data.terrainHeights.length);
+    expect(terrain.material.vertexColors).toBe(true);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
+  it("gives adjacent chunks exactly matching boundary colors", () => {
+    const factory = new ChunkMeshFactory();
+    const left = terrainOf(factory, "color-continuity", -1, 2);
+    const right = terrainOf(factory, "color-continuity", 0, 2);
+    const leftColors = left.terrain.geometry.getAttribute("color");
+    const rightColors = right.terrain.geometry.getAttribute("color");
+    const side = left.data.terrainVerticesPerSide;
+
+    for (let z = 0; z < side; z += 1) {
+      const leftIndex = z * side + side - 1;
+      const rightIndex = z * side;
+      expect([leftColors.getX(leftIndex), leftColors.getY(leftIndex), leftColors.getZ(leftIndex)])
+        .toEqual([rightColors.getX(rightIndex), rightColors.getY(rightIndex), rightColors.getZ(rightIndex)]);
+    }
+
+    factory.disposeChunk(left.group);
+    factory.disposeChunk(right.group);
+    factory.dispose();
+  });
+
+  it("blends biome variation into multiple terrain colors", () => {
+    const factory = new ChunkMeshFactory();
+    const { group, terrain } = terrainOf(factory, "biome-color-variation", -4, -4);
+    const colors = terrain.geometry.getAttribute("color");
+    const uniqueColors = new Set(Array.from({ length: colors.count }, (_, index) =>
+      `${colors.getX(index)},${colors.getY(index)},${colors.getZ(index)}`));
+
+    expect(uniqueColors.size).toBeGreaterThan(1);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+});
