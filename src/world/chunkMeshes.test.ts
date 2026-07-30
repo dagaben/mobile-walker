@@ -5,6 +5,7 @@ import {
   ChunkMeshFactory,
   createRiverRibbonGeometry,
   createRiverChannelGeometry,
+  terrainColorWeights,
 } from "./chunkMeshes";
 import { generateChunk } from "./generateChunk";
 
@@ -172,6 +173,21 @@ describe("terrain biome colors", () => {
     const group = factory.create(data);
     return { data, group, terrain: group.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> };
   };
+
+  it("halves the Gaussian blend distance used for terrain colors", () => {
+    const source = {
+      plains: 0.5,
+      forest: 0.25,
+      wetland: 0.1,
+      lake: 0.05,
+      highlands: 0.06,
+      mountain: 0.04,
+    } as const;
+    const weights = terrainColorWeights(source);
+
+    expect(Object.values(weights).reduce((sum, weight) => sum + weight, 0)).toBeCloseTo(1, 12);
+    expect(weights.plains / weights.forest).toBeCloseTo((source.plains / source.forest) ** 4, 12);
+  });
 
   it("provides one vertex color for every terrain vertex", () => {
     const factory = new ChunkMeshFactory();

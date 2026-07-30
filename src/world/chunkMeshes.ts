@@ -18,6 +18,7 @@ const DEBUG_BOUNDARIES_NAME = "debug:walkable-boundaries";
 const DEBUG_CHUNK_BOUNDARY_NAME = "debug:chunk-boundary";
 const DEBUG_RIVER_NAME = "debug:river-placement";
 const SNOW_COLOR = new THREE.Color(0xf4f6f7);
+const TERRAIN_COLOR_BLEND_DISTANCE_SCALE = 0.5;
 
 /** Muted natural colors keep blended biome transitions subtle rather than candy-bright. */
 const TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
@@ -38,13 +39,29 @@ const DEBUG_TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
   mountain: new THREE.Color(BIOME_DEBUG_COLORS.mountain),
 };
 
+/** Narrows terrain color transitions without changing biome-driven world generation. */
+export function terrainColorWeights(weights: BiomeWeights): BiomeWeights {
+  // Biome scores use Gaussian distance falloff. Raising each score to the
+  // inverse square of the desired distance scale halves that falloff's radius.
+  const exponent = 1 / TERRAIN_COLOR_BLEND_DISTANCE_SCALE ** 2;
+  const sharpened = {} as Record<BiomeId, number>;
+  let total = 0;
+  for (const id of Object.keys(TERRAIN_PALETTE) as BiomeId[]) {
+    sharpened[id] = weights[id] ** exponent;
+    total += sharpened[id];
+  }
+  for (const id of Object.keys(TERRAIN_PALETTE) as BiomeId[]) sharpened[id] /= total;
+  return sharpened;
+}
+
 function blendBiomeColor(weights: BiomeWeights, target: THREE.Color): THREE.Color {
+  const colorWeights = terrainColorWeights(weights);
   target.setRGB(0, 0, 0);
   for (const id of Object.keys(TERRAIN_PALETTE) as BiomeId[]) {
     const color = TERRAIN_PALETTE[id];
-    target.r += color.r * weights[id];
-    target.g += color.g * weights[id];
-    target.b += color.b * weights[id];
+    target.r += color.r * colorWeights[id];
+    target.g += color.g * colorWeights[id];
+    target.b += color.b * colorWeights[id];
   }
   return target;
 }
