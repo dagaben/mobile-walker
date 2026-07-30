@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { sampleBiome } from "./biomes";
 import { CHUNK_SIZE } from "./chunkCoordinates";
 import { generateTrees, sampleForestDensity, treeChance } from "./forest";
 import { normalizeSeed } from "./random";
@@ -38,6 +39,17 @@ describe("forest generation", () => {
   it("clears trees from the actual column-zero river", () => {
     const trees = generateTrees("river-forest", { x: 0, z: 0 });
     for (const tree of trees) expect(isRiverAt("river-forest", tree.x, tree.z)).toBe(false);
+  });
+
+  it("does not place pine trees in wetlands", () => {
+    const seed = "wetland-pines";
+    const trees = Array.from({ length: 21 * 21 }, (_, index) => ({
+      x: index % 21 - 10,
+      z: Math.floor(index / 21) - 10,
+    })).flatMap((coordinate) => generateTrees(seed, coordinate));
+
+    expect(trees.length).toBeGreaterThan(0);
+    expect(trees.every((tree) => sampleBiome(seed, tree.x, tree.z).dominant !== "wetland")).toBe(true);
   });
 
   it("gives meadow, forest, and highland different biome-level densities", () => {

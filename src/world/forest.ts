@@ -81,9 +81,10 @@ export function generateTrees(
       const density = sampleForestDensity(seed, x, z);
       const biome = sampleBiome(seed, x, z);
       const biomeWeights = biome.weights;
-      // Meadow trees use the broadleaf vegetation layer exclusively. This
-      // keeps conifers from bleeding into plains along blended biome edges.
-      if (biome.dominant === "plains") continue;
+      // Meadows use the broadleaf vegetation layer exclusively, while
+      // wetlands stay free of conifers. Check the dominant biome explicitly
+      // so neighboring forest weights cannot bleed pines across either edge.
+      if (biome.dominant === "plains" || biome.dominant === "wetland") continue;
       if (hashFloat(seed, cellX, cellZ, 413) >= treeChance(density, biomeWeights)) continue;
 
       // Keep the banks readable and leave room to walk beside the water.
