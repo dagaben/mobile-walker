@@ -2,7 +2,7 @@ import type * as THREE from "three";
 
 import type { RenderSystem } from "../ecs/System";
 import { chunkId, type ChunkId } from "./chunkId";
-import { CHUNK_SIZE, type ChunkCoordinate, worldToChunk } from "./chunkCoordinates";
+import { selectChunkCenter, type ChunkCoordinate } from "./chunkCoordinates";
 import { ChunkMeshFactory } from "./chunkMeshes";
 import { generateChunk, type GeneratedChunkData } from "./generateChunk";
 
@@ -28,10 +28,6 @@ interface CachedChunk {
   readonly data: GeneratedChunkData;
   readonly group?: THREE.Group;
 }
-
-// A center must be crossed by a meaningful distance before its neighborhood changes.
-// This is deliberately smaller than normal traversal movement, while filtering seam jitter.
-const CENTER_HYSTERESIS = 0.5;
 
 interface ChunkWorkerRequest {
   readonly requestId: number;
@@ -85,8 +81,7 @@ export class ChunkStreamingSystem implements RenderSystem {
   private readonly meshWorkPerFrame: number;
   private readonly cacheSize: number;
   private wanted = new Set<ChunkId>();
-  private center: ChunkCoordinate = { x: 0, z: 0 };
-  private hasCenter = false;
+  private center?: ChunkCoordinate;
   private priorityDirection = { x: 0, z: 1 };
   private disposed = false;
 
@@ -116,7 +111,7 @@ export class ChunkStreamingSystem implements RenderSystem {
   ): void {
     const player = world.entities.find((entity) => entity.playerControl && entity.transform);
     if (!player?.transform || this.disposed) return;
-    this.updateCenter(player.transform.x, player.transform.z);
+    this.center = selectChunkCenter(player.transform.x, player.transform.z, this.center);
     const horizontalSpeed = Math.hypot(player.velocity?.x ?? 0, player.velocity?.z ?? 0);
     this.priorityDirection = horizontalSpeed > 0.001
       ? { x: (player.velocity?.x ?? 0) / horizontalSpeed, z: (player.velocity?.z ?? 0) / horizontalSpeed }
@@ -127,26 +122,9 @@ export class ChunkStreamingSystem implements RenderSystem {
     this.processSafeRemovals();
   }
 
-  private updateCenter(x: number, z: number): void {
-    const raw = worldToChunk(x, z);
-    if (!this.hasCenter) {
-      this.center = raw;
-      this.hasCenter = true;
-      return;
-    }
-    const stableAxis = (position: number, current: number, candidate: number): number => {
-      const lower = current * CHUNK_SIZE - CENTER_HYSTERESIS;
-      const upper = (current + 1) * CHUNK_SIZE + CENTER_HYSTERESIS;
-      return position < lower || position >= upper ? candidate : current;
-    };
-    this.center = {
-      x: stableAxis(x, this.center.x, raw.x),
-      z: stableAxis(z, this.center.z, raw.z),
-    };
-  }
-
   /** Only selects desired residents and updates queues; it performs no expensive work. */
   private selectNeighborhood(): void {
+    if (!this.center) return;
     const wanted = new Set<ChunkId>();
     for (let z = this.center.z - this.radius; z <= this.center.z + this.radius; z += 1) {
       for (let x = this.center.x - this.radius; x <= this.center.x + this.radius; x += 1) {
@@ -179,6 +157,7 @@ export class ChunkStreamingSystem implements RenderSystem {
   }
 
   private priorityScore(id: ChunkId): number {
+    if (!this.center) return 0;
     const [x, z] = id.split(",").map(Number);
     const dx = x - this.center.x;
     const dz = z - this.center.z;
