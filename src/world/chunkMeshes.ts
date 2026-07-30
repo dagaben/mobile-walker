@@ -19,6 +19,10 @@ const DEBUG_CHUNK_BOUNDARY_NAME = "debug:chunk-boundary";
 const DEBUG_RIVER_NAME = "debug:river-placement";
 const SNOW_COLOR = new THREE.Color(0xf4f6f7);
 const PINE_FOLIAGE_COLOR = new THREE.Color(0x386f4b);
+// Squaring normalized biome weights doubles their log-odds. Since neighboring
+// biome log-odds vary linearly across a boundary, this halves the visible
+// terrain-color transition without changing biome generation or gameplay.
+const TERRAIN_COLOR_BLEND_SHARPNESS = 2;
 
 /** Muted natural colors keep blended biome transitions subtle rather than candy-bright. */
 const TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
@@ -43,11 +47,14 @@ const DEBUG_TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
 
 function blendBiomeColor(weights: BiomeWeights, target: THREE.Color): THREE.Color {
   target.setRGB(0, 0, 0);
+  const sharpenedTotal = (Object.keys(TERRAIN_PALETTE) as BiomeId[])
+    .reduce((total, id) => total + weights[id] ** TERRAIN_COLOR_BLEND_SHARPNESS, 0);
   for (const id of Object.keys(TERRAIN_PALETTE) as BiomeId[]) {
     const color = TERRAIN_PALETTE[id];
-    target.r += color.r * weights[id];
-    target.g += color.g * weights[id];
-    target.b += color.b * weights[id];
+    const weight = weights[id] ** TERRAIN_COLOR_BLEND_SHARPNESS / sharpenedTotal;
+    target.r += color.r * weight;
+    target.g += color.g * weight;
+    target.b += color.b * weight;
   }
   return target;
 }
