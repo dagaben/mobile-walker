@@ -1,7 +1,7 @@
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
-import { isLakeAt, isRiverAt, MOUNTAIN_SNOW_LINE, sampleTerrainHeight } from "./terrainSampling";
+import { isLakeAt, isRiverAt, mountainSnowCoverage, sampleTerrainHeight } from "./terrainSampling";
 
 export interface VegetationPlacement {
   readonly x: number;
@@ -65,7 +65,7 @@ function generateLayer<T extends VegetationPlacement>(
       const biome = sampleBiome(seed, x, z);
       const weights = biome.weights;
       const height = sampleTerrainHeight(seed, x, z);
-      if (height >= MOUNTAIN_SNOW_LINE || (biome.dominant === "mountain" && !allowedOnRock)) continue;
+      if (mountainSnowCoverage(height, weights) >= 1 || (biome.dominant === "mountain" && !allowedOnRock)) continue;
       if (hashFloat(seed, cellX, cellZ, salt + 2) >= blendedChance(weights, profile)) continue;
       const scale = minScale + hashFloat(seed, cellX, cellZ, salt + 3) * (maxScale - minScale);
       placements.push(create({

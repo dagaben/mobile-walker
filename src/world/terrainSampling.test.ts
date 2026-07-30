@@ -6,6 +6,7 @@ import { normalizeSeed } from "./random";
 import {
   isRiverAt,
   isLakeAt,
+  mountainSnowCoverage,
   MOUNTAIN_SNOW_LINE,
   RIVER_BANK_WIDTH,
   RIVER_BED_DEPTH,
@@ -147,7 +148,24 @@ describe("terrain sampling", () => {
     }
 
     expect(mountainHeights.length).toBeGreaterThan(0);
-    expect(Math.max(...mountainHeights)).toBeGreaterThan(MOUNTAIN_SNOW_LINE + 7);
+    expect(Math.max(...mountainHeights)).toBeGreaterThan(MOUNTAIN_SNOW_LINE);
+    expect(mountainHeights.filter((height) => height >= MOUNTAIN_SNOW_LINE).length)
+      .toBeLessThan(mountainHeights.length / 4);
     expect(Math.max(...mountainHeights) - Math.min(...mountainHeights)).toBeLessThan(9);
+  });
+
+  it("limits summit snow to the mountain biome", () => {
+    const weights = (dominant: "highlands" | "mountain") => ({
+      plains: 0,
+      forest: 0,
+      wetland: 0,
+      lake: 0,
+      highlands: dominant === "highlands" ? 1 : 0,
+      mountain: dominant === "mountain" ? 1 : 0,
+    });
+
+    expect(mountainSnowCoverage(MOUNTAIN_SNOW_LINE + 10, weights("highlands"))).toBe(0);
+    expect(mountainSnowCoverage(MOUNTAIN_SNOW_LINE - 1, weights("mountain"))).toBe(0);
+    expect(mountainSnowCoverage(MOUNTAIN_SNOW_LINE, weights("mountain"))).toBe(1);
   });
 });

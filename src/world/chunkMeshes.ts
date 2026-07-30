@@ -5,7 +5,7 @@ import { TREE_TRUNK_RADIUS } from "./forest";
 import type { GeneratedChunkData, RiverChannelSection } from "./generateChunk";
 import type { RiverPoint } from "./river";
 import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
-import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, MOUNTAIN_SNOW_LINE, RIVER_BED_DEPTH } from "./terrainSampling";
+import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, mountainSnowCoverage, RIVER_BED_DEPTH } from "./terrainSampling";
 
 export interface DebugViewOptions {
   readonly wireframe: boolean;
@@ -216,10 +216,7 @@ export class ChunkMeshFactory {
     for (const vertex of renderedVertices) {
       positions.push(vertex.x, vertex.height, vertex.z);
       blendBiomeColor(vertex.biomeWeights, color);
-      // Snow follows elevation, with a short blend below the snow line to
-      // avoid a harsh contour around the summit.
-      const height = vertex.height;
-      const snow = Math.max(0, Math.min(1, (height - (MOUNTAIN_SNOW_LINE - 0.65)) / 0.65));
+      const snow = mountainSnowCoverage(vertex.height, vertex.biomeWeights);
       color.lerp(SNOW_COLOR, snow);
       colors.push(color.r, color.g, color.b);
       const dominant = (Object.keys(vertex.biomeWeights) as BiomeId[])

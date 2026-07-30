@@ -1,7 +1,7 @@
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
-import { isLakeAt, isRiverAt, MOUNTAIN_SNOW_LINE, sampleTerrainHeight } from "./terrainSampling";
+import { isLakeAt, isRiverAt, mountainSnowCoverage, sampleTerrainHeight } from "./terrainSampling";
 
 export interface TreePlacement {
   readonly x: number;
@@ -91,7 +91,7 @@ export function generateTrees(
       ) continue;
 
       const height = sampleTerrainHeight(seed, x, z);
-      if (height >= MOUNTAIN_SNOW_LINE) continue;
+      if (mountainSnowCoverage(height, biomeWeights) >= 1) continue;
 
       let minScale = 0;
       let maxScale = 0;
