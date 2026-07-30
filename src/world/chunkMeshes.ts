@@ -18,11 +18,14 @@ const DEBUG_BOUNDARIES_NAME = "debug:walkable-boundaries";
 const DEBUG_CHUNK_BOUNDARY_NAME = "debug:chunk-boundary";
 const DEBUG_RIVER_NAME = "debug:river-placement";
 const SNOW_COLOR = new THREE.Color(0xf4f6f7);
+const PINE_FOLIAGE_COLOR = new THREE.Color(0x386f4b);
 
 /** Muted natural colors keep blended biome transitions subtle rather than candy-bright. */
 const TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
   plains: new THREE.Color(0x829b69),
-  forest: new THREE.Color(0x315f41),
+  // Carry the pine foliage hue into the ground, then deepen and saturate it so
+  // forest regions read clearly against the lighter, greyer neighboring land.
+  forest: PINE_FOLIAGE_COLOR.clone().offsetHSL(0, 0.22, -0.05),
   wetland: new THREE.Color(0x665746),
   lake: new THREE.Color(0x536b50),
   highlands: new THREE.Color(0x8b7358),
@@ -130,7 +133,7 @@ export class ChunkMeshFactory {
     color: 0x77553d, flatShading: true, roughness: 1,
   });
   private readonly foliageMaterial = new THREE.MeshStandardMaterial({
-    color: 0x386f4b, flatShading: true, roughness: 1,
+    color: PINE_FOLIAGE_COLOR, flatShading: true, roughness: 1,
   });
   private readonly leafMaterial = new THREE.MeshStandardMaterial({
     color: 0x5d8244, flatShading: true, roughness: 1,
