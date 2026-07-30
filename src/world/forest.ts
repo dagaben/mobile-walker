@@ -79,7 +79,11 @@ export function generateTrees(
       const x = (cellX + 0.5) * TREE_CELL_SIZE + (hashFloat(seed, cellX, cellZ, 411) - 0.5) * 1.3;
       const z = (cellZ + 0.5) * TREE_CELL_SIZE + (hashFloat(seed, cellX, cellZ, 412) - 0.5) * 1.3;
       const density = sampleForestDensity(seed, x, z);
-      const biomeWeights = sampleBiome(seed, x, z).weights;
+      const biome = sampleBiome(seed, x, z);
+      const biomeWeights = biome.weights;
+      // Meadow trees use the broadleaf vegetation layer exclusively. This
+      // keeps conifers from bleeding into plains along blended biome edges.
+      if (biome.dominant === "plains") continue;
       if (hashFloat(seed, cellX, cellZ, 413) >= treeChance(density, biomeWeights)) continue;
 
       // Keep the banks readable and leave room to walk beside the water.

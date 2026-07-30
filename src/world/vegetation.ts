@@ -27,10 +27,10 @@ export const LEAF_TREE_TRUNK_RADIUS = 0.2;
 
 type Profile = Readonly<Record<BiomeId, number>>;
 
-// Leaf trees favor damp lowlands and mixed forest edges, while shrubs can
-// survive almost everywhere. Flowers deliberately blanket open meadows.
-const LEAF_TREE_CHANCE: Profile = { plains: 0.015, forest: 0.23, wetland: 0.14, lake: 0, highlands: 0.015, mountain: 0 };
-const BUSH_CHANCE: Profile = { plains: 0.12, forest: 0.34, wetland: 0.28, lake: 0, highlands: 0.16, mountain: 0.1 };
+// Leaf trees favor damp lowlands and mixed forest edges. Plains are flower-rich
+// meadows with just an occasional broadleaf tree and an even rarer shrub.
+const LEAF_TREE_CHANCE: Profile = { plains: 0.025, forest: 0.23, wetland: 0.14, lake: 0, highlands: 0.015, mountain: 0 };
+const BUSH_CHANCE: Profile = { plains: 0.003, forest: 0.34, wetland: 0.28, lake: 0, highlands: 0.16, mountain: 0.1 };
 const FLOWER_CHANCE: Profile = { plains: 0.72, forest: 0.07, wetland: 0.22, lake: 0, highlands: 0.08, mountain: 0 };
 const FLOWER_COLORS = [0xf1d36b, 0xf0eee4, 0xd99ab3, 0x9cadd8, 0xd97862] as const;
 
@@ -66,7 +66,12 @@ function generateLayer<T extends VegetationPlacement>(
       const weights = biome.weights;
       const height = sampleTerrainHeight(seed, x, z);
       if (mountainSnowCoverage(height, weights) >= 1 || (biome.dominant === "mountain" && !allowedOnRock)) continue;
-      if (hashFloat(seed, cellX, cellZ, salt + 2) >= blendedChance(weights, profile)) continue;
+      // Do not let a neighboring shrub- or tree-heavy biome overwhelm the
+      // sparse meadow character while plains remain dominant.
+      const chance = biome.dominant === "plains"
+        ? Math.min(profile.plains, blendedChance(weights, profile))
+        : blendedChance(weights, profile);
+      if (hashFloat(seed, cellX, cellZ, salt + 2) >= chance) continue;
       const scale = minScale + hashFloat(seed, cellX, cellZ, salt + 3) * (maxScale - minScale);
       placements.push(create({
         x, y: height, z, scale,
