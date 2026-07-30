@@ -3,11 +3,10 @@ import * as THREE from "three";
 import type { Entity } from "../ecs/Entity";
 import type { EcsWorld } from "../ecs/createEcsWorld";
 import type { FixedSystem, RenderSystem } from "../ecs/System";
-import { CHUNK_SIZE, chunkOrigin, type ChunkCoordinate } from "../world/chunkCoordinates";
+import { CHUNK_SIZE, chunkOrigin, selectChunkCenter, type ChunkCoordinate } from "../world/chunkCoordinates";
 import { chunkId } from "../world/chunkId";
 import { hashFloat, normalizeSeed } from "../world/random";
 import { sampleTerrainHeight } from "../world/terrainSampling";
-import { worldToChunk } from "../world/chunkCoordinates";
 
 export interface CollectiblePlacement {
   readonly id: string;
@@ -75,6 +74,7 @@ function disposeObject(object: THREE.Object3D): void {
 /** Streams only ECS/presentation shells; collection truth lives on the persistent state entity. */
 export class ExplorationPresentationSystem implements RenderSystem {
   private readonly active = new Map<string, Entity[]>();
+  private center?: ChunkCoordinate;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -86,10 +86,10 @@ export class ExplorationPresentationSystem implements RenderSystem {
     const player = world.entities.find((entity) => entity.playerControl && entity.transform);
     const state = world.entities.find((entity) => entity.collectionState)?.collectionState;
     if (!player?.transform || !state) return;
-    const center = worldToChunk(player.transform.x, player.transform.z);
+    this.center = selectChunkCenter(player.transform.x, player.transform.z, this.center);
     const wanted = new Set<string>();
-    for (let z = center.z - this.radius; z <= center.z + this.radius; z += 1) {
-      for (let x = center.x - this.radius; x <= center.x + this.radius; x += 1) {
+    for (let z = this.center.z - this.radius; z <= this.center.z + this.radius; z += 1) {
+      for (let x = this.center.x - this.radius; x <= this.center.x + this.radius; x += 1) {
         const coordinate = { x, z };
         const id = chunkId(coordinate);
         wanted.add(id);
