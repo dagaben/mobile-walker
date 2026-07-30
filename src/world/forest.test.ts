@@ -53,6 +53,7 @@ describe("forest generation", () => {
     const meadowChance = treeChance(0.7, oneHot("plains"));
     const forestChance = treeChance(0.7, oneHot("forest"));
     const highlandChance = treeChance(0.7, oneHot("highlands"));
+    expect(meadowChance).toBeLessThan(0.05);
     expect(forestChance).toBeGreaterThan(highlandChance);
     expect(highlandChance).toBeGreaterThan(meadowChance);
   });

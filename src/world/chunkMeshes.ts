@@ -22,7 +22,7 @@ const SNOW_COLOR = new THREE.Color(0xf4f6f7);
 /** Muted natural colors keep blended biome transitions subtle rather than candy-bright. */
 const TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
   plains: new THREE.Color(0x829b69),
-  forest: new THREE.Color(0x35563b),
+  forest: new THREE.Color(0x183d24),
   wetland: new THREE.Color(0x665746),
   highlands: new THREE.Color(0x8b7358),
   mountain: new THREE.Color(0x34383d),

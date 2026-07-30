@@ -16,7 +16,10 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
   forest: { id: "forest", label: "Forest", moisture: 0.72, ruggedness: 0.38 },
   wetland: { id: "wetland", label: "Wetland", moisture: 0.9, ruggedness: 0.08 },
   highlands: { id: "highlands", label: "Highlands", moisture: 0.42, ruggedness: 0.86 },
-  mountain: { id: "mountain", label: "Mountain", moisture: 0.2, ruggedness: 1.02 },
+  // Keep the mountain center inside the range produced by the climate field.
+  // This gives peaks a broad interior instead of restricting them to rare
+  // ruggedness extremes at the very edge of highland regions.
+  mountain: { id: "mountain", label: "Mountain", moisture: 0.2, ruggedness: 0.9 },
 };
 
 /** High-contrast colors shared by the biome debug terrain and its HUD legend. */

@@ -85,9 +85,9 @@ const ELEVATION_PROFILES: Readonly<Record<BiomeId, {
   // Highlands deliberately have enough relief for tall hills and locally
   // steep faces, while biome blending still eases the transition into them.
   highlands: { base: 0.5, broad: 2.35, detail: 0.78 },
-  // A high base and two strong noise bands create tall, broken summits rather
-  // than simply recoloring the existing highland hills.
-  mountain: { base: 6.2, broad: 8.8, detail: 3.1 },
+  // Most mountain height comes from its base, with restrained noise producing
+  // a wide, climbable massif that still rises well above the snow line.
+  mountain: { base: 10, broad: 3.2, detail: 0.45 },
 };
 
 /** Height at one vertex of the infinite, seeded terrain lattice. */
