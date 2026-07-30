@@ -235,6 +235,7 @@ describe("terrain wireframe debug view", () => {
     factory.setDebugView({ wireframe: true, boundaries: false, riverPlacement: false, biomeGuide: false });
 
     expect(boundary.visible).toBe(true);
+    expect((boundary.material as THREE.LineBasicMaterial).color.getHex()).toBe(0x8b0000);
     expect((boundary.material as THREE.LineBasicMaterial).depthTest).toBe(false);
     expect(boundary.geometry.getAttribute("position").count).toBe(data.terrainVerticesPerSide * 4 - 4);
 

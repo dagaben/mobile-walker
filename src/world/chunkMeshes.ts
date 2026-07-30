@@ -143,7 +143,7 @@ export class ChunkMeshFactory {
     color: 0xffffff, flatShading: true, roughness: 0.9,
   });
   private readonly boundaryMaterial = new THREE.LineBasicMaterial({ color: 0xff4f4f, depthTest: false });
-  private readonly chunkBoundaryMaterial = new THREE.LineBasicMaterial({ color: 0xffe45c, depthTest: false });
+  private readonly chunkBoundaryMaterial = new THREE.LineBasicMaterial({ color: 0x8b0000, depthTest: false });
   private readonly riverPlacementMaterial = new THREE.MeshBasicMaterial({
     color: 0x1677ff, depthTest: false, transparent: true, opacity: 0.72, side: THREE.DoubleSide,
   });
