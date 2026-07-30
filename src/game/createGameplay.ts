@@ -16,7 +16,7 @@ export interface GameplayControllers {
 }
 
 export function createGameplay(world: EcsWorld, systems: SystemScheduler, renderer: ThreeRenderer, inputElement: HTMLElement): GameplayControllers {
-  const worldSeed = "mobile-walker-v1";
+  const worldSeed = "mobile-walker-v2";
   const player = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.38, 0.75, 4, 8),
