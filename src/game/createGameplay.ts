@@ -10,6 +10,8 @@ import { CameraPresentationSystem, TransformInterpolationSystem } from "./presen
 import { CollectionSystem, createCollectionState, ExplorationPresentationSystem, ProximityDetectionSystem } from "./exploration";
 import { BiomeDebugPresentationSystem } from "./biomeDebug";
 import { getBrowserStorage, loadGameState, PersistenceSystem } from "./persistence";
+import { findSafeRestoredTransform } from "../world/safePlayerPosition";
+import { PLAYER_COLLISION_RADIUS } from "../world/treeCollision";
 
 export interface GameplayControllers {
   readonly chunks: ChunkStreamingSystem;
@@ -28,7 +30,14 @@ export function createGameplay(
   const worldSeed = "mobile-walker-v2";
   const storage = getBrowserStorage();
   const savedState = loadGameState(storage, worldSeed);
-  const initialTransform = savedState?.player ?? { x: 0, y: 0.76, z: 0, yaw: 0 };
+  const initialTransform = findSafeRestoredTransform(
+    worldSeed,
+    savedState?.player ?? { x: 0, y: 0.76, z: 0, yaw: 0 },
+    0.76,
+    PLAYER_COLLISION_RADIUS,
+    0.5,
+    5,
+  );
   const player = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.38, 0.75, 4, 8),
