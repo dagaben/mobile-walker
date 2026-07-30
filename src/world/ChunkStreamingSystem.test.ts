@@ -169,7 +169,7 @@ describe("loaded neighborhood boundary", () => {
     chunks.prepareRender(world, 0, 0);
     expect(generator).toHaveBeenCalledTimes(12);
     expect(create).toHaveBeenCalledTimes(12);
-    chunks.setDebugView({ wireframe: true, boundaries: false, riverPlacement: false, biomeGuide: false });
+    chunks.setDebugView({ wireframe: true, biomeGuide: false });
     player.transform.x = CHUNK_SIZE - 0.6;
     chunks.prepareRender(world, 0, 0);
     expect(generator).toHaveBeenCalledTimes(12);

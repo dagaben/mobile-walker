@@ -31,6 +31,13 @@ export class ThreeRenderer {
     this.renderer.render(this.scene, this.camera);
   }
 
+  getPerformanceDetails(): { drawCalls: number; triangles: number } {
+    return {
+      drawCalls: this.renderer.info.render.calls,
+      triangles: this.renderer.info.render.triangles,
+    };
+  }
+
   dispose(): void {
     window.removeEventListener("resize", this.resize);
     this.scene.traverse((object) => {

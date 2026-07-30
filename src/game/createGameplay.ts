@@ -13,6 +13,7 @@ import { BiomeDebugPresentationSystem } from "./biomeDebug";
 export interface GameplayControllers {
   readonly chunks: ChunkStreamingSystem;
   readonly biomeDebug: BiomeDebugPresentationSystem;
+  readonly camera: CameraPresentationSystem;
 }
 
 export function createGameplay(world: EcsWorld, systems: SystemScheduler, renderer: ThreeRenderer, inputElement: HTMLElement): GameplayControllers {
@@ -66,11 +67,12 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   systems.addRenderSystem(chunks);
   systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets));
   systems.addRenderSystem(new TransformInterpolationSystem());
-  systems.addRenderSystem(new CameraPresentationSystem(renderer.camera, input));
+  const camera = new CameraPresentationSystem(renderer.camera, input);
+  systems.addRenderSystem(camera);
   const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");
   const biomeLabel = document.querySelector<HTMLElement>("#current-biome-name");
   if (!biomeOverlay || !biomeLabel) throw new Error("Biome guide elements could not be found.");
   const biomeDebug = new BiomeDebugPresentationSystem(worldSeed, biomeOverlay, biomeLabel);
   systems.addRenderSystem(biomeDebug);
-  return { chunks, biomeDebug };
+  return { chunks, biomeDebug, camera };
 }

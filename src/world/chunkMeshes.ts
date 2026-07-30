@@ -9,14 +9,10 @@ import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, mountainSnowCoverage, RIVER_
 
 export interface DebugViewOptions {
   readonly wireframe: boolean;
-  readonly boundaries: boolean;
-  readonly riverPlacement: boolean;
   readonly biomeGuide: boolean;
 }
 
-const DEBUG_BOUNDARIES_NAME = "debug:walkable-boundaries";
 const DEBUG_CHUNK_BOUNDARY_NAME = "debug:chunk-boundary";
-const DEBUG_RIVER_NAME = "debug:river-placement";
 const SNOW_COLOR = new THREE.Color(0xf4f6f7);
 const PINE_FOLIAGE_COLOR = new THREE.Color(0x386f4b);
 // Squaring normalized biome weights doubles their log-odds. Since neighboring
@@ -154,12 +150,8 @@ export class ChunkMeshFactory {
   private readonly flowerHeadMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff, flatShading: true, roughness: 0.9,
   });
-  private readonly boundaryMaterial = new THREE.LineBasicMaterial({ color: 0xff4f4f, depthTest: false });
   private readonly chunkBoundaryMaterial = new THREE.LineBasicMaterial({ color: 0x8b0000, depthTest: false });
-  private readonly riverPlacementMaterial = new THREE.MeshBasicMaterial({
-    color: 0x1677ff, depthTest: false, transparent: true, opacity: 0.72, side: THREE.DoubleSide,
-  });
-  private debugView: DebugViewOptions = { wireframe: false, boundaries: false, riverPlacement: false, biomeGuide: false };
+  private debugView: DebugViewOptions = { wireframe: false, biomeGuide: false };
 
   create(data: GeneratedChunkData): THREE.Group {
     const group = new THREE.Group();
@@ -172,7 +164,6 @@ export class ChunkMeshFactory {
     group.add(this.createWetlandPools(data));
     group.add(this.createTrees(data));
     group.add(this.createVegetation(data));
-    if (data.river) group.add(this.createBoundaries(data.river.spine), this.createRiverPlacement(data.river.spine));
     return group;
   }
 
@@ -205,9 +196,7 @@ export class ChunkMeshFactory {
     this.bushMaterial.dispose();
     this.flowerStemMaterial.dispose();
     this.flowerHeadMaterial.dispose();
-    this.boundaryMaterial.dispose();
     this.chunkBoundaryMaterial.dispose();
-    this.riverPlacementMaterial.dispose();
   }
 
   private createTerrain(data: GeneratedChunkData): THREE.Mesh {
@@ -481,31 +470,6 @@ export class ChunkMeshFactory {
     return group;
   }
 
-  private createBoundaries(spine: readonly RiverPoint[]): THREE.Group {
-    const group = new THREE.Group();
-    group.name = DEBUG_BOUNDARIES_NAME;
-    const makeBank = (direction: -1 | 1): THREE.Line => {
-      const points = spine.map((point) => new THREE.Vector3(
-        point.x + direction * point.width / 2, point.surfaceElevation + 0.08, point.z,
-      ));
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), this.boundaryMaterial);
-      line.renderOrder = 20;
-      return line;
-    };
-    group.add(makeBank(-1), makeBank(1));
-    group.visible = this.debugView.boundaries;
-    return group;
-  }
-
-  private createRiverPlacement(spine: readonly RiverPoint[]): THREE.Mesh {
-    const geometry = createRiverRibbonGeometry(spine, 0.04);
-    const mesh = new THREE.Mesh(geometry, this.riverPlacementMaterial);
-    mesh.name = DEBUG_RIVER_NAME;
-    mesh.renderOrder = 21;
-    mesh.visible = this.debugView.riverPlacement;
-    return mesh;
-  }
-
   registerGroup(group: THREE.Group): void {
     this.groups.add(group);
     this.applyDebugVisibility(group);
@@ -516,11 +480,7 @@ export class ChunkMeshFactory {
   }
 
   private applyDebugVisibility(group: THREE.Group): void {
-    const boundaries = group.getObjectByName(DEBUG_BOUNDARIES_NAME);
-    const riverPlacement = group.getObjectByName(DEBUG_RIVER_NAME);
     const chunkBoundary = group.getObjectByName(DEBUG_CHUNK_BOUNDARY_NAME);
-    if (boundaries) boundaries.visible = this.debugView.boundaries;
-    if (riverPlacement) riverPlacement.visible = this.debugView.riverPlacement;
     if (chunkBoundary) chunkBoundary.visible = this.debugView.wireframe;
     const terrain = group.getObjectByName("terrain") as THREE.Mesh | undefined;
     if (terrain) {

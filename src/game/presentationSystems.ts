@@ -20,6 +20,7 @@ export class CameraPresentationSystem implements RenderSystem {
   private static readonly minimumElevation = THREE.MathUtils.degToRad(5);
   private readonly desired = new THREE.Vector3();
   private readonly lookAt = new THREE.Vector3();
+  private readonly debugDirection = new THREE.Vector3();
   private zoom = 0;
   private tilt = 0;
 
@@ -27,6 +28,15 @@ export class CameraPresentationSystem implements RenderSystem {
     private readonly camera: THREE.PerspectiveCamera,
     private readonly input?: Pick<InputController, "sampleCamera">,
   ) {}
+
+  getDebugDetails(): { angleDegrees: number; zoomLevel: number; height: number } {
+    const direction = this.camera.getWorldDirection(this.debugDirection);
+    return {
+      angleDegrees: THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(-direction.y, -1, 1))),
+      zoomLevel: this.zoom,
+      height: this.camera.position.y,
+    };
+  }
 
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], _interpolation: number, deltaSeconds: number): void {
     const target = world.entities.find((entity) => entity.cameraTarget && entity.renderable);
