@@ -71,8 +71,9 @@ west endpoint are the exact same position, width, and elevation. The shared
 river spine drives water rendering, terrain carving, collision sampling, and
 forest clearance; chunks in other rows have uninterrupted terrain and
 vegetation, with no river or river-debug geometry. Terrain edge heights use
-global lattice coordinates in every row. The streamer keeps a 3-by-3
-neighborhood around the player, generates plain chunk data first, and passes it
+global lattice coordinates in every row. The streamer uses asymmetric offsets
+of one chunk west, east, and south and two chunks north, where the fixed camera
+looks. It generates plain chunk data first and passes it
 to a Three.js mesh factory. Chunk geometries are disposed when they leave the
 radius, while terrain and river materials are shared for the streamer's
 lifetime. Resident chunks render without an edge-fade shader, so outer chunk

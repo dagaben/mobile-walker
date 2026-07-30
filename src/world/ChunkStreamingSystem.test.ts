@@ -19,6 +19,26 @@ function createPlayerWorld() {
 }
 
 describe("loaded neighborhood boundary", () => {
+  it("supports independent streaming offsets in every direction", () => {
+    const scene = new THREE.Scene();
+    const { world } = createPlayerWorld();
+    const chunks = new ChunkStreamingSystem(scene, "north-row", 1, {
+      offsets: { west: 0, east: 1, north: 2, south: 0 },
+      generator: generateChunk,
+      generationWorkPerFrame: 20,
+      meshWorkPerFrame: 20,
+    });
+
+    chunks.prepareRender(world, 0, 0);
+
+    expect(scene.children).toHaveLength(6);
+    expect(scene.getObjectByName("chunk:0,-2")).toBeDefined();
+    expect(scene.getObjectByName("chunk:1,0")).toBeDefined();
+    expect(scene.getObjectByName("chunk:-1,0")).toBeUndefined();
+    expect(scene.getObjectByName("chunk:0,1")).toBeUndefined();
+    chunks.dispose();
+  });
+
   it("queues activation and obeys generation and mesh limits per frame", () => {
     const scene = new THREE.Scene();
     const { world } = createPlayerWorld();

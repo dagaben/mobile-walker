@@ -3,7 +3,14 @@ import * as THREE from "three";
 import type { Entity } from "../ecs/Entity";
 import type { EcsWorld } from "../ecs/createEcsWorld";
 import type { FixedSystem, RenderSystem } from "../ecs/System";
-import { CHUNK_SIZE, chunkOrigin, selectChunkCenter, type ChunkCoordinate } from "../world/chunkCoordinates";
+import {
+  CHUNK_SIZE,
+  chunkOrigin,
+  resolveNeighborhoodOffsets,
+  selectChunkCenter,
+  type ChunkCoordinate,
+  type ChunkNeighborhoodOffsets,
+} from "../world/chunkCoordinates";
 import { chunkId } from "../world/chunkId";
 import { hashFloat, normalizeSeed } from "../world/random";
 import { sampleTerrainHeight } from "../world/terrainSampling";
@@ -74,13 +81,17 @@ function disposeObject(object: THREE.Object3D): void {
 /** Streams only ECS/presentation shells; collection truth lives on the persistent state entity. */
 export class ExplorationPresentationSystem implements RenderSystem {
   private readonly active = new Map<string, Entity[]>();
+  private readonly offsets: ChunkNeighborhoodOffsets;
   private center?: ChunkCoordinate;
 
   constructor(
     private readonly scene: THREE.Scene,
     private readonly seed: number | string,
-    private readonly radius = 1,
-  ) {}
+    radius = 1,
+    offsets: Partial<ChunkNeighborhoodOffsets> = {},
+  ) {
+    this.offsets = resolveNeighborhoodOffsets(radius, offsets);
+  }
 
   prepareRender(world: EcsWorld): void {
     const player = world.entities.find((entity) => entity.playerControl && entity.transform);
@@ -88,8 +99,8 @@ export class ExplorationPresentationSystem implements RenderSystem {
     if (!player?.transform || !state) return;
     this.center = selectChunkCenter(player.transform.x, player.transform.z, this.center);
     const wanted = new Set<string>();
-    for (let z = this.center.z - this.radius; z <= this.center.z + this.radius; z += 1) {
-      for (let x = this.center.x - this.radius; x <= this.center.x + this.radius; x += 1) {
+    for (let z = this.center.z - this.offsets.north; z <= this.center.z + this.offsets.south; z += 1) {
+      for (let x = this.center.x - this.offsets.west; x <= this.center.x + this.offsets.east; x += 1) {
         const coordinate = { x, z };
         const id = chunkId(coordinate);
         wanted.add(id);

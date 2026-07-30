@@ -2,7 +2,12 @@ import type * as THREE from "three";
 
 import type { RenderSystem } from "../ecs/System";
 import { chunkId, type ChunkId } from "./chunkId";
-import { selectChunkCenter, type ChunkCoordinate } from "./chunkCoordinates";
+import {
+  resolveNeighborhoodOffsets,
+  selectChunkCenter,
+  type ChunkCoordinate,
+  type ChunkNeighborhoodOffsets,
+} from "./chunkCoordinates";
 import { ChunkMeshFactory } from "./chunkMeshes";
 import { generateChunk, type GeneratedChunkData } from "./generateChunk";
 
@@ -12,6 +17,8 @@ type ChunkGenerator = (
 ) => GeneratedChunkData | Promise<GeneratedChunkData>;
 
 export interface ChunkStreamingOptions {
+  /** Per-direction distances from the center; omitted directions use the radius. */
+  readonly offsets?: Partial<ChunkNeighborhoodOffsets>;
   /** Maximum data-generation jobs started during one render frame. */
   readonly generationWorkPerFrame?: number;
   /** Maximum generated chunks converted to Three.js objects during one render frame. */
@@ -80,9 +87,10 @@ export class ChunkStreamingSystem implements RenderSystem {
   private readonly generationWorkPerFrame: number;
   private readonly meshWorkPerFrame: number;
   private readonly cacheSize: number;
+  private readonly offsets: ChunkNeighborhoodOffsets;
   private wanted = new Set<ChunkId>();
   private center?: ChunkCoordinate;
-  private priorityDirection = { x: 0, z: 1 };
+  private priorityDirection = { x: 0, z: -1 };
   private disposed = false;
 
   constructor(
@@ -98,6 +106,7 @@ export class ChunkStreamingSystem implements RenderSystem {
     this.generationWorkPerFrame = Math.max(0, options.generationWorkPerFrame ?? 1);
     this.meshWorkPerFrame = Math.max(0, options.meshWorkPerFrame ?? 1);
     this.cacheSize = Math.max(0, options.cacheSize ?? 16);
+    this.offsets = resolveNeighborhoodOffsets(this.radius, options.offsets);
   }
 
   setDebugView(options: import("./chunkMeshes").DebugViewOptions): void {
@@ -115,7 +124,8 @@ export class ChunkStreamingSystem implements RenderSystem {
     const horizontalSpeed = Math.hypot(player.velocity?.x ?? 0, player.velocity?.z ?? 0);
     this.priorityDirection = horizontalSpeed > 0.001
       ? { x: (player.velocity?.x ?? 0) / horizontalSpeed, z: (player.velocity?.z ?? 0) / horizontalSpeed }
-      : { x: Math.sin(player.transform.yaw), z: Math.cos(player.transform.yaw) };
+      // When stationary, fill the fixed camera's northern view first.
+      : { x: 0, z: -1 };
     this.selectNeighborhood();
     this.processGeneration();
     this.processMeshes();
@@ -126,8 +136,8 @@ export class ChunkStreamingSystem implements RenderSystem {
   private selectNeighborhood(): void {
     if (!this.center) return;
     const wanted = new Set<ChunkId>();
-    for (let z = this.center.z - this.radius; z <= this.center.z + this.radius; z += 1) {
-      for (let x = this.center.x - this.radius; x <= this.center.x + this.radius; x += 1) {
+    for (let z = this.center.z - this.offsets.north; z <= this.center.z + this.offsets.south; z += 1) {
+      for (let x = this.center.x - this.offsets.west; x <= this.center.x + this.offsets.east; x += 1) {
         const coordinate = { x, z };
         const id = chunkId(coordinate);
         wanted.add(id);

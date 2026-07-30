@@ -9,6 +9,28 @@ export interface ChunkCoordinate {
   readonly z: number;
 }
 
+/** Per-direction chunk distances from a neighborhood's center. */
+export interface ChunkNeighborhoodOffsets {
+  readonly west: number;
+  readonly east: number;
+  readonly north: number;
+  readonly south: number;
+}
+
+export function resolveNeighborhoodOffsets(
+  radius: number,
+  offsets: Partial<ChunkNeighborhoodOffsets> = {},
+): ChunkNeighborhoodOffsets {
+  const fallback = Math.max(0, Math.floor(radius));
+  const distance = (value: number | undefined): number => Math.max(0, Math.floor(value ?? fallback));
+  return {
+    west: distance(offsets.west),
+    east: distance(offsets.east),
+    north: distance(offsets.north),
+    south: distance(offsets.south),
+  };
+}
+
 export function worldToChunk(x: number, z: number): ChunkCoordinate {
   return { x: Math.floor(x / CHUNK_SIZE), z: Math.floor(z / CHUNK_SIZE) };
 }

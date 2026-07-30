@@ -59,9 +59,12 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   systems.addFixedSystem(new ProximityDetectionSystem());
   systems.addFixedSystem(new CollectionSystem());
   // Generate data before constructing meshes; then interpolate visuals and derive the camera pose.
-  const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1);
+  // The camera remains south of the player and looks north (negative world Z),
+  // so spend the additional streaming row where it expands the visible view.
+  const streamingOffsets = { west: 1, east: 1, south: 1, north: 2 } as const;
+  const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1, { offsets: streamingOffsets });
   systems.addRenderSystem(chunks);
-  systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, 1));
+  systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets));
   systems.addRenderSystem(new TransformInterpolationSystem());
   systems.addRenderSystem(new CameraPresentationSystem(renderer.camera, input));
   const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");
