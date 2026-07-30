@@ -349,20 +349,20 @@ export class ChunkMeshFactory {
   private createTrees(data: GeneratedChunkData): THREE.Group {
     const group = new THREE.Group();
     group.name = "trees";
-    if (data.trees.length === 0) return group;
+    if (data.pines.length === 0) return group;
 
     const trunks = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.11, TREE_TRUNK_RADIUS, 1.1, 5), this.trunkMaterial, data.trees.length,
+      new THREE.CylinderGeometry(0.11, TREE_TRUNK_RADIUS, 1.1, 5), this.trunkMaterial, data.pines.length,
     );
     const crowns = new THREE.InstancedMesh(
-      new THREE.ConeGeometry(0.82, 2.25, 7), this.foliageMaterial, data.trees.length,
+      new THREE.ConeGeometry(0.82, 2.25, 7), this.foliageMaterial, data.pines.length,
     );
     const upperCrowns = new THREE.InstancedMesh(
-      new THREE.ConeGeometry(0.59, 1.75, 7), this.foliageMaterial, data.trees.length,
+      new THREE.ConeGeometry(0.59, 1.75, 7), this.foliageMaterial, data.pines.length,
     );
     const transform = new THREE.Object3D();
     const color = new THREE.Color();
-    data.trees.forEach((tree, index) => {
+    data.pines.forEach((tree, index) => {
       transform.position.set(tree.x, tree.y + 0.55 * tree.scale, tree.z);
       transform.rotation.y = tree.rotation;
       transform.scale.setScalar(tree.scale);

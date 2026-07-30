@@ -4,9 +4,26 @@ import { sampleBiome } from "./biomes";
 import { CHUNK_SIZE } from "./chunkCoordinates";
 import { generateTrees } from "./forest";
 import { isRiverAt, mountainSnowCoverage, sampleTerrainHeight } from "./terrainSampling";
-import { generateVegetation } from "./vegetation";
+import { generateVegetation, generateVegetationKind, VEGETATION_PROFILES, type VegetationKind } from "./vegetation";
 
 describe("biome vegetation", () => {
+  it.each([
+    ["pine", ["plains", "wetland"]],
+    ["leafTree", ["mountain"]],
+    ["bush", []],
+    ["flower", ["mountain"]],
+  ] as const)("declares and enforces %s dominant-biome prohibitions", (kind, denied) => {
+    expect(VEGETATION_PROFILES[kind].dominantBiomes?.deny ?? []).toEqual(denied);
+    const seed = "vegetation-biome-rules";
+    const placements = Array.from({ length: 11 * 11 }, (_, index) => ({
+      x: index % 11 - 5,
+      z: Math.floor(index / 11) - 5,
+    })).flatMap((coordinate) => generateVegetationKind(kind as VegetationKind, seed, coordinate));
+    expect(placements.every((plant) => !(denied as readonly string[]).includes(
+      sampleBiome(seed, plant.x, plant.z).dominant,
+    ))).toBe(true);
+  });
+
   it("creates a dense carpet of flowers in the most meadow-like nearby chunk", () => {
     const seed = "summer-meadows";
     const coordinates = Array.from({ length: 121 }, (_, index) => ({

@@ -47,7 +47,7 @@ export interface GeneratedChunkData {
     readonly vertices: readonly IrregularTerrainVertex[];
     readonly indices: readonly number[];
   };
-  readonly trees: readonly TreePlacement[];
+  readonly pines: readonly TreePlacement[];
   readonly vegetation: GeneratedVegetation;
   readonly wetlandPools: readonly WetlandPoolPlacement[];
   readonly river?: {
@@ -148,7 +148,7 @@ export function generateChunk(seedInput: number | string, coordinate: ChunkCoord
     terrainBiomeWeights,
     terrainVerticesPerSide: verticesPerSide,
     irregularTerrain: channel ? generateIrregularTerrain(seed, coordinate, channel.sections) : undefined,
-    trees: generateTrees(seed, coordinate),
+    pines: generateTrees(seed, coordinate),
     vegetation: generateVegetation(seed, coordinate),
     wetlandPools: generateWetlandPools(seed, coordinate),
     river: channel ? {

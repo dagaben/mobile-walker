@@ -116,10 +116,10 @@ describe("pine tree geometry", () => {
     const group = factory.create(data);
     const trees = group.getObjectByName("trees") as THREE.Group;
 
-    expect(data.trees.length).toBeGreaterThan(0);
+    expect(data.pines.length).toBeGreaterThan(0);
     expect(trees.children).toHaveLength(3);
     expect(trees.children.every((child) => child instanceof THREE.InstancedMesh)).toBe(true);
-    expect((trees.children[0] as THREE.InstancedMesh).count).toBe(data.trees.length);
+    expect((trees.children[0] as THREE.InstancedMesh).count).toBe(data.pines.length);
 
     factory.disposeChunk(group);
     factory.dispose();
