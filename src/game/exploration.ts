@@ -79,7 +79,6 @@ export class ExplorationPresentationSystem implements RenderSystem {
   constructor(
     private readonly scene: THREE.Scene,
     private readonly seed: number | string,
-    private readonly status: HTMLElement,
     private readonly radius = 1,
   ) {}
 
@@ -126,7 +125,6 @@ export class ExplorationPresentationSystem implements RenderSystem {
         entity.renderable.visible = !state.collectedIds.has(entity.interactable.id);
       }
     }
-    this.status.textContent = `Waypoints · ${state.discovered}`;
   }
 
   dispose(): void {

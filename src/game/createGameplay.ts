@@ -61,9 +61,7 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   // Generate data before constructing meshes; then interpolate visuals and derive the camera pose.
   const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1);
   systems.addRenderSystem(chunks);
-  const status = document.querySelector<HTMLElement>(".status");
-  if (!status) throw new Error("Exploration status element could not be found.");
-  systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, status, 1));
+  systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, 1));
   systems.addRenderSystem(new TransformInterpolationSystem());
   systems.addRenderSystem(new CameraPresentationSystem(renderer.camera, input));
   const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");
