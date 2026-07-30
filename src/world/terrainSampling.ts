@@ -30,8 +30,25 @@ const LAKE_BANK_WEIGHT = 0.18;
 /** Horizontal distances beyond the water edge occupied by each bank region. */
 export const RIVER_BANK_WIDTH = 0.75;
 export const RIVER_TRANSITION_WIDTH = 1.25;
-/** Terrain at and above this elevation is rendered as snow and has no vegetation. */
-export const MOUNTAIN_SNOW_LINE = 5.5;
+/** Only the highest mountain summits reach the permanent snow line. */
+export const MOUNTAIN_SNOW_LINE = 12.5;
+export const MOUNTAIN_SNOW_BLEND_DEPTH = 0.65;
+
+/**
+ * Snow is a mountain-biome surface rather than a global elevation effect.
+ * The short blend below the permanent snow line softens the edge of the cap.
+ */
+export function mountainSnowCoverage(height: number, biomeWeights: BiomeWeights): number {
+  let dominant: BiomeId = "plains";
+  for (const id of Object.keys(biomeWeights) as BiomeId[]) {
+    if (biomeWeights[id] > biomeWeights[dominant]) dominant = id;
+  }
+  if (dominant !== "mountain") return 0;
+  return Math.max(0, Math.min(
+    1,
+    (height - (MOUNTAIN_SNOW_LINE - MOUNTAIN_SNOW_BLEND_DEPTH)) / MOUNTAIN_SNOW_BLEND_DEPTH,
+  ));
+}
 
 export interface RiverCrossSectionSample {
   readonly centerZ: number;
