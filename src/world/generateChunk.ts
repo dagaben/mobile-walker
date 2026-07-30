@@ -3,7 +3,7 @@ import { chunkId, type ChunkId } from "./chunkId";
 import { sampleBiome, type BiomeWeights } from "./biomes";
 import { generateTrees, type TreePlacement } from "./forest";
 import { normalizeSeed } from "./random";
-import { isRiverRow, sampleRiverBoundary, sampleRiverSpine, type RiverBoundary, type RiverPoint } from "./river";
+import { isRiverColumn, sampleRiverBoundary, sampleRiverSpine, type RiverBoundary, type RiverPoint } from "./river";
 import {
   RIVER_BANK_WIDTH,
   RIVER_TRANSITION_WIDTH,
@@ -18,13 +18,13 @@ import { generateWetlandPools, type WetlandPoolPlacement } from "./wetlands";
 export { TERRAIN_SEGMENTS } from "./terrainSampling";
 
 export interface RiverChannelSection {
-  readonly x: number;
-  readonly centerZ: number;
+  readonly z: number;
+  readonly centerX: number;
   readonly waterHalfWidth: number;
   readonly bankWidth: number;
   readonly surfaceElevation: number;
-  readonly northShoulderHeight: number;
-  readonly southShoulderHeight: number;
+  readonly westShoulderHeight: number;
+  readonly eastShoulderHeight: number;
 }
 
 export interface IrregularTerrainVertex {
@@ -63,29 +63,29 @@ function generateRiverChannel(seed: number, coordinate: ChunkCoordinate): {
   sections: readonly RiverChannelSection[];
 } {
   // Eight longitudinal spans match the surrounding coarse terrain. The points
-  // are only one-dimensional; no refined river-row terrain lattice is created.
+  // are only one-dimensional; no refined river-column terrain lattice is created.
   const sourceSpine = sampleRiverSpine(seed, coordinate, TERRAIN_SEGMENTS);
   const points: RiverPoint[] = [];
   const sections: RiverChannelSection[] = [];
-  for (const { x } of sourceSpine) {
-    // Any z in row zero selects the same cross-section; centerZ is returned by
+  for (const { z } of sourceSpine) {
+    // Any x in column zero selects the same cross-section; centerX is returned by
     // the sampler and becomes the actual ribbon position.
-    const section = sampleRiverCrossSection(seed, x, CHUNK_SIZE / 2);
+    const section = sampleRiverCrossSection(seed, CHUNK_SIZE / 2, z);
     if (!section) continue;
     const waterHalfWidth = section.waterWidth / 2;
     const bankWidth = RIVER_BANK_WIDTH + RIVER_TRANSITION_WIDTH;
-    points.push({ x, z: section.centerZ, width: section.waterWidth, surfaceElevation: section.surfaceElevation });
+    points.push({ x: section.centerX, z, width: section.waterWidth, surfaceElevation: section.surfaceElevation });
     sections.push({
-      x,
-      centerZ: section.centerZ,
+      z,
+      centerX: section.centerX,
       waterHalfWidth,
       bankWidth,
       surfaceElevation: section.surfaceElevation,
-      northShoulderHeight: sampleNaturalTerrainHeight(
-        seed, x, section.centerZ - waterHalfWidth - bankWidth,
+      westShoulderHeight: sampleNaturalTerrainHeight(
+        seed, section.centerX - waterHalfWidth - bankWidth, z,
       ),
-      southShoulderHeight: sampleNaturalTerrainHeight(
-        seed, x, section.centerZ + waterHalfWidth + bankWidth,
+      eastShoulderHeight: sampleNaturalTerrainHeight(
+        seed, section.centerX + waterHalfWidth + bankWidth, z,
       ),
     });
   }
@@ -99,25 +99,25 @@ function generateIrregularTerrain(
 ): GeneratedChunkData["irregularTerrain"] {
   const vertices: IrregularTerrainVertex[] = [];
   const indices: number[] = [];
-  const northEdge = coordinate.z * CHUNK_SIZE;
-  const southEdge = northEdge + CHUNK_SIZE;
+  const westEdge = coordinate.x * CHUNK_SIZE;
+  const eastEdge = westEdge + CHUNK_SIZE;
   for (const section of sections) {
-    const northShoulderZ = section.centerZ - section.waterHalfWidth - section.bankWidth;
-    const southShoulderZ = section.centerZ + section.waterHalfWidth + section.bankWidth;
-    for (const [z, height] of [
-      [northEdge, sampleNaturalTerrainHeight(seed, section.x, northEdge)],
-      [northShoulderZ, section.northShoulderHeight],
-      [southShoulderZ, section.southShoulderHeight],
-      [southEdge, sampleNaturalTerrainHeight(seed, section.x, southEdge)],
+    const westShoulderX = section.centerX - section.waterHalfWidth - section.bankWidth;
+    const eastShoulderX = section.centerX + section.waterHalfWidth + section.bankWidth;
+    for (const [x, height] of [
+      [westEdge, sampleNaturalTerrainHeight(seed, westEdge, section.z)],
+      [westShoulderX, section.westShoulderHeight],
+      [eastShoulderX, section.eastShoulderHeight],
+      [eastEdge, sampleNaturalTerrainHeight(seed, eastEdge, section.z)],
     ] as const) {
-      vertices.push({ x: section.x, z, height, biomeWeights: sampleBiome(seed, section.x, z).weights });
+      vertices.push({ x, z: section.z, height, biomeWeights: sampleBiome(seed, x, section.z).weights });
     }
   }
-  for (let x = 0; x < sections.length - 1; x += 1) {
-    const start = x * 4;
-    // North edge-to-shoulder and south shoulder-to-edge are separate quads.
-    indices.push(start, start + 1, start + 4, start + 1, start + 5, start + 4);
-    indices.push(start + 2, start + 3, start + 6, start + 3, start + 7, start + 6);
+  for (let z = 0; z < sections.length - 1; z += 1) {
+    const start = z * 4;
+    // West edge-to-shoulder and east shoulder-to-edge are separate quads.
+    indices.push(start, start + 4, start + 1, start + 1, start + 4, start + 5);
+    indices.push(start + 2, start + 6, start + 3, start + 3, start + 6, start + 7);
   }
   return { vertices, indices };
 }
@@ -139,7 +139,7 @@ export function generateChunk(seedInput: number | string, coordinate: ChunkCoord
     }
   }
 
-  const channel = isRiverRow(coordinate) ? generateRiverChannel(seed, coordinate) : undefined;
+  const channel = isRiverColumn(coordinate) ? generateRiverChannel(seed, coordinate) : undefined;
   return {
     id: chunkId(coordinate),
     coordinate: { ...coordinate },
@@ -152,8 +152,8 @@ export function generateChunk(seedInput: number | string, coordinate: ChunkCoord
     vegetation: generateVegetation(seed, coordinate),
     wetlandPools: generateWetlandPools(seed, coordinate),
     river: channel ? {
-      entry: sampleRiverBoundary(seed, coordinate, "west"),
-      exit: sampleRiverBoundary(seed, coordinate, "east"),
+      entry: sampleRiverBoundary(seed, coordinate, "north"),
+      exit: sampleRiverBoundary(seed, coordinate, "south"),
       spine: channel.spine,
       channelSections: channel.sections,
     } : undefined,

@@ -35,7 +35,7 @@ describe("forest generation", () => {
     expect(Math.max(...counts)).toBeGreaterThanOrEqual(25);
   });
 
-  it("clears trees from the actual row-zero river", () => {
+  it("clears trees from the actual column-zero river", () => {
     const trees = generateTrees("river-forest", { x: 0, z: 0 });
     for (const tree of trees) expect(isRiverAt("river-forest", tree.x, tree.z)).toBe(false);
   });

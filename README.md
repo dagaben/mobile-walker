@@ -64,14 +64,14 @@ drawn from mutable state, so generation order, entity iteration order, the clock
 and `Math.random()` cannot influence a chunk. Mathematical floor division keeps
 world-to-chunk conversion correct on the negative side of the origin.
 
-A single river flows west-to-east exclusively through chunk row `z === 0`, which
+A single river flows north-to-south exclusively through chunk column `x === 0`, which
 contains the initial chunk `(0, 0)`. Each endpoint is hashed from its global
-boundary column, so a row-zero chunk's east endpoint and its eastern neighbor's
-west endpoint are the exact same position, width, and elevation. The shared
+boundary row, so a column-zero chunk's south endpoint and its southern neighbor's
+north endpoint are the exact same position, width, and elevation. The shared
 river spine drives water rendering, terrain carving, collision sampling, and
-forest clearance; chunks in other rows have uninterrupted terrain and
+forest clearance; chunks in other columns have uninterrupted terrain and
 vegetation, with no river or river-debug geometry. Terrain edge heights use
-global lattice coordinates in every row. The streamer uses asymmetric offsets
+global lattice coordinates in every column. The streamer uses asymmetric offsets
 of one chunk west, east, and south and two chunks north, where the fixed camera
 looks. It generates plain chunk data first and passes it
 to a Three.js mesh factory. Chunk geometries are disposed when they leave the

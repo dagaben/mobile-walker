@@ -1,7 +1,7 @@
 import { CHUNK_SIZE, worldToChunk } from "./chunkCoordinates";
 import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
-import { isRiverRow, sampleRiverSpine } from "./river";
+import { isRiverColumn, sampleRiverSpine } from "./river";
 
 export type TerrainSurface = "land" | "river" | "lake";
 /** Default chunk resolution; dry chunks retain the original generation cost. */
@@ -51,7 +51,7 @@ export function mountainSnowCoverage(height: number, biomeWeights: BiomeWeights)
 }
 
 export interface RiverCrossSectionSample {
-  readonly centerZ: number;
+  readonly centerX: number;
   readonly waterWidth: number;
   readonly surfaceElevation: number;
   /** Absolute lateral distance, where 1 is exactly the rendered water edge. */
@@ -70,9 +70,9 @@ export function sampleRiverCrossSection(
 ): RiverCrossSectionSample | undefined {
   const seed = normalizeSeed(seedInput);
   const coordinate = worldToChunk(worldX, worldZ);
-  if (!isRiverRow(coordinate)) return undefined;
+  if (!isRiverColumn(coordinate)) return undefined;
   const spine = sampleRiverSpine(seed, coordinate);
-  const local = (worldX - coordinate.x * CHUNK_SIZE) / CHUNK_SIZE;
+  const local = (worldZ - coordinate.z * CHUNK_SIZE) / CHUNK_SIZE;
   const segmentPosition = Math.max(0, Math.min(1, local)) * (spine.length - 1);
   const index = Math.min(spine.length - 2, Math.floor(segmentPosition));
   const fraction = segmentPosition - index;
@@ -80,14 +80,14 @@ export function sampleRiverCrossSection(
   const end = spine[index + 1];
   if (!start || !end) return undefined;
 
-  const centerZ = start.z + (end.z - start.z) * fraction;
+  const centerX = start.x + (end.x - start.x) * fraction;
   const waterWidth = start.width + (end.width - start.width) * fraction;
   return {
-    centerZ,
+    centerX,
     waterWidth,
     surfaceElevation: start.surfaceElevation
       + (end.surfaceElevation - start.surfaceElevation) * fraction,
-    normalizedLateralDistance: Math.abs(worldZ - centerZ) / (waterWidth / 2),
+    normalizedLateralDistance: Math.abs(worldX - centerX) / (waterWidth / 2),
   };
 }
 
@@ -179,7 +179,7 @@ export function sampleChannelTerrainHeight(seed: number, worldX: number, worldZ:
   if (!crossSection) return shapedHeight;
 
   const halfWidth = crossSection.waterWidth / 2;
-  const distanceFromWater = Math.max(0, Math.abs(worldZ - crossSection.centerZ) - halfWidth);
+  const distanceFromWater = Math.max(0, Math.abs(worldX - crossSection.centerX) - halfWidth);
   if (distanceFromWater >= RIVER_BANK_WIDTH + RIVER_TRANSITION_WIDTH) return shapedHeight;
 
   // The slight bowl avoids a mechanically flat bed while remaining safely

@@ -29,23 +29,23 @@ describe("deterministic chunk generation", () => {
     expect(forward).toEqual(reverse);
   });
 
-  it("shares exact river and terrain conditions across east-west boundaries", () => {
-    const left = generateChunk("continuity", { x: -1, z: 0 });
-    const right = generateChunk("continuity", { x: 0, z: 0 });
-    expect(left.river!.exit.z).toBe(right.river!.entry.z);
-    expect(left.river!.exit.width).toBe(right.river!.entry.width);
-    expect(left.river!.exit.surfaceElevation).toBe(right.river!.entry.surfaceElevation);
-    expect(left.river!.spine.at(-1)).toEqual(right.river!.spine[0]);
-    const side = left.terrainVerticesPerSide;
-    for (let z = 0; z < side; z += 1) {
-      expect(left.terrainHeights[z * side + side - 1]).toBe(right.terrainHeights[z * side]);
+  it("shares exact river and terrain conditions across north-south boundaries", () => {
+    const north = generateChunk("continuity", { x: 0, z: -1 });
+    const south = generateChunk("continuity", { x: 0, z: 0 });
+    expect(north.river!.exit.x).toBe(south.river!.entry.x);
+    expect(north.river!.exit.width).toBe(south.river!.entry.width);
+    expect(north.river!.exit.surfaceElevation).toBe(south.river!.entry.surfaceElevation);
+    expect(north.river!.spine.at(-1)).toEqual(south.river!.spine[0]);
+    const side = north.terrainVerticesPerSide;
+    for (let x = 0; x < side; x += 1) {
+      expect(north.terrainHeights[(side - 1) * side + x]).toBe(south.terrainHeights[x]);
     }
   });
 
-  it("only includes river data in chunk row zero", () => {
-    expect(generateChunk("one-river", { x: 8, z: 0 }).river).toBeDefined();
-    expect(generateChunk("one-river", { x: 8, z: -1 }).river).toBeUndefined();
-    expect(generateChunk("one-river", { x: 8, z: 1 }).river).toBeUndefined();
+  it("only includes river data in chunk column zero", () => {
+    expect(generateChunk("one-river", { x: 0, z: 8 }).river).toBeDefined();
+    expect(generateChunk("one-river", { x: -1, z: 8 }).river).toBeUndefined();
+    expect(generateChunk("one-river", { x: 1, z: 8 }).river).toBeUndefined();
   });
 
   it("shares exact terrain vertices on every edge of adjacent chunks", () => {
@@ -64,7 +64,7 @@ describe("deterministic chunk generation", () => {
   });
 
   it("carves terrain below the generated water surface along the river", () => {
-    const chunk = generateChunk("channel", { x: 2, z: 0 });
+    const chunk = generateChunk("channel", { x: 0, z: 2 });
     const side = chunk.terrainVerticesPerSide;
     for (const point of chunk.river!.spine) {
       const x = Math.round((point.x - chunk.coordinate.x * chunk.size) / chunk.size * (side - 1));
@@ -82,16 +82,16 @@ describe("deterministic chunk generation", () => {
 
     for (const point of chunk.river!.spine) {
       const section = sampleRiverCrossSection(seed, point.x, point.z)!;
-      expect(point.z).toBe(section.centerZ);
+      expect(point.x).toBe(section.centerX);
       expect(point.width).toBe(section.waterWidth);
       expect(point.surfaceElevation).toBe(section.surfaceElevation);
-      expect(isRiverAt(seed, point.x, point.z - point.width / 2)).toBe(true);
-      expect(isRiverAt(seed, point.x, point.z + point.width / 2)).toBe(true);
+      expect(isRiverAt(seed, point.x - point.width / 2, point.z)).toBe(true);
+      expect(isRiverAt(seed, point.x + point.width / 2, point.z)).toBe(true);
     }
   });
 
-  it("keeps the base terrain resolution outside the river row", () => {
-    const dryChunk = generateChunk("local-river-detail", { x: 0, z: 1 });
+  it("keeps the base terrain resolution outside the river column", () => {
+    const dryChunk = generateChunk("local-river-detail", { x: 1, z: 0 });
     const riverChunk = generateChunk("local-river-detail", { x: 0, z: 0 });
 
     expect(dryChunk.terrainVerticesPerSide).toBe(TERRAIN_SEGMENTS + 1);
@@ -101,21 +101,21 @@ describe("deterministic chunk generation", () => {
     expect(riverChunk.irregularTerrain!.vertices.length).toBeLessThan(dryChunk.terrainHeights.length);
   });
 
-  it("keeps river-row edges on the neighboring coarse edge", () => {
+  it("keeps river-column edges on the neighboring coarse edge", () => {
     const riverChunk = generateChunk("local-edge-continuity", { x: 0, z: 0 });
-    const southChunk = generateChunk("local-edge-continuity", { x: 0, z: 1 });
+    const eastChunk = generateChunk("local-edge-continuity", { x: 1, z: 0 });
     const riverSide = riverChunk.terrainVerticesPerSide;
-    const coarseSide = southChunk.terrainVerticesPerSide;
+    const coarseSide = eastChunk.terrainVerticesPerSide;
 
-    for (let coarseX = 0; coarseX < coarseSide; coarseX += 1) {
-      expect(riverChunk.terrainHeights[(riverSide - 1) * riverSide + coarseX])
-        .toBe(southChunk.terrainHeights[coarseX]);
+    for (let coarseZ = 0; coarseZ < coarseSide; coarseZ += 1) {
+      expect(riverChunk.terrainHeights[coarseZ * riverSide + riverSide - 1])
+        .toBe(eastChunk.terrainHeights[coarseZ * coarseSide]);
     }
   });
 
   it("shares exact channel sections between neighboring chunks", () => {
-    const left = generateChunk("channel-seams", { x: -1, z: 0 });
-    const right = generateChunk("channel-seams", { x: 0, z: 0 });
-    expect(left.river!.channelSections.at(-1)).toEqual(right.river!.channelSections[0]);
+    const north = generateChunk("channel-seams", { x: 0, z: -1 });
+    const south = generateChunk("channel-seams", { x: 0, z: 0 });
+    expect(north.river!.channelSections.at(-1)).toEqual(south.river!.channelSections[0]);
   });
 });

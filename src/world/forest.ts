@@ -90,8 +90,8 @@ export function generateTrees(
       if (
         isLakeAt(seed, x, z)
         || isRiverAt(seed, x, z)
-        || isRiverAt(seed, x, z - RIVER_CLEARANCE)
-        || isRiverAt(seed, x, z + RIVER_CLEARANCE)
+        || isRiverAt(seed, x - RIVER_CLEARANCE, z)
+        || isRiverAt(seed, x + RIVER_CLEARANCE, z)
       ) continue;
 
       const height = sampleTerrainHeight(seed, x, z);
