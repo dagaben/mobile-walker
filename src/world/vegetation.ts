@@ -1,7 +1,7 @@
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
-import { isRiverAt, MOUNTAIN_SNOW_LINE, sampleTerrainHeight } from "./terrainSampling";
+import { isLakeAt, isRiverAt, MOUNTAIN_SNOW_LINE, sampleTerrainHeight } from "./terrainSampling";
 
 export interface VegetationPlacement {
   readonly x: number;
@@ -29,9 +29,9 @@ type Profile = Readonly<Record<BiomeId, number>>;
 
 // Leaf trees favor damp lowlands and mixed forest edges, while shrubs can
 // survive almost everywhere. Flowers deliberately blanket open meadows.
-const LEAF_TREE_CHANCE: Profile = { plains: 0.015, forest: 0.23, wetland: 0.14, highlands: 0.015, mountain: 0 };
-const BUSH_CHANCE: Profile = { plains: 0.12, forest: 0.34, wetland: 0.28, highlands: 0.16, mountain: 0.1 };
-const FLOWER_CHANCE: Profile = { plains: 0.72, forest: 0.07, wetland: 0.22, highlands: 0.08, mountain: 0 };
+const LEAF_TREE_CHANCE: Profile = { plains: 0.015, forest: 0.23, wetland: 0.14, lake: 0, highlands: 0.015, mountain: 0 };
+const BUSH_CHANCE: Profile = { plains: 0.12, forest: 0.34, wetland: 0.28, lake: 0, highlands: 0.16, mountain: 0.1 };
+const FLOWER_CHANCE: Profile = { plains: 0.72, forest: 0.07, wetland: 0.22, lake: 0, highlands: 0.08, mountain: 0 };
 const FLOWER_COLORS = [0xf1d36b, 0xf0eee4, 0xd99ab3, 0x9cadd8, 0xd97862] as const;
 
 function blendedChance(weights: BiomeWeights, profile: Profile): number {
@@ -61,7 +61,7 @@ function generateLayer<T extends VegetationPlacement>(
       const cellZ = coordinate.z * cellsPerSide + localZ;
       const x = startX + (localX + 0.15 + hashFloat(seed, cellX, cellZ, salt) * 0.7) * cellSize;
       const z = startZ + (localZ + 0.15 + hashFloat(seed, cellX, cellZ, salt + 1) * 0.7) * cellSize;
-      if (x >= startX + CHUNK_SIZE || z >= startZ + CHUNK_SIZE || isRiverAt(seed, x, z)) continue;
+      if (x >= startX + CHUNK_SIZE || z >= startZ + CHUNK_SIZE || isRiverAt(seed, x, z) || isLakeAt(seed, x, z)) continue;
       const biome = sampleBiome(seed, x, z);
       const weights = biome.weights;
       const height = sampleTerrainHeight(seed, x, z);
