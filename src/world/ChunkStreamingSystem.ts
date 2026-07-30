@@ -2,7 +2,7 @@ import type * as THREE from "three";
 
 import type { RenderSystem } from "../ecs/System";
 import { chunkId, type ChunkId } from "./chunkId";
-import { type ChunkCoordinate, worldToChunk } from "./chunkCoordinates";
+import { CHUNK_SIZE, type ChunkCoordinate, worldToChunk } from "./chunkCoordinates";
 import { ChunkMeshFactory } from "./chunkMeshes";
 import { generateChunk, type GeneratedChunkData } from "./generateChunk";
 
@@ -16,11 +16,22 @@ export interface ChunkStreamingOptions {
   readonly generationWorkPerFrame?: number;
   /** Maximum generated chunks converted to Three.js objects during one render frame. */
   readonly meshWorkPerFrame?: number;
-  /** Number of recently departed generated-data entries retained for reversal. */
+  /** Number of recently departed data-and-mesh residents retained for reversal. */
   readonly cacheSize?: number;
   /** Primarily useful for non-browser hosts and deterministic tests. */
   readonly generator?: ChunkGenerator;
+  /** Primarily useful for observing mesh lifetimes in tests. */
+  readonly meshFactory?: ChunkMeshFactory;
 }
+
+interface CachedChunk {
+  readonly data: GeneratedChunkData;
+  readonly group?: THREE.Group;
+}
+
+// A center must be crossed by a meaningful distance before its neighborhood changes.
+// This is deliberately smaller than normal traversal movement, while filtering seam jitter.
+const CENTER_HYSTERESIS = 0.5;
 
 interface ChunkWorkerRequest {
   readonly requestId: number;
@@ -65,8 +76,8 @@ export class ChunkStreamingSystem implements RenderSystem {
   private readonly requestedAdditions = new Map<ChunkId, ChunkCoordinate>();
   private readonly requestedRemovals = new Map<ChunkId, THREE.Group>();
   private readonly generating = new Set<ChunkId>();
-  private readonly ready = new Map<ChunkId, GeneratedChunkData>();
-  private readonly cache = new Map<ChunkId, GeneratedChunkData>();
+  private readonly ready = new Map<ChunkId, CachedChunk>();
+  private readonly cache = new Map<ChunkId, CachedChunk>();
   private readonly meshes: ChunkMeshFactory;
   private readonly generator: ChunkGenerator;
   private readonly disposeGenerator: () => void;
@@ -75,6 +86,7 @@ export class ChunkStreamingSystem implements RenderSystem {
   private readonly cacheSize: number;
   private wanted = new Set<ChunkId>();
   private center: ChunkCoordinate = { x: 0, z: 0 };
+  private hasCenter = false;
   private priorityDirection = { x: 0, z: 1 };
   private disposed = false;
 
@@ -84,7 +96,7 @@ export class ChunkStreamingSystem implements RenderSystem {
     private readonly radius = 1,
     options: ChunkStreamingOptions = {},
   ) {
-    this.meshes = new ChunkMeshFactory();
+    this.meshes = options.meshFactory ?? new ChunkMeshFactory();
     const workerGenerator = options.generator ? undefined : createWorkerGenerator();
     this.generator = options.generator ?? workerGenerator?.generate ?? generateChunk;
     this.disposeGenerator = workerGenerator?.dispose ?? (() => undefined);
@@ -104,7 +116,7 @@ export class ChunkStreamingSystem implements RenderSystem {
   ): void {
     const player = world.entities.find((entity) => entity.playerControl && entity.transform);
     if (!player?.transform || this.disposed) return;
-    this.center = worldToChunk(player.transform.x, player.transform.z);
+    this.updateCenter(player.transform.x, player.transform.z);
     const horizontalSpeed = Math.hypot(player.velocity?.x ?? 0, player.velocity?.z ?? 0);
     this.priorityDirection = horizontalSpeed > 0.001
       ? { x: (player.velocity?.x ?? 0) / horizontalSpeed, z: (player.velocity?.z ?? 0) / horizontalSpeed }
@@ -113,6 +125,24 @@ export class ChunkStreamingSystem implements RenderSystem {
     this.processGeneration();
     this.processMeshes();
     this.processSafeRemovals();
+  }
+
+  private updateCenter(x: number, z: number): void {
+    const raw = worldToChunk(x, z);
+    if (!this.hasCenter) {
+      this.center = raw;
+      this.hasCenter = true;
+      return;
+    }
+    const stableAxis = (position: number, current: number, candidate: number): number => {
+      const lower = current * CHUNK_SIZE - CENTER_HYSTERESIS;
+      const upper = (current + 1) * CHUNK_SIZE + CENTER_HYSTERESIS;
+      return position < lower || position >= upper ? candidate : current;
+    };
+    this.center = {
+      x: stableAxis(x, this.center.x, raw.x),
+      z: stableAxis(z, this.center.z, raw.z),
+    };
   }
 
   /** Only selects desired residents and updates queues; it performs no expensive work. */
@@ -135,10 +165,10 @@ export class ChunkStreamingSystem implements RenderSystem {
     for (const [id] of this.requestedAdditions) {
       if (!wanted.has(id)) this.requestedAdditions.delete(id);
     }
-    for (const [id, data] of this.ready) {
+    for (const [id, resident] of this.ready) {
       if (!wanted.has(id)) {
         this.ready.delete(id);
-        this.putInCache(id, data);
+        this.putInCache(id, resident);
       }
     }
     this.wanted = wanted;
@@ -182,8 +212,10 @@ export class ChunkStreamingSystem implements RenderSystem {
 
   private finishGeneration(id: ChunkId, data: GeneratedChunkData): void {
     this.generating.delete(id);
-    if (this.disposed || !this.wanted.has(id)) this.putInCache(id, data);
-    else this.ready.set(id, data);
+    if (this.disposed) return;
+    const resident = { data };
+    if (!this.wanted.has(id)) this.putInCache(id, resident);
+    else this.ready.set(id, resident);
   }
 
   private retryGeneration(id: ChunkId, coordinate: ChunkCoordinate): void {
@@ -192,16 +224,16 @@ export class ChunkStreamingSystem implements RenderSystem {
   }
 
   private processMeshes(): void {
-    for (const [id, data] of this.ordered(this.ready).slice(0, this.meshWorkPerFrame)) {
+    for (const [id, resident] of this.ordered(this.ready).slice(0, this.meshWorkPerFrame)) {
       this.ready.delete(id);
       if (!this.wanted.has(id)) {
-        this.putInCache(id, data);
+        this.putInCache(id, resident);
         continue;
       }
-      const group = this.meshes.create(data);
+      const group = resident.group ?? this.meshes.create(resident.data);
       this.meshes.registerGroup(group);
       this.active.set(id, group);
-      this.activeData.set(id, data);
+      this.activeData.set(id, resident.data);
       this.scene.add(group);
     }
   }
@@ -214,17 +246,34 @@ export class ChunkStreamingSystem implements RenderSystem {
       this.active.delete(id);
       const data = this.activeData.get(id);
       this.activeData.delete(id);
-      if (data) this.putInCache(id, data);
       this.meshes.unregisterGroup(group);
-      this.meshes.disposeChunk(group);
+      group.removeFromParent();
+      if (data) this.putInCache(id, { data, group });
+      else this.meshes.disposeChunk(group);
     }
   }
 
-  private putInCache(id: ChunkId, data: GeneratedChunkData): void {
-    if (this.cacheSize === 0 || this.disposed) return;
+  private putInCache(id: ChunkId, resident: CachedChunk): void {
+    if (this.cacheSize === 0 || this.disposed) {
+      if (resident.group) this.meshes.disposeChunk(resident.group);
+      return;
+    }
+    const replaced = this.cache.get(id);
+    if (replaced?.group && replaced.group !== resident.group) {
+      this.meshes.unregisterGroup(replaced.group);
+      this.meshes.disposeChunk(replaced.group);
+    }
     this.cache.delete(id);
-    this.cache.set(id, data);
-    while (this.cache.size > this.cacheSize) this.cache.delete(this.cache.keys().next().value as ChunkId);
+    this.cache.set(id, resident);
+    while (this.cache.size > this.cacheSize) {
+      const evictedId = this.cache.keys().next().value as ChunkId;
+      const evicted = this.cache.get(evictedId);
+      this.cache.delete(evictedId);
+      if (evicted?.group) {
+        this.meshes.unregisterGroup(evicted.group);
+        this.meshes.disposeChunk(evicted.group);
+      }
+    }
   }
 
   dispose(): void {
@@ -239,7 +288,17 @@ export class ChunkStreamingSystem implements RenderSystem {
     this.activeData.clear();
     this.requestedAdditions.clear();
     this.requestedRemovals.clear();
+    for (const resident of this.ready.values()) {
+      if (!resident.group) continue;
+      this.meshes.unregisterGroup(resident.group);
+      this.meshes.disposeChunk(resident.group);
+    }
     this.ready.clear();
+    for (const resident of this.cache.values()) {
+      if (!resident.group) continue;
+      this.meshes.unregisterGroup(resident.group);
+      this.meshes.disposeChunk(resident.group);
+    }
     this.cache.clear();
     this.meshes.dispose();
   }

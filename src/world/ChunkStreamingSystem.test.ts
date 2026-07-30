@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createEcsWorld } from "../ecs/createEcsWorld";
 import { CHUNK_SIZE } from "./chunkCoordinates";
 import { ChunkStreamingSystem } from "./ChunkStreamingSystem";
+import { ChunkMeshFactory } from "./chunkMeshes";
 import { generateChunk } from "./generateChunk";
 
 function createPlayerWorld() {
@@ -112,5 +113,64 @@ describe("loaded neighborhood boundary", () => {
 
     expect(disposals.length).toBeGreaterThan(0);
     for (const dispose of disposals) expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("stabilizes a radius-1 seam, restores resident meshes, and disposes them exactly once", () => {
+    const scene = new THREE.Scene();
+    const { world, player } = createPlayerWorld();
+    const generator = vi.fn(generateChunk);
+    const meshFactory = new ChunkMeshFactory();
+    const create = vi.spyOn(meshFactory, "create");
+    const disposeChunk = vi.spyOn(meshFactory, "disposeChunk");
+    const chunks = new ChunkStreamingSystem(scene, "resident-cache", 1, {
+      generator,
+      meshFactory,
+      cacheSize: 3,
+      generationWorkPerFrame: 20,
+      meshWorkPerFrame: 20,
+    });
+
+    chunks.prepareRender(world, 0, 0);
+    expect(generator).toHaveBeenCalledTimes(9);
+    expect(create).toHaveBeenCalledTimes(9);
+    const initialGroups = new Map(scene.children.map((group) => [group.name, group]));
+
+    for (let index = 0; index < 8; index += 1) {
+      player.transform.x = CHUNK_SIZE + (index % 2 === 0 ? 0.1 : -0.1);
+      chunks.prepareRender(world, 0, 0);
+    }
+    expect(generator).toHaveBeenCalledTimes(9);
+    expect(create).toHaveBeenCalledTimes(9);
+    expect(disposeChunk).not.toHaveBeenCalled();
+
+    // Crossing the hysteresis band deliberately loads one new column and caches
+    // the departed one. Returning restores those same Three.js groups directly.
+    player.transform.x = CHUNK_SIZE + 0.6;
+    chunks.prepareRender(world, 0, 0);
+    expect(generator).toHaveBeenCalledTimes(12);
+    expect(create).toHaveBeenCalledTimes(12);
+    chunks.setDebugView({ wireframe: true, boundaries: false, riverPlacement: false, biomeGuide: false });
+    player.transform.x = CHUNK_SIZE - 0.6;
+    chunks.prepareRender(world, 0, 0);
+    expect(generator).toHaveBeenCalledTimes(12);
+    expect(create).toHaveBeenCalledTimes(12);
+    for (const name of ["chunk:-1,-1", "chunk:-1,0", "chunk:-1,1"]) {
+      const restored = scene.getObjectByName(name);
+      expect(restored).toBe(initialGroups.get(name));
+      expect(restored?.getObjectByName("debug:chunk-boundary")?.visible).toBe(true);
+    }
+
+    // A distant neighborhood forces bounded-cache eviction; final disposal must
+    // account for every group, without ever disposing a group twice.
+    player.transform.x = CHUNK_SIZE * 4;
+    chunks.prepareRender(world, 0, 0);
+    expect(disposeChunk).toHaveBeenCalled();
+    chunks.dispose();
+    chunks.dispose();
+    const createdGroups = create.mock.results.map(({ value }) => value);
+    expect(disposeChunk).toHaveBeenCalledTimes(createdGroups.length);
+    for (const group of createdGroups) {
+      expect(disposeChunk.mock.calls.filter(([disposed]) => disposed === group)).toHaveLength(1);
+    }
   });
 });
