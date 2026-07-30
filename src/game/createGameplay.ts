@@ -16,7 +16,13 @@ export interface GameplayControllers {
   readonly camera: CameraPresentationSystem;
 }
 
-export function createGameplay(world: EcsWorld, systems: SystemScheduler, renderer: ThreeRenderer, inputElement: HTMLElement): GameplayControllers {
+export function createGameplay(
+  world: EcsWorld,
+  systems: SystemScheduler,
+  renderer: ThreeRenderer,
+  inputElement: HTMLElement,
+  dragIndicator?: HTMLElement,
+): GameplayControllers {
   const worldSeed = "mobile-walker-v2";
   const player = new THREE.Group();
   const body = new THREE.Mesh(
@@ -52,7 +58,7 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   });
   world.add({ collectionState: createCollectionState() });
   // Fixed order: snapshot event state, then integrate.
-  const input = new InputController(inputElement);
+  const input = new InputController(inputElement, dragIndicator);
   systems.addFixedSystem(new InputSnapshotSystem(input));
   systems.addFixedSystem(new PlayerMovementSystem(worldSeed));
   systems.addFixedSystem(new TreeCollisionSystem(worldSeed));

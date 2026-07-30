@@ -75,6 +75,27 @@ describe("InputController focus loss", () => {
     controller.dispose();
   });
 
+  it("shows the drag origin for a movement pointer and hides it on release", () => {
+    const indicator = { hidden: true, style: { left: "", top: "" } };
+    const controller = new InputController(
+      element as unknown as HTMLElement,
+      indicator as unknown as HTMLElement,
+    );
+    const pointer = (type: string, x: number, y: number) => Object.assign(new Event(type), {
+      pointerId: 4, clientX: x, clientY: y,
+    });
+
+    element.dispatchEvent(pointer("pointerdown", 125, 275));
+    expect(indicator).toMatchObject({ hidden: false, style: { left: "125px", top: "275px" } });
+
+    element.dispatchEvent(pointer("pointermove", 180, 300));
+    expect(indicator.style).toEqual({ left: "125px", top: "275px" });
+
+    element.dispatchEvent(pointer("pointerup", 180, 300));
+    expect(indicator.hidden).toBe(true);
+    controller.dispose();
+  });
+
   it("queues Space only once while the key is held", () => {
     const controller = new InputController(element as unknown as HTMLElement);
     mockWindow.dispatchEvent(Object.assign(new Event("keydown"), { code: "Space", repeat: false }));
