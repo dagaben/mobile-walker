@@ -72,7 +72,7 @@ river spine drives water rendering, terrain carving, collision sampling, and
 forest clearance; chunks in other columns have uninterrupted terrain and
 vegetation, with no river or river-debug geometry. Terrain edge heights use
 global lattice coordinates in every column. The streamer uses asymmetric offsets
-of one chunk west, east, and south and two chunks north, where the fixed camera
+of one chunk west, east, and south and three chunks north, where the fixed camera
 looks. It generates plain chunk data first and passes it
 to a Three.js mesh factory. Chunk geometries are disposed when they leave the
 radius, while terrain and river materials are shared for the streamer's
