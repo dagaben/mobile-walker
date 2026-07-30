@@ -2,7 +2,7 @@ import type * as THREE from "three";
 
 import type { RenderSystem } from "../ecs/System";
 import { chunkId, type ChunkId } from "./chunkId";
-import { CHUNK_SIZE, type ChunkCoordinate, worldToChunk } from "./chunkCoordinates";
+import { type ChunkCoordinate, worldToChunk } from "./chunkCoordinates";
 import { ChunkMeshFactory } from "./chunkMeshes";
 import { generateChunk, type GeneratedChunkData } from "./generateChunk";
 
@@ -60,8 +60,6 @@ function createWorkerGenerator(): { generate: ChunkGenerator; dispose: () => voi
 }
 
 export class ChunkStreamingSystem implements RenderSystem {
-  /** The outer 3/4 chunk blends into the background; keep this below CHUNK_SIZE. */
-  static readonly EDGE_FADE_WIDTH = CHUNK_SIZE * 0.75;
   private readonly active = new Map<ChunkId, THREE.Group>();
   private readonly activeData = new Map<ChunkId, GeneratedChunkData>();
   private readonly requestedAdditions = new Map<ChunkId, ChunkCoordinate>();
@@ -86,14 +84,7 @@ export class ChunkStreamingSystem implements RenderSystem {
     private readonly radius = 1,
     options: ChunkStreamingOptions = {},
   ) {
-    const center = this.getLoadedCenter();
-    this.meshes = new ChunkMeshFactory({
-      centerX: center.x,
-      centerZ: center.z,
-      halfExtent: this.getLoadedHalfExtent(),
-      width: ChunkStreamingSystem.EDGE_FADE_WIDTH,
-      color: 0xd9ead8,
-    });
+    this.meshes = new ChunkMeshFactory();
     const workerGenerator = options.generator ? undefined : createWorkerGenerator();
     this.generator = options.generator ?? workerGenerator?.generate ?? generateChunk;
     this.disposeGenerator = workerGenerator?.dispose ?? (() => undefined);
@@ -119,8 +110,6 @@ export class ChunkStreamingSystem implements RenderSystem {
       ? { x: (player.velocity?.x ?? 0) / horizontalSpeed, z: (player.velocity?.z ?? 0) / horizontalSpeed }
       : { x: Math.sin(player.transform.yaw), z: Math.cos(player.transform.yaw) };
     this.selectNeighborhood();
-    const loadedCenter = this.getLoadedCenter();
-    this.meshes.setLoadedNeighborhood(loadedCenter.x, loadedCenter.z, this.getLoadedHalfExtent());
     this.processGeneration();
     this.processMeshes();
     this.processSafeRemovals();
@@ -236,16 +225,6 @@ export class ChunkStreamingSystem implements RenderSystem {
     this.cache.delete(id);
     this.cache.set(id, data);
     while (this.cache.size > this.cacheSize) this.cache.delete(this.cache.keys().next().value as ChunkId);
-  }
-
-  /** Center of the resident neighborhood, in world coordinates. */
-  getLoadedCenter(): { x: number; z: number } {
-    return { x: (this.center.x + 0.5) * CHUNK_SIZE, z: (this.center.z + 0.5) * CHUNK_SIZE };
-  }
-
-  /** Half-width of (2 * radius + 1) resident chunks in world units. */
-  getLoadedHalfExtent(): number {
-    return (this.radius + 0.5) * CHUNK_SIZE;
   }
 
   dispose(): void {
