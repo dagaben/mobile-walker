@@ -132,7 +132,7 @@ describe("terrain sampling", () => {
     }
   });
 
-  it("raises broad mountain terrain into tall, restrained snow-level summits", () => {
+  it("raises broad mountain terrain into tall, cohesive snow-level summits", () => {
     const seed = "snow-capped-mountains";
     const mountainHeights: number[] = [];
     for (let z = -160; z <= 160; z += 8) for (let x = -160; x <= 160; x += 8) {
@@ -141,7 +141,7 @@ describe("terrain sampling", () => {
     }
 
     expect(mountainHeights.length).toBeGreaterThan(0);
-    expect(Math.max(...mountainHeights)).toBeGreaterThan(MOUNTAIN_SNOW_LINE + 1);
-    expect(Math.max(...mountainHeights) - Math.min(...mountainHeights)).toBeLessThan(6);
+    expect(Math.max(...mountainHeights)).toBeGreaterThan(MOUNTAIN_SNOW_LINE + 7);
+    expect(Math.max(...mountainHeights) - Math.min(...mountainHeights)).toBeLessThan(9);
   });
 });
