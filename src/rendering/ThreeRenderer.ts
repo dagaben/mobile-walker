@@ -5,7 +5,7 @@ const MAX_PIXEL_RATIO = 2;
 export class ThreeRenderer {
   private readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, 150);
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
