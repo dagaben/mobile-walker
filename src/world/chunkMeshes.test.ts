@@ -220,3 +220,29 @@ describe("terrain biome colors", () => {
     factory.dispose();
   });
 });
+
+describe("terrain wireframe debug view", () => {
+  it("highlights each chunk perimeter while wireframe mode is enabled", () => {
+    const factory = new ChunkMeshFactory();
+    const data = generateChunk("chunk-boundary-highlight", { x: 2, z: -1 });
+    const group = factory.create(data);
+    factory.registerGroup(group);
+    const boundary = group.getObjectByName("debug:chunk-boundary") as THREE.LineLoop;
+
+    expect(boundary).toBeInstanceOf(THREE.LineLoop);
+    expect(boundary.visible).toBe(false);
+
+    factory.setDebugView({ wireframe: true, boundaries: false, riverPlacement: false, biomeGuide: false });
+
+    expect(boundary.visible).toBe(true);
+    expect((boundary.material as THREE.LineBasicMaterial).depthTest).toBe(false);
+    expect(boundary.geometry.getAttribute("position").count).toBe(data.terrainVerticesPerSide * 4 - 4);
+
+    factory.setDebugView({ wireframe: false, boundaries: false, riverPlacement: false, biomeGuide: false });
+    expect(boundary.visible).toBe(false);
+
+    factory.unregisterGroup(group);
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+});

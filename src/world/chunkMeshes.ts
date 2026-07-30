@@ -15,6 +15,7 @@ export interface DebugViewOptions {
 }
 
 const DEBUG_BOUNDARIES_NAME = "debug:walkable-boundaries";
+const DEBUG_CHUNK_BOUNDARY_NAME = "debug:chunk-boundary";
 const DEBUG_RIVER_NAME = "debug:river-placement";
 const SNOW_COLOR = new THREE.Color(0xf4f6f7);
 
@@ -142,6 +143,7 @@ export class ChunkMeshFactory {
     color: 0xffffff, flatShading: true, roughness: 0.9,
   });
   private readonly boundaryMaterial = new THREE.LineBasicMaterial({ color: 0xff4f4f, depthTest: false });
+  private readonly chunkBoundaryMaterial = new THREE.LineBasicMaterial({ color: 0xffe45c, depthTest: false });
   private readonly riverPlacementMaterial = new THREE.MeshBasicMaterial({
     color: 0x1677ff, depthTest: false, transparent: true, opacity: 0.72, side: THREE.DoubleSide,
   });
@@ -151,6 +153,7 @@ export class ChunkMeshFactory {
     const group = new THREE.Group();
     group.name = `chunk:${data.id}`;
     group.add(this.createTerrain(data));
+    group.add(this.createChunkBoundary(data));
     if (data.river) group.add(this.createRiver(data.river.spine));
     if (data.river) group.add(this.createRiverChannel(data.river.channelSections));
     group.add(this.createWetlandPools(data));
@@ -190,6 +193,7 @@ export class ChunkMeshFactory {
     this.flowerStemMaterial.dispose();
     this.flowerHeadMaterial.dispose();
     this.boundaryMaterial.dispose();
+    this.chunkBoundaryMaterial.dispose();
     this.riverPlacementMaterial.dispose();
   }
 
@@ -237,6 +241,31 @@ export class ChunkMeshFactory {
     mesh.name = "terrain";
     mesh.receiveShadow = true;
     return mesh;
+  }
+
+  private createChunkBoundary(data: GeneratedChunkData): THREE.LineLoop {
+    const side = data.terrainVerticesPerSide;
+    const step = data.size / (side - 1);
+    const originX = data.coordinate.x * data.size;
+    const originZ = data.coordinate.z * data.size;
+    const pointAt = (x: number, z: number): THREE.Vector3 => {
+      const height = data.terrainHeights[z * side + x]!;
+      return new THREE.Vector3(originX + x * step, height + 0.12, originZ + z * step);
+    };
+    const points: THREE.Vector3[] = [];
+    for (let x = 0; x < side; x += 1) points.push(pointAt(x, 0));
+    for (let z = 1; z < side; z += 1) points.push(pointAt(side - 1, z));
+    for (let x = side - 2; x >= 0; x -= 1) points.push(pointAt(x, side - 1));
+    for (let z = side - 2; z > 0; z -= 1) points.push(pointAt(0, z));
+
+    const boundary = new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints(points),
+      this.chunkBoundaryMaterial,
+    );
+    boundary.name = DEBUG_CHUNK_BOUNDARY_NAME;
+    boundary.renderOrder = 22;
+    boundary.visible = this.debugView.wireframe;
+    return boundary;
   }
 
   private createRiver(spine: readonly RiverPoint[]): THREE.Mesh {
@@ -448,8 +477,10 @@ export class ChunkMeshFactory {
   private applyDebugVisibility(group: THREE.Group): void {
     const boundaries = group.getObjectByName(DEBUG_BOUNDARIES_NAME);
     const riverPlacement = group.getObjectByName(DEBUG_RIVER_NAME);
+    const chunkBoundary = group.getObjectByName(DEBUG_CHUNK_BOUNDARY_NAME);
     if (boundaries) boundaries.visible = this.debugView.boundaries;
     if (riverPlacement) riverPlacement.visible = this.debugView.riverPlacement;
+    if (chunkBoundary) chunkBoundary.visible = this.debugView.wireframe;
     const terrain = group.getObjectByName("terrain") as THREE.Mesh | undefined;
     if (terrain) {
       const geometry = terrain.geometry as THREE.BufferGeometry;
