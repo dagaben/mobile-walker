@@ -13,7 +13,7 @@ export class ThreeRenderer {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PIXEL_RATIO));
     this.scene.background = new THREE.Color(0xd9ead8);
     // Fog is atmospheric only; streamed neighborhood edges may remain visible.
-    this.scene.fog = new THREE.Fog(0xd9ead8, 72, 120);
+    this.scene.fog = new THREE.Fog(0xd9ead8, 108, 180);
 
     this.camera.position.set(6, 5, 8);
     this.camera.lookAt(0, 0, 0);
