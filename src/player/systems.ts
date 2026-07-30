@@ -46,6 +46,8 @@ export class TreeCollisionSystem implements FixedSystem {
   fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0]): void {
     for (const entity of world.entities) {
       if (!entity.transform || !entity.previousTransform || !entity.playerControl) continue;
+      if (entity.previousTransform.x === entity.transform.x
+        && entity.previousTransform.z === entity.transform.z) continue;
       const resolved = resolveTreeTrunkMovement(this.seed, entity.previousTransform, entity.transform);
       if (entity.velocity) {
         if (resolved.x !== entity.transform.x) entity.velocity.x = 0;

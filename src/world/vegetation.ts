@@ -78,11 +78,20 @@ function generateLayer<T extends VegetationPlacement>(
   return placements;
 }
 
+/** Deterministic broadleaf-tree placements without generating ground-cover layers. */
+export function generateLeafTrees(
+  seedInput: number | string,
+  coordinate: ChunkCoordinate,
+): readonly VegetationPlacement[] {
+  const seed = normalizeSeed(seedInput);
+  return generateLayer(seed, coordinate, 2.5, 501, LEAF_TREE_CHANCE, 0.72, 1.18, false, (placement) => placement);
+}
+
 /** Deterministic biome-aware ground cover and broadleaf vegetation. */
 export function generateVegetation(seedInput: number | string, coordinate: ChunkCoordinate): GeneratedVegetation {
   const seed = normalizeSeed(seedInput);
   return {
-    leafTrees: generateLayer(seed, coordinate, 2.5, 501, LEAF_TREE_CHANCE, 0.72, 1.18, false, (placement) => placement),
+    leafTrees: generateLeafTrees(seed, coordinate),
     bushes: generateLayer(seed, coordinate, 1.6, 521, BUSH_CHANCE, 0.62, 1.2, true, (placement) => placement),
     flowers: generateLayer(seed, coordinate, 0.8, 541, FLOWER_CHANCE, 0.72, 1.18, false, (placement, x, z) => ({
       ...placement,
