@@ -95,9 +95,9 @@ describe("river ribbon geometry", () => {
     factory.dispose();
   });
 
-  it("omits water and river debug geometry outside column zero", () => {
+  it("does not create retired river debug geometry", () => {
     const factory = new ChunkMeshFactory();
-    const group = factory.create(generateChunk("dry-column", { x: 1, z: 0 }));
+    const group = factory.create(generateChunk("retired-river-debug", { x: 0, z: 0 }));
 
     expect(group.getObjectByName("wetland-pools")).toBeDefined();
     expect(group.getObjectByName("debug:walkable-boundaries")).toBeUndefined();
@@ -232,14 +232,14 @@ describe("terrain wireframe debug view", () => {
     expect(boundary).toBeInstanceOf(THREE.LineLoop);
     expect(boundary.visible).toBe(false);
 
-    factory.setDebugView({ wireframe: true, boundaries: false, riverPlacement: false, biomeGuide: false });
+    factory.setDebugView({ wireframe: true, biomeGuide: false });
 
     expect(boundary.visible).toBe(true);
     expect((boundary.material as THREE.LineBasicMaterial).color.getHex()).toBe(0x8b0000);
     expect((boundary.material as THREE.LineBasicMaterial).depthTest).toBe(false);
     expect(boundary.geometry.getAttribute("position").count).toBe(data.terrainVerticesPerSide * 4 - 4);
 
-    factory.setDebugView({ wireframe: false, boundaries: false, riverPlacement: false, biomeGuide: false });
+    factory.setDebugView({ wireframe: false, biomeGuide: false });
     expect(boundary.visible).toBe(false);
 
     factory.unregisterGroup(group);

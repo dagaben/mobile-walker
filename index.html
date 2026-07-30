@@ -25,10 +25,12 @@
       <section class="debug-panel" id="debug-panel" aria-label="Debug tools" hidden>
         <h2>Debug view</h2>
         <label><input id="debug-wireframe" type="checkbox" /> Terrain wireframe</label>
-        <label><input id="debug-boundaries" type="checkbox" /> Walkable boundaries</label>
-        <label><input id="debug-river" type="checkbox" /> River placement</label>
         <label><input id="debug-biomes" type="checkbox" /> Biome guide</label>
+        <label><input id="debug-camera" type="checkbox" /> Camera details</label>
+        <label><input id="debug-performance" type="checkbox" /> Performance view</label>
       </section>
+      <output class="debug-readout" id="camera-details" aria-label="Camera details" hidden></output>
+      <output class="debug-readout performance-view" id="performance-view" aria-label="Performance view" hidden></output>
       <section class="biome-guide" id="biome-guide" aria-label="Biome directions" hidden></section>
       <section class="biome-status">
         <div class="current-biome" hidden>Biome · <strong id="current-biome-name">Unknown</strong></div>

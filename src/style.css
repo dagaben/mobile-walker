@@ -79,6 +79,27 @@ body { overscroll-behavior: none; touch-action: none; }
 .debug-panel label { display: flex; align-items: center; gap: .65rem; padding: .4rem 0; font-size: .85rem; cursor: pointer; }
 .debug-panel input { width: 1rem; height: 1rem; accent-color: #376d51; }
 
+.debug-readout {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  left: max(1rem, env(safe-area-inset-left));
+  min-width: 10.5rem;
+  padding: .65rem .75rem;
+  border: 1px solid rgb(49 71 58 / 20%);
+  border-radius: .75rem;
+  color: #263b2f;
+  background: rgb(255 255 255 / 86%);
+  box-shadow: 0 .25rem 1rem rgb(49 71 58 / 14%);
+  font: 600 .75rem/1.55 ui-monospace, "SFMono-Regular", Consolas, monospace;
+  white-space: pre;
+  pointer-events: none;
+  backdrop-filter: blur(.5rem);
+  -webkit-backdrop-filter: blur(.5rem);
+}
+
+.performance-view { top: max(1rem, env(safe-area-inset-top)); }
+.debug-readout:has(~ .performance-view:not([hidden])) { top: calc(max(1rem, env(safe-area-inset-top)) + 7.25rem); }
+
 .biome-guide { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .current-biome {
   margin-top: .3rem;
