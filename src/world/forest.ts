@@ -41,7 +41,7 @@ const TREE_PROFILES: Readonly<Record<BiomeId, {
   readonly minScale: number;
   readonly maxScale: number;
 }>> = {
-  plains: { sparseChance: 0.005, denseChance: 0.12, minScale: 0.68, maxScale: 0.98 },
+  plains: { sparseChance: 0.002, denseChance: 0.055, minScale: 0.68, maxScale: 0.98 },
   forest: { sparseChance: 0.12, denseChance: 0.76, minScale: 0.92, maxScale: 1.34 },
   wetland: { sparseChance: 0.005, denseChance: 0.07, minScale: 0.72, maxScale: 1.02 },
   highlands: { sparseChance: 0.025, denseChance: 0.24, minScale: 0.58, maxScale: 0.88 },

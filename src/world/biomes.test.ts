@@ -46,4 +46,13 @@ describe("biome sampling", () => {
     expect(weights.reduce((sum, weight) => sum + weight, 0)).toBeCloseTo(1, 12);
     expect(sample.weights[sample.dominant]).toBe(Math.max(...weights));
   });
+
+  it("gives mountain regions a substantial interior", () => {
+    let mountainSamples = 0;
+    for (let z = -256; z <= 256; z += 8) for (let x = -256; x <= 256; x += 8) {
+      if (sampleBiome("snow-capped-mountains", x, z).dominant === "mountain") mountainSamples += 1;
+    }
+
+    expect(mountainSamples).toBeGreaterThan(100);
+  });
 });
