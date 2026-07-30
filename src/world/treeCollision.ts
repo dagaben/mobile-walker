@@ -83,6 +83,30 @@ function overlapsTrunk(x: number, z: number, groups: readonly TrunkGroup[], play
 }
 
 /**
+ * Pure stationary collision query against the same generated trunks used by
+ * movement collision. A capsule is vertical, so only its horizontal radius is
+ * relevant to the (vertical) trunk geometry.
+ */
+export function overlapsGeneratedTreeTrunk(
+  seed: number | string,
+  x: number,
+  z: number,
+  playerRadius = PLAYER_COLLISION_RADIUS,
+): boolean {
+  const maximumRadius = Math.max(...COLLIDABLE_KINDS.map(
+    (kind) => VEGETATION_PROFILES[kind].collision!.radius,
+  ));
+  const point = { x, y: 0, z, yaw: 0 };
+  const chunks = chunksBetween(point, point, playerRadius + maximumRadius * 1.18);
+  const placements = chunks.map((coordinate) => trunksForChunk(seed, coordinate));
+  const trunks: TrunkGroup[] = COLLIDABLE_KINDS.map((kind) => ({
+    placements: placements.flatMap((byKind) => byKind[kind] ?? []),
+    radius: VEGETATION_PROFILES[kind].collision!.radius,
+  }));
+  return overlapsTrunk(x, z, trunks, playerRadius);
+}
+
+/**
  * Resolves horizontal player movement against tree trunks. Resolving each axis
  * independently lets the player slide around a trunk instead of sticking to it;
  * crowns are intentionally ignored so walking beneath foliage remains possible.
