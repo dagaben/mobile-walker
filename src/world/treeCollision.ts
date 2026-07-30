@@ -1,8 +1,7 @@
 import type { TransformComponent } from "../ecs/Entity";
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { chunkId } from "./chunkId";
-import { generateTrees, TREE_TRUNK_RADIUS, type TreePlacement } from "./forest";
-import { generateLeafTrees, LEAF_TREE_TRUNK_RADIUS, type VegetationPlacement } from "./vegetation";
+import { generateVegetationKind, VEGETATION_PROFILES, type VegetationKind, type VegetationPlacement } from "./vegetation";
 
 export const PLAYER_COLLISION_RADIUS = 0.38;
 
@@ -22,17 +21,14 @@ function chunksBetween(
   return chunks;
 }
 
-type TrunkPlacement = TreePlacement | VegetationPlacement;
-
 interface TrunkGroup {
-  readonly placements: readonly TrunkPlacement[];
+  readonly placements: readonly VegetationPlacement[];
   readonly radius: number;
 }
 
-interface CachedTrunks {
-  readonly conifers: readonly TreePlacement[];
-  readonly broadleaves: readonly VegetationPlacement[];
-}
+type CachedTrunks = Readonly<Partial<Record<VegetationKind, readonly VegetationPlacement[]>>>;
+const COLLIDABLE_KINDS = (Object.keys(VEGETATION_PROFILES) as VegetationKind[])
+  .filter((kind) => VEGETATION_PROFILES[kind].collision !== undefined);
 
 // Collision queries normally touch one to four chunks. Keep a modest LRU so
 // nearby fixed updates are free while long walks and changing seeds stay bounded.
@@ -53,10 +49,9 @@ function trunksForChunk(seed: number | string, coordinate: ChunkCoordinate): Cac
     placementCache.set(key, cached);
     return cached;
   }
-  const generated = {
-    conifers: generateTrees(seed, coordinate),
-    broadleaves: generateLeafTrees(seed, coordinate),
-  };
+  const generated = Object.fromEntries(COLLIDABLE_KINDS.map((kind) => [
+    kind, generateVegetationKind(kind, seed, coordinate),
+  ])) as CachedTrunks;
   generatedChunkCount += 1;
   placementCache.set(key, generated);
   while (placementCache.size > MAX_CACHED_CHUNKS) {
@@ -98,12 +93,13 @@ export function resolveTreeTrunkMovement(
   to: TransformComponent,
   playerRadius = PLAYER_COLLISION_RADIUS,
 ): TransformComponent {
-  const chunks = chunksBetween(from, to, playerRadius + LEAF_TREE_TRUNK_RADIUS * 1.18);
+  const maximumRadius = Math.max(...COLLIDABLE_KINDS.map((kind) => VEGETATION_PROFILES[kind].collision!.radius));
+  const chunks = chunksBetween(from, to, playerRadius + maximumRadius * 1.18);
   const placements = chunks.map((coordinate) => trunksForChunk(seed, coordinate));
-  const trunks: TrunkGroup[] = [
-    { placements: placements.flatMap(({ conifers }) => conifers), radius: TREE_TRUNK_RADIUS },
-    { placements: placements.flatMap(({ broadleaves }) => broadleaves), radius: LEAF_TREE_TRUNK_RADIUS },
-  ];
+  const trunks: TrunkGroup[] = COLLIDABLE_KINDS.map((kind) => ({
+    placements: placements.flatMap((byKind) => byKind[kind] ?? []),
+    radius: VEGETATION_PROFILES[kind].collision!.radius,
+  }));
   const x = overlapsTrunk(to.x, from.z, trunks, playerRadius) ? from.x : to.x;
   const z = overlapsTrunk(x, to.z, trunks, playerRadius) ? from.z : to.z;
   return { ...to, x, z };
