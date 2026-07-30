@@ -1,7 +1,8 @@
 import type { TransformComponent } from "../ecs/Entity";
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
+import { chunkId } from "./chunkId";
 import { generateTrees, TREE_TRUNK_RADIUS, type TreePlacement } from "./forest";
-import { generateVegetation, LEAF_TREE_TRUNK_RADIUS, type VegetationPlacement } from "./vegetation";
+import { generateLeafTrees, LEAF_TREE_TRUNK_RADIUS, type VegetationPlacement } from "./vegetation";
 
 export const PLAYER_COLLISION_RADIUS = 0.38;
 
@@ -28,6 +29,57 @@ interface TrunkGroup {
   readonly radius: number;
 }
 
+interface CachedTrunks {
+  readonly conifers: readonly TreePlacement[];
+  readonly broadleaves: readonly VegetationPlacement[];
+}
+
+// Collision queries normally touch one to four chunks. Keep a modest LRU so
+// nearby fixed updates are free while long walks and changing seeds stay bounded.
+const MAX_CACHED_CHUNKS = 64;
+const placementCache = new Map<string, CachedTrunks>();
+let generatedChunkCount = 0;
+
+function cacheKey(seed: number | string, coordinate: ChunkCoordinate): string {
+  return JSON.stringify([typeof seed, seed, chunkId(coordinate)]);
+}
+
+function trunksForChunk(seed: number | string, coordinate: ChunkCoordinate): CachedTrunks {
+  const key = cacheKey(seed, coordinate);
+  const cached = placementCache.get(key);
+  if (cached) {
+    // Reinsertion updates LRU order.
+    placementCache.delete(key);
+    placementCache.set(key, cached);
+    return cached;
+  }
+  const generated = {
+    conifers: generateTrees(seed, coordinate),
+    broadleaves: generateLeafTrees(seed, coordinate),
+  };
+  generatedChunkCount += 1;
+  placementCache.set(key, generated);
+  while (placementCache.size > MAX_CACHED_CHUNKS) {
+    placementCache.delete(placementCache.keys().next().value!);
+  }
+  return generated;
+}
+
+/** Test/diagnostic hook for observing placement reuse without exposing placements. */
+export function treeCollisionCacheDiagnostics(): Readonly<{
+  size: number;
+  generatedChunkCount: number;
+  keys: readonly string[];
+}> {
+  return { size: placementCache.size, generatedChunkCount, keys: [...placementCache.keys()] };
+}
+
+/** Clears cached collision placements, primarily to isolate deterministic tests. */
+export function clearTreeCollisionCache(): void {
+  placementCache.clear();
+  generatedChunkCount = 0;
+}
+
 function overlapsTrunk(x: number, z: number, groups: readonly TrunkGroup[], playerRadius: number): boolean {
   return groups.some(({ placements, radius }) => placements.some((tree) => {
     const collisionRadius = playerRadius + radius * tree.scale;
@@ -47,12 +99,10 @@ export function resolveTreeTrunkMovement(
   playerRadius = PLAYER_COLLISION_RADIUS,
 ): TransformComponent {
   const chunks = chunksBetween(from, to, playerRadius + LEAF_TREE_TRUNK_RADIUS * 1.18);
+  const placements = chunks.map((coordinate) => trunksForChunk(seed, coordinate));
   const trunks: TrunkGroup[] = [
-    { placements: chunks.flatMap((coordinate) => generateTrees(seed, coordinate)), radius: TREE_TRUNK_RADIUS },
-    {
-      placements: chunks.flatMap((coordinate) => generateVegetation(seed, coordinate).leafTrees),
-      radius: LEAF_TREE_TRUNK_RADIUS,
-    },
+    { placements: placements.flatMap(({ conifers }) => conifers), radius: TREE_TRUNK_RADIUS },
+    { placements: placements.flatMap(({ broadleaves }) => broadleaves), radius: LEAF_TREE_TRUNK_RADIUS },
   ];
   const x = overlapsTrunk(to.x, from.z, trunks, playerRadius) ? from.x : to.x;
   const z = overlapsTrunk(x, to.z, trunks, playerRadius) ? from.z : to.z;
