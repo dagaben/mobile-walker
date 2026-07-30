@@ -9,11 +9,13 @@ import { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
 import { CameraPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
 import { CollectionSystem, createCollectionState, ExplorationPresentationSystem, ProximityDetectionSystem } from "./exploration";
 import { BiomeDebugPresentationSystem } from "./biomeDebug";
+import { getBrowserStorage, loadGameState, PersistenceSystem } from "./persistence";
 
 export interface GameplayControllers {
   readonly chunks: ChunkStreamingSystem;
   readonly biomeDebug: BiomeDebugPresentationSystem;
   readonly camera: CameraPresentationSystem;
+  readonly persistence: PersistenceSystem;
 }
 
 export function createGameplay(
@@ -24,6 +26,9 @@ export function createGameplay(
   dragIndicator?: HTMLElement,
 ): GameplayControllers {
   const worldSeed = "mobile-walker-v2";
+  const storage = getBrowserStorage();
+  const savedState = loadGameState(storage, worldSeed);
+  const initialTransform = savedState?.player ?? { x: 0, y: 0.76, z: 0, yaw: 0 };
   const player = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.38, 0.75, 4, 8),
@@ -47,8 +52,8 @@ export function createGameplay(
   renderer.scene.add(player);
 
   world.add({
-    transform: { x: 0, y: 0.76, z: 0, yaw: 0 },
-    previousTransform: { x: 0, y: 0.76, z: 0, yaw: 0 },
+    transform: { ...initialTransform },
+    previousTransform: { ...initialTransform },
     velocity: { x: 0, y: 0, z: 0 },
     playerControl: { moveX: 0, moveZ: 0, active: false, jump: false },
     jump: { grounded: true },
@@ -56,7 +61,7 @@ export function createGameplay(
     cameraTarget: { height: 4.5, distance: 6.5 },
     renderable: player,
   });
-  world.add({ collectionState: createCollectionState() });
+  world.add({ collectionState: createCollectionState(savedState?.collectedIds) });
   // Fixed order: snapshot event state, then integrate.
   const input = new InputController(inputElement, dragIndicator);
   systems.addFixedSystem(new InputSnapshotSystem(input));
@@ -65,6 +70,8 @@ export function createGameplay(
   systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
   systems.addFixedSystem(new ProximityDetectionSystem());
   systems.addFixedSystem(new CollectionSystem());
+  const persistence = new PersistenceSystem(storage, worldSeed);
+  systems.addFixedSystem(persistence);
   // Generate data before constructing meshes; then interpolate visuals and derive the camera pose.
   // The camera remains south of the player and looks north (negative world Z),
   // so spend the additional streaming row where it expands the visible view.
@@ -80,5 +87,5 @@ export function createGameplay(
   if (!biomeOverlay || !biomeLabel) throw new Error("Biome guide elements could not be found.");
   const biomeDebug = new BiomeDebugPresentationSystem(worldSeed, biomeOverlay, biomeLabel);
   systems.addRenderSystem(biomeDebug);
-  return { chunks, biomeDebug, camera };
+  return { chunks, biomeDebug, camera, persistence };
 }
