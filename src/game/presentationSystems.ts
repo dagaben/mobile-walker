@@ -17,6 +17,7 @@ export class TransformInterpolationSystem implements RenderSystem {
 }
 
 export class CameraPresentationSystem implements RenderSystem {
+  private static readonly minimumElevation = THREE.MathUtils.degToRad(5);
   private readonly desired = new THREE.Vector3();
   private readonly lookAt = new THREE.Vector3();
   private zoom = 0;
@@ -32,7 +33,7 @@ export class CameraPresentationSystem implements RenderSystem {
     if (!target?.cameraTarget || !target.renderable) return;
     const cameraInput = this.input?.sampleCamera() ?? { zoomDelta: 0, tiltDelta: 0 };
     this.zoom = THREE.MathUtils.clamp(this.zoom + cameraInput.zoomDelta, 0, 1);
-    this.tilt = THREE.MathUtils.clamp(this.tilt + cameraInput.tiltDelta, 0, 1);
+    this.tilt = THREE.MathUtils.clamp(this.tilt + cameraInput.tiltDelta, -1, 1);
     const position = target.renderable.position;
     const baseLookY = position.y + 0.7;
     const baseRise = target.cameraTarget.height - 0.7;
@@ -44,7 +45,9 @@ export class CameraPresentationSystem implements RenderSystem {
       / Math.sin(Math.min(verticalHalfFov, horizontalHalfFov));
     const distance = THREE.MathUtils.lerp(baseDistance, framingDistance, this.zoom);
     const baseElevation = Math.atan2(baseRise, target.cameraTarget.distance);
-    const elevation = THREE.MathUtils.lerp(baseElevation, Math.PI / 2, this.tilt);
+    const elevation = this.tilt < 0
+      ? THREE.MathUtils.lerp(baseElevation, CameraPresentationSystem.minimumElevation, -this.tilt)
+      : THREE.MathUtils.lerp(baseElevation, Math.PI / 2, this.tilt);
     // The interpolated render position is continuous across chunk boundaries. In
     // particular, do not use the streaming neighborhood's quantized midpoint as
     // a look target: switching resident neighborhoods would make the view snap.

@@ -39,7 +39,7 @@ describe("CameraPresentationSystem", () => {
     expect(camera.position.toArray().every(Number.isFinite)).toBe(true);
   });
 
-  it("clamps zoom and tilt and reaches a finite 90-degree overhead endpoint", () => {
+  it("clamps tilt between a near-eye-level view and a finite 90-degree overhead endpoint", () => {
     const { camera, world, system, setInput } = fixture();
     setInput(100, 100);
     system.prepareRender(world, 0, 0);
@@ -51,7 +51,12 @@ describe("CameraPresentationSystem", () => {
 
     setInput(-200, -200);
     system.prepareRender(world, 0, 0);
-    expect(camera.position.toArray()).toEqual([2, 7.5, 10.5]);
+    const lookAt = new THREE.Vector3(2, 3.7, 4);
+    const direction = camera.position.clone().sub(lookAt);
+    expect(THREE.MathUtils.radToDeg(Math.atan2(direction.y, direction.z))).toBeCloseTo(5);
+    expect(camera.position.y).toBeGreaterThan(lookAt.y);
+    expect(camera.position.y).toBeLessThan(4.5);
+    expect(camera.position.toArray().every(Number.isFinite)).toBe(true);
   });
 
   it("does not snap when the resident neighborhood crosses a chunk boundary", () => {
