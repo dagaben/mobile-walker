@@ -4,6 +4,10 @@ const MAX_PIXEL_RATIO = 2;
 
 export class ThreeRenderer {
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly resizeObserver: ResizeObserver | undefined;
+  private readonly resizeAnimationFrames = new Set<number>();
+  private appliedWidth = -1;
+  private appliedHeight = -1;
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, 150);
 
@@ -23,8 +27,13 @@ export class ThreeRenderer {
     sunlight.position.set(-4, 8, 5);
     this.scene.add(sunlight);
 
+    this.resizeObserver = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(this.resize);
+    this.resizeObserver?.observe(canvas);
+    // ResizeObserver follows layout changes; this listener remains for iOS versions
+    // where browser chrome changes are not always reported to the observer.
     window.addEventListener("resize", this.resize);
     this.resize();
+    this.scheduleInitialResize(2);
   }
 
   render(_deltaSeconds: number): void {
@@ -39,7 +48,10 @@ export class ThreeRenderer {
   }
 
   dispose(): void {
+    this.resizeObserver?.disconnect();
     window.removeEventListener("resize", this.resize);
+    for (const animationFrame of this.resizeAnimationFrames) cancelAnimationFrame(animationFrame);
+    this.resizeAnimationFrames.clear();
     this.scene.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       object.geometry.dispose();
@@ -52,8 +64,22 @@ export class ThreeRenderer {
   private readonly resize = (): void => {
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
+
+    if (width <= 0 || height <= 0 || (width === this.appliedWidth && height === this.appliedHeight)) return;
+
+    this.appliedWidth = width;
+    this.appliedHeight = height;
     this.renderer.setSize(width, height, false);
-    this.camera.aspect = width / Math.max(height, 1);
+    this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   };
+
+  private scheduleInitialResize(remainingFrames: number): void {
+    const animationFrame = requestAnimationFrame(() => {
+      this.resizeAnimationFrames.delete(animationFrame);
+      this.resize();
+      if (remainingFrames > 1) this.scheduleInitialResize(remainingFrames - 1);
+    });
+    this.resizeAnimationFrames.add(animationFrame);
+  }
 }
