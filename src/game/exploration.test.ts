@@ -42,6 +42,32 @@ describe("exploration placement", () => {
 });
 
 describe("exploration presentation neighborhood", () => {
+  it("keeps collectibles aligned with asymmetric streaming offsets", () => {
+    const scene = new THREE.Scene();
+    const world = createEcsWorld();
+    world.add({
+      transform: { x: 1, y: 0, z: 1, yaw: 0 },
+      playerControl: { moveX: 0, moveZ: 0, active: false, jump: false },
+    });
+    world.add({ collectionState: createCollectionState() });
+    const system = new ExplorationPresentationSystem(
+      scene,
+      "north-row",
+      1,
+      { west: 0, east: 1, north: 2, south: 0 },
+    );
+
+    system.prepareRender(world);
+
+    const collectibles = world.entities.filter((entity) => entity.interactable);
+    expect(collectibles).toHaveLength(6 * 2);
+    expect(collectibles.some((entity) => entity.interactable?.chunkId === "0,-2")).toBe(true);
+    expect(collectibles.some((entity) => entity.interactable?.chunkId === "1,0")).toBe(true);
+    expect(collectibles.some((entity) => entity.interactable?.chunkId === "-1,0")).toBe(false);
+    expect(collectibles.some((entity) => entity.interactable?.chunkId === "0,1")).toBe(false);
+    system.dispose();
+  });
+
   it("retains collectible entities while moving within 0.5 units of a seam", () => {
     const { collectibles, player, scene, system, world } = presentationFixture();
     system.prepareRender(world);
