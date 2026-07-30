@@ -19,13 +19,15 @@ function fixture(aspect = 16 / 9) {
 }
 
 describe("CameraPresentationSystem", () => {
-  it("keeps the existing default pose and smooths subsequent changes", () => {
+  it("starts at the configured default angle and zoom and smooths subsequent changes", () => {
     const { camera, world, system, setInput } = fixture();
     system.prepareRender(world, 0, 0);
-    expect(camera.position.toArray()).toEqual([2, 7.5, 10.5]);
+    expect(system.getDebugDetails().angleDegrees).toBeCloseTo(26.3);
+    expect(system.getDebugDetails().zoomLevel).toBeCloseTo(0.03);
+    const initialHeight = camera.position.y;
     setInput(1, 0);
     system.prepareRender(world, 0, 1 / 60);
-    expect(camera.position.y).toBeGreaterThan(7.5);
+    expect(camera.position.y).toBeGreaterThan(initialHeight);
     expect(camera.position.y).toBeLessThan(70);
   });
 

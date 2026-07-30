@@ -18,11 +18,12 @@ export class TransformInterpolationSystem implements RenderSystem {
 
 export class CameraPresentationSystem implements RenderSystem {
   private static readonly minimumElevation = THREE.MathUtils.degToRad(5);
+  private static readonly defaultElevation = THREE.MathUtils.degToRad(26.3);
   private readonly desired = new THREE.Vector3();
   private readonly lookAt = new THREE.Vector3();
   private readonly debugDirection = new THREE.Vector3();
-  private zoom = 0;
-  private tilt = 0;
+  private zoom = 0.03;
+  private tilt: number | undefined;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -43,18 +44,25 @@ export class CameraPresentationSystem implements RenderSystem {
     if (!target?.cameraTarget || !target.renderable) return;
     const cameraInput = this.input?.sampleCamera() ?? { zoomDelta: 0, tiltDelta: 0 };
     this.zoom = THREE.MathUtils.clamp(this.zoom + cameraInput.zoomDelta, 0, 1);
-    this.tilt = THREE.MathUtils.clamp(this.tilt + cameraInput.tiltDelta, -1, 1);
     const position = target.renderable.position;
     const baseLookY = position.y + 0.7;
     const baseRise = target.cameraTarget.height - 0.7;
     const baseDistance = Math.hypot(baseRise, target.cameraTarget.distance);
+    const baseElevation = Math.atan2(baseRise, target.cameraTarget.distance);
+    if (this.tilt === undefined) {
+      this.tilt = CameraPresentationSystem.defaultElevation < baseElevation
+        ? -(baseElevation - CameraPresentationSystem.defaultElevation)
+          / (baseElevation - CameraPresentationSystem.minimumElevation)
+        : (CameraPresentationSystem.defaultElevation - baseElevation)
+          / (Math.PI / 2 - baseElevation);
+    }
+    this.tilt = THREE.MathUtils.clamp(this.tilt + cameraInput.tiltDelta, -1, 1);
     const halfFootprint = CHUNK_SIZE * 1.5;
     const verticalHalfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * this.camera.aspect);
     const framingDistance = Math.SQRT2 * halfFootprint
       / Math.sin(Math.min(verticalHalfFov, horizontalHalfFov));
     const distance = THREE.MathUtils.lerp(baseDistance, framingDistance, this.zoom);
-    const baseElevation = Math.atan2(baseRise, target.cameraTarget.distance);
     const elevation = this.tilt < 0
       ? THREE.MathUtils.lerp(baseElevation, CameraPresentationSystem.minimumElevation, -this.tilt)
       : THREE.MathUtils.lerp(baseElevation, Math.PI / 2, this.tilt);
