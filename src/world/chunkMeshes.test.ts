@@ -21,16 +21,16 @@ describe("river ribbon geometry", () => {
     expect(terrain.geometry.getAttribute("position").count).toBe(data.irregularTerrain!.vertices.length);
     expect(data.irregularTerrain!.indices).toHaveLength((data.river!.channelSections.length - 1) * 12);
 
-    // Every base-terrain triangle belongs entirely north or south of its
+    // Every base-terrain triangle belongs entirely west or east of its
     // section shoulders; none bridges across the channel/water corridor.
     for (let index = 0; index < data.irregularTerrain!.indices.length; index += 3) {
       const triangle = data.irregularTerrain!.indices.slice(index, index + 3);
-      const zs = triangle.map((vertex) => data.irregularTerrain!.vertices[vertex]!.z);
+      const xs = triangle.map((vertex) => data.irregularTerrain!.vertices[vertex]!.x);
       const centers = triangle.map((vertex) => {
         const section = data.river!.channelSections[Math.floor(vertex / 4)]!;
-        return section.centerZ;
+        return section.centerX;
       });
-      expect(zs.every((z, vertex) => z <= centers[vertex]) || zs.every((z, vertex) => z >= centers[vertex])).toBe(true);
+      expect(xs.every((x, vertex) => x <= centers[vertex]) || xs.every((x, vertex) => x >= centers[vertex])).toBe(true);
     }
 
     factory.disposeChunk(group);
@@ -44,7 +44,7 @@ describe("river ribbon geometry", () => {
     for (let section = 1; section < sections.length - 1; section += 1) {
       for (let cross = 0; cross < 6; cross += 1) {
         const vertex = section * 6 + cross;
-        expect(positions.getX(vertex)).toBeCloseTo(sections[section]!.x);
+        expect(positions.getZ(vertex)).toBeCloseTo(sections[section]!.z);
       }
     }
     geometry.dispose();
@@ -95,9 +95,9 @@ describe("river ribbon geometry", () => {
     factory.dispose();
   });
 
-  it("omits water and river debug geometry outside row zero", () => {
+  it("omits water and river debug geometry outside column zero", () => {
     const factory = new ChunkMeshFactory();
-    const group = factory.create(generateChunk("dry-row", { x: 0, z: 1 }));
+    const group = factory.create(generateChunk("dry-column", { x: 1, z: 0 }));
 
     expect(group.getObjectByName("wetland-pools")).toBeDefined();
     expect(group.getObjectByName("debug:walkable-boundaries")).toBeUndefined();
@@ -189,8 +189,8 @@ describe("terrain biome colors", () => {
 
   it("gives adjacent chunks exactly matching boundary colors", () => {
     const factory = new ChunkMeshFactory();
-    const left = terrainOf(factory, "color-continuity", -1, 2);
-    const right = terrainOf(factory, "color-continuity", 0, 2);
+    const left = terrainOf(factory, "color-continuity", 1, 2);
+    const right = terrainOf(factory, "color-continuity", 2, 2);
     const leftColors = left.terrain.geometry.getAttribute("color");
     const rightColors = right.terrain.geometry.getAttribute("color");
     const side = left.data.terrainVerticesPerSide;

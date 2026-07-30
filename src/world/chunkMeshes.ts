@@ -69,13 +69,13 @@ export function createRiverRibbonGeometry(
   for (const point of spine) {
     const elevation = point.surfaceElevation + elevationOffset;
     positions.push(
-      point.x, elevation, point.z - point.width / 2,
-      point.x, elevation, point.z + point.width / 2,
+      point.x - point.width / 2, elevation, point.z,
+      point.x + point.width / 2, elevation, point.z,
     );
   }
   for (let index = 0; index < spine.length - 1; index += 1) {
     const left = index * 2;
-    indices.push(left + 1, left + 2, left, left + 3, left + 2, left + 1);
+    indices.push(left, left + 2, left + 1, left + 1, left + 2, left + 3);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
@@ -91,24 +91,24 @@ export function createRiverChannelGeometry(
   const positions: number[] = [];
   const indices: number[] = [];
   for (const section of sections) {
-    const northWater = section.centerZ - section.waterHalfWidth;
-    const southWater = section.centerZ + section.waterHalfWidth;
+    const westWater = section.centerX - section.waterHalfWidth;
+    const eastWater = section.centerX + section.waterHalfWidth;
     const bedHeight = section.surfaceElevation - RIVER_BED_DEPTH;
     const lipHeight = section.surfaceElevation + 0.04;
     positions.push(
-      section.x, section.northShoulderHeight, northWater - section.bankWidth,
-      section.x, lipHeight, northWater,
-      section.x, bedHeight, northWater + section.waterHalfWidth * 0.1,
-      section.x, bedHeight, southWater - section.waterHalfWidth * 0.1,
-      section.x, lipHeight, southWater,
-      section.x, section.southShoulderHeight, southWater + section.bankWidth,
+      westWater - section.bankWidth, section.westShoulderHeight, section.z,
+      westWater, lipHeight, section.z,
+      westWater + section.waterHalfWidth * 0.1, bedHeight, section.z,
+      eastWater - section.waterHalfWidth * 0.1, bedHeight, section.z,
+      eastWater, lipHeight, section.z,
+      eastWater + section.bankWidth, section.eastShoulderHeight, section.z,
     );
   }
   for (let section = 0; section < sections.length - 1; section += 1) {
     for (let cross = 0; cross < 5; cross += 1) {
       const current = section * 6 + cross;
       const next = current + 6;
-      indices.push(current, current + 1, next, current + 1, next + 1, next);
+      indices.push(current, next, current + 1, current + 1, next, next + 1);
     }
   }
   const geometry = new THREE.BufferGeometry();
@@ -486,7 +486,7 @@ export class ChunkMeshFactory {
     group.name = DEBUG_BOUNDARIES_NAME;
     const makeBank = (direction: -1 | 1): THREE.Line => {
       const points = spine.map((point) => new THREE.Vector3(
-        point.x, point.surfaceElevation + 0.08, point.z + direction * point.width / 2,
+        point.x + direction * point.width / 2, point.surfaceElevation + 0.08, point.z,
       ));
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), this.boundaryMaterial);
       line.renderOrder = 20;

@@ -8,14 +8,14 @@ describe("TerrainSamplingSystem", () => {
   it("allows a terrain follower to move through a river", () => {
     const seed = "walkable-river";
     const world = createEcsWorld();
-    const riverZ = Array.from({ length: 161 }, (_, index) => -8 + index * 0.1)
-      .find((z) => sampleTerrain(seed, 0, z).surface === "river");
-    expect(riverZ).toBeDefined();
+    const riverX = Array.from({ length: 161 }, (_, index) => -8 + index * 0.1)
+      .find((x) => sampleTerrain(seed, x, 0).surface === "river");
+    expect(riverX).toBeDefined();
 
     const entity = world.add({
-      transform: { x: 0, y: -10, z: riverZ!, yaw: 0 },
-      previousTransform: { x: 0, y: 2, z: riverZ! - 2, yaw: 0 },
-      velocity: { x: 0, y: -1, z: 4 },
+      transform: { x: riverX!, y: -10, z: 0, yaw: 0 },
+      previousTransform: { x: riverX! - 2, y: 2, z: 0, yaw: 0 },
+      velocity: { x: 4, y: -1, z: 0 },
       jump: { grounded: false },
       terrainFollower: { heightOffset: 0.76 },
     });
@@ -24,9 +24,9 @@ describe("TerrainSamplingSystem", () => {
 
     const river = sampleTerrain(seed, entity.transform.x, entity.transform.z);
     expect(river.surface).toBe("river");
-    expect(entity.transform.z).toBe(riverZ);
+    expect(entity.transform.x).toBe(riverX);
     expect(entity.transform.y).toBeCloseTo(river.height + 0.76);
-    expect(entity.velocity).toEqual({ x: 0, y: 0, z: 4 });
+    expect(entity.velocity).toEqual({ x: 4, y: 0, z: 0 });
     expect(entity.jump.grounded).toBe(true);
   });
 });

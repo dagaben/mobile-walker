@@ -57,53 +57,53 @@ describe("terrain sampling", () => {
       .toBeCloseTo(sampleTerrainHeight(73, boundaryX + epsilon, z), 6);
   });
 
-  it("keeps river collision classification stable across an east-west boundary", () => {
+  it("keeps river collision classification stable across a north-south boundary", () => {
     const seed = "river-boundary";
-    const left = generateChunk(seed, { x: -1, z: 0 });
-    const riverZ = left.river!.exit.z;
+    const north = generateChunk(seed, { x: 0, z: -1 });
+    const riverX = north.river!.exit.x;
     const epsilon = 1e-7;
 
-    expect(isRiverAt(seed, -epsilon, riverZ)).toBe(true);
-    expect(isRiverAt(seed, epsilon, riverZ)).toBe(true);
-    expect(sampleTerrain(seed, -epsilon, riverZ).surface)
-      .toBe(sampleTerrain(seed, epsilon, riverZ).surface);
+    expect(isRiverAt(seed, riverX, -epsilon)).toBe(true);
+    expect(isRiverAt(seed, riverX, epsilon)).toBe(true);
+    expect(sampleTerrain(seed, riverX, -epsilon).surface)
+      .toBe(sampleTerrain(seed, riverX, epsilon).surface);
   });
 
   it("sets the walkable river bed deep enough to submerge about 30% of the player", () => {
     const chunk = generateChunk("deeper-river", { x: 0, z: 0 });
     const side = chunk.terrainVerticesPerSide;
     const river = chunk.river!.entry;
-    const z = Math.round(river.z / CHUNK_SIZE * (side - 1));
+    const x = Math.round(river.x / CHUNK_SIZE * (side - 1));
 
-    expect(chunk.terrainHeights[z * side]).toBeCloseTo(
+    expect(chunk.terrainHeights[x]).toBeCloseTo(
       river.surfaceElevation - RIVER_BED_DEPTH,
     );
     expect(RIVER_BED_DEPTH).toBeGreaterThanOrEqual(1.5 * 0.2);
     expect(RIVER_BED_DEPTH).toBeLessThanOrEqual(1.5 * 0.4);
   });
 
-  it("never classifies terrain outside chunk row zero as river", () => {
-    const seed = "row-zero-only";
-    for (const worldZ of [-CHUNK_SIZE / 2, CHUNK_SIZE * 1.5]) {
-      expect(isRiverAt(seed, 3, worldZ)).toBe(false);
-      expect(sampleTerrain(seed, 3, worldZ).surface).not.toBe("river");
+  it("never classifies terrain outside chunk column zero as river", () => {
+    const seed = "column-zero-only";
+    for (const worldX of [-CHUNK_SIZE / 2, CHUNK_SIZE * 1.5]) {
+      expect(isRiverAt(seed, worldX, 3)).toBe(false);
+      expect(sampleTerrain(seed, worldX, 3).surface).not.toBe("river");
     }
-    for (const latticeZ of [-4, 20]) {
-      const worldX = 2 * CHUNK_SIZE / TERRAIN_SEGMENTS;
-      const worldZ = latticeZ * CHUNK_SIZE / TERRAIN_SEGMENTS;
+    for (const latticeX of [-4, 20]) {
+      const worldX = latticeX * CHUNK_SIZE / TERRAIN_SEGMENTS;
+      const worldZ = 2 * CHUNK_SIZE / TERRAIN_SEGMENTS;
       if (!isLakeAt(41, worldX, worldZ)) {
-        expect(sampleChannelTerrainLatticeHeight(41, 2, latticeZ))
-          .toBe(sampleTerrainLatticeHeight(41, 2, latticeZ));
+        expect(sampleChannelTerrainLatticeHeight(41, latticeX, 2))
+          .toBe(sampleTerrainLatticeHeight(41, latticeX, 2));
       }
     }
   });
 
   it("rises monotonically through the bank blend and leaves terrain beyond its transition unchanged", () => {
     const seed = normalizeSeed("bank-profile");
-    const worldX = 8;
-    const section = sampleRiverCrossSection(seed, worldX, CHUNK_SIZE / 2)!;
+    const worldZ = 8;
+    const section = sampleRiverCrossSection(seed, CHUNK_SIZE / 2, worldZ)!;
     const bedEdge = section.surfaceElevation - RIVER_BED_DEPTH + RIVER_BED_DEPTH * 0.08;
-    const samples = [11, 12, 13].map((worldZ) => {
+    const samples = [11, 12, 13].map((worldX) => {
       const natural = sampleNaturalTerrainHeight(seed, worldX, worldZ);
       const carved = sampleChannelTerrainHeight(seed, worldX, worldZ);
       return (carved - bedEdge) / (natural - bedEdge);
@@ -112,11 +112,11 @@ describe("terrain sampling", () => {
     expect(samples[0]).toBeLessThan(samples[1]);
     expect(samples[1]).toBeLessThanOrEqual(samples[2]);
     expect(samples[2]).toBe(1);
-    const untouchedZ = Math.ceil(
-      section.centerZ + section.waterWidth / 2 + RIVER_BANK_WIDTH + RIVER_TRANSITION_WIDTH,
+    const untouchedX = Math.ceil(
+      section.centerX + section.waterWidth / 2 + RIVER_BANK_WIDTH + RIVER_TRANSITION_WIDTH,
     );
-    expect(sampleChannelTerrainHeight(seed, worldX, untouchedZ))
-      .toBe(sampleNaturalTerrainHeight(seed, worldX, untouchedZ));
+    expect(sampleChannelTerrainHeight(seed, untouchedX, worldZ))
+      .toBe(sampleNaturalTerrainHeight(seed, untouchedX, worldZ));
   });
 
   it("uses the shared cross-section for collision at the rendered water edges", () => {
@@ -124,18 +124,18 @@ describe("terrain sampling", () => {
     const section = sampleRiverCrossSection(seed, 6.5, CHUNK_SIZE / 2)!;
     const halfWidth = section.waterWidth / 2;
 
-    expect(isRiverAt(seed, 6.5, section.centerZ - halfWidth)).toBe(true);
-    expect(isRiverAt(seed, 6.5, section.centerZ + halfWidth)).toBe(true);
-    expect(isRiverAt(seed, 6.5, section.centerZ - halfWidth - 1e-6)).toBe(false);
-    expect(isRiverAt(seed, 6.5, section.centerZ + halfWidth + 1e-6)).toBe(false);
+    expect(isRiverAt(seed, section.centerX - halfWidth, CHUNK_SIZE / 2)).toBe(true);
+    expect(isRiverAt(seed, section.centerX + halfWidth, CHUNK_SIZE / 2)).toBe(true);
+    expect(isRiverAt(seed, section.centerX - halfWidth - 1e-6, CHUNK_SIZE / 2)).toBe(false);
+    expect(isRiverAt(seed, section.centerX + halfWidth + 1e-6, CHUNK_SIZE / 2)).toBe(false);
   });
 
-  it("does not invent a collision jump at negative north-south boundaries", () => {
+  it("does not invent a collision jump at negative east-west boundaries", () => {
     const seed = "river-boundary";
     const epsilon = 1e-7;
-    for (const boundaryZ of [-CHUNK_SIZE, 0]) {
-      expect(isRiverAt(seed, -3.25, boundaryZ - epsilon)).toBe(false);
-      expect(isRiverAt(seed, -3.25, boundaryZ + epsilon)).toBe(false);
+    for (const boundaryX of [-CHUNK_SIZE, 0]) {
+      expect(isRiverAt(seed, boundaryX - epsilon, -3.25)).toBe(false);
+      expect(isRiverAt(seed, boundaryX + epsilon, -3.25)).toBe(false);
     }
   });
 
