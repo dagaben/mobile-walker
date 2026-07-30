@@ -7,6 +7,7 @@ import type { DebugViewOptions } from "../world/chunkMeshes";
 import type { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
 import type { BiomeDebugPresentationSystem } from "../game/biomeDebug";
 import type { CameraPresentationSystem } from "../game/presentationSystems";
+import type { PersistenceSystem } from "../game/persistence";
 
 export class Game {
   private readonly renderer: ThreeRenderer;
@@ -16,6 +17,7 @@ export class Game {
   private readonly chunks: ChunkStreamingSystem;
   private readonly biomeDebug: BiomeDebugPresentationSystem;
   private readonly cameraPresentation: CameraPresentationSystem;
+  private readonly persistence: PersistenceSystem;
   private readonly cameraDetails: HTMLOutputElement;
   private readonly performanceView: HTMLOutputElement;
   private smoothedFrameSeconds = 1 / 60;
@@ -30,6 +32,7 @@ export class Game {
     this.chunks = gameplay.chunks;
     this.biomeDebug = gameplay.biomeDebug;
     this.cameraPresentation = gameplay.camera;
+    this.persistence = gameplay.persistence;
     const cameraDetails = document.querySelector<HTMLOutputElement>("#camera-details");
     const performanceView = document.querySelector<HTMLOutputElement>("#performance-view");
     if (!cameraDetails || !performanceView) throw new Error("Debug readouts could not be found.");
@@ -45,6 +48,7 @@ export class Game {
     });
 
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    window.addEventListener("pagehide", this.saveProgress);
   }
 
   start(): void {
@@ -71,12 +75,18 @@ export class Game {
     this.systems.dispose();
     this.renderer.dispose();
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    window.removeEventListener("pagehide", this.saveProgress);
   }
 
   private readonly handleVisibilityChange = (): void => {
-    if (document.hidden) this.loop.stop();
+    if (document.hidden) {
+      this.persistence.flush();
+      this.loop.stop();
+    }
     else if (this.running) this.loop.start();
   };
+
+  private readonly saveProgress = (): void => { this.persistence.flush(); };
 
   private updateDebugReadouts(deltaSeconds: number): void {
     if (deltaSeconds > 0) this.smoothedFrameSeconds += (deltaSeconds - this.smoothedFrameSeconds) * 0.1;

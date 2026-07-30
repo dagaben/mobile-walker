@@ -40,6 +40,12 @@ through GitHub Actions.
   chunk streamer/mesh factory.
 - `src/game/` composes the demo entities and presentation systems.
 
+Player position and collected waypoints are restored from browser `localStorage`
+when the same generated world is opened again. A versioned, world-seed-scoped
+snapshot is saved once per second while playing and immediately when the page is
+hidden or unloaded. Invalid or unavailable storage is ignored so it cannot block
+the game from starting.
+
 Simulation runs at a fixed 60 Hz. Browser events update raw input asynchronously;
 the first fixed system captures and normalizes one snapshot, preventing render
 refresh rate from changing movement speed. Systems are registered in this order:
