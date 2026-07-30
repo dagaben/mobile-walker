@@ -17,6 +17,21 @@ body { overscroll-behavior: none; touch-action: none; }
 
 #game-canvas { display: block; width: 100%; height: 100%; outline: none; }
 
+.drag-origin {
+  position: fixed;
+  z-index: 1;
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 2px solid rgb(255 255 255 / 42%);
+  border-radius: 50%;
+  background: rgb(49 71 58 / 12%);
+  box-shadow: inset 0 0 0 .35rem rgb(255 255 255 / 8%), 0 .15rem .75rem rgb(25 38 30 / 10%);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+}
+
 .toolbar {
   position: absolute;
   top: max(1rem, env(safe-area-inset-top));

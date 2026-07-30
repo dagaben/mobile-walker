@@ -24,7 +24,9 @@ export class Game {
     const world = createEcsWorld();
     this.renderer = new ThreeRenderer(canvas);
     this.systems = new SystemScheduler(world);
-    const gameplay = createGameplay(world, this.systems, this.renderer, canvas);
+    const dragOrigin = document.querySelector<HTMLElement>("#drag-origin");
+    if (!dragOrigin) throw new Error("The drag indicator could not be found.");
+    const gameplay = createGameplay(world, this.systems, this.renderer, canvas, dragOrigin);
     this.chunks = gameplay.chunks;
     this.biomeDebug = gameplay.biomeDebug;
     this.cameraPresentation = gameplay.camera;

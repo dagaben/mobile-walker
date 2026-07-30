@@ -19,7 +19,10 @@ export class InputController {
   private tapRelease: { x: number; y: number; time: number } | undefined;
   private jumpQueued = false;
 
-  constructor(private readonly element: HTMLElement) {
+  constructor(
+    private readonly element: HTMLElement,
+    private readonly dragIndicator?: HTMLElement,
+  ) {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("blur", this.onBlur);
@@ -55,6 +58,7 @@ export class InputController {
   }
 
   dispose(): void {
+    this.hideDragOrigin();
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("blur", this.onBlur);
@@ -81,8 +85,10 @@ export class InputController {
     if (this.primaryPointerId === undefined) {
       this.primaryPointerId = event.pointerId;
       this.pointerOrigin = point;
+      this.showDragOrigin(point);
     }
     if (this.pointers.size >= 2) {
+      this.hideDragOrigin();
       this.multiTouchSequence = true;
       this.tapRelease = undefined;
       this.jumpQueued = false;
@@ -128,11 +134,15 @@ export class InputController {
     this.pointers.delete(pointerId);
     if (pointerId === this.primaryPointerId) this.primaryPointerId = this.pointers.keys().next().value;
     const primary = this.primaryPointerId === undefined ? undefined : this.pointers.get(this.primaryPointerId);
-    if (primary) this.pointerOrigin = { ...primary };
+    if (primary) {
+      this.pointerOrigin = { ...primary };
+      if (this.pointers.size === 1) this.showDragOrigin(primary);
+    }
     if (this.pointers.size >= 2) this.rebaseGesture();
     if (this.pointers.size === 0) {
       this.primaryPointerId = undefined;
       this.multiTouchSequence = false;
+      this.hideDragOrigin();
     }
   }
 
@@ -156,5 +166,17 @@ export class InputController {
     this.cameraDelta = { zoomDelta: 0, tiltDelta: 0 };
     this.tapRelease = undefined;
     this.jumpQueued = false;
+    this.hideDragOrigin();
+  }
+
+  private showDragOrigin(point: PointerPosition): void {
+    if (!this.dragIndicator) return;
+    this.dragIndicator.style.left = `${point.x}px`;
+    this.dragIndicator.style.top = `${point.y}px`;
+    this.dragIndicator.hidden = false;
+  }
+
+  private hideDragOrigin(): void {
+    if (this.dragIndicator) this.dragIndicator.hidden = true;
   }
 }
