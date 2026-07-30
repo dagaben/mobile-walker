@@ -65,7 +65,7 @@ export function createGameplay(world: EcsWorld, systems: SystemScheduler, render
   if (!status) throw new Error("Exploration status element could not be found.");
   systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, status, 1));
   systems.addRenderSystem(new TransformInterpolationSystem());
-  systems.addRenderSystem(new CameraPresentationSystem(renderer.camera, input, chunks));
+  systems.addRenderSystem(new CameraPresentationSystem(renderer.camera, input));
   const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");
   const biomeLabel = document.querySelector<HTMLElement>("#current-biome-name");
   if (!biomeOverlay || !biomeLabel) throw new Error("Biome guide elements could not be found.");

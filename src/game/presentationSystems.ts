@@ -3,7 +3,6 @@ import * as THREE from "three";
 import type { RenderSystem } from "../ecs/System";
 import type { InputController } from "../player/InputController";
 import { CHUNK_SIZE } from "../world/chunkCoordinates";
-import type { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
 import { interpolateTransform } from "./interpolation";
 
 export class TransformInterpolationSystem implements RenderSystem {
@@ -26,7 +25,6 @@ export class CameraPresentationSystem implements RenderSystem {
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
     private readonly input?: Pick<InputController, "sampleCamera">,
-    private readonly chunks?: Pick<ChunkStreamingSystem, "getLoadedCenter">,
   ) {}
 
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], _interpolation: number, deltaSeconds: number): void {
@@ -47,12 +45,10 @@ export class CameraPresentationSystem implements RenderSystem {
     const distance = THREE.MathUtils.lerp(baseDistance, framingDistance, this.zoom);
     const baseElevation = Math.atan2(baseRise, target.cameraTarget.distance);
     const elevation = THREE.MathUtils.lerp(baseElevation, Math.PI / 2, this.tilt);
-    const loadedCenter = this.chunks?.getLoadedCenter() ?? { x: position.x, z: position.z };
-    this.lookAt.set(
-      THREE.MathUtils.lerp(position.x, loadedCenter.x, this.zoom),
-      baseLookY,
-      THREE.MathUtils.lerp(position.z, loadedCenter.z, this.zoom),
-    );
+    // The interpolated render position is continuous across chunk boundaries. In
+    // particular, do not use the streaming neighborhood's quantized midpoint as
+    // a look target: switching resident neighborhoods would make the view snap.
+    this.lookAt.set(position.x, baseLookY, position.z);
     this.desired.set(
       this.lookAt.x,
       this.lookAt.y + Math.sin(elevation) * distance,
