@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { generateTrees } from "./forest";
 import { findSafeRestoredTransform } from "./safePlayerPosition";
@@ -53,12 +53,18 @@ describe("findSafeRestoredTransform", () => {
   });
 
   it("uses the bounded grounded fallback when the area is entirely blocked", () => {
-    const result = findSafeRestoredTransform(seed, { ...tree, yaw: 0.8 }, offset, 10_000, 0.5, 1);
+    const alwaysBlocked = vi.fn(() => true);
+    const result = findSafeRestoredTransform(
+      seed, { ...tree, yaw: 0.8 }, offset, PLAYER_COLLISION_RADIUS, 0.5, 1, alwaysBlocked,
+    );
     expect(result).toEqual({
       x: 0,
       y: sampleTerrain(seed, 0, 0).height + offset,
       z: 0,
       yaw: 0.8,
     });
+    // Each origin checks itself, seven points on the 0.5 m ring, and thirteen on
+    // the 1 m ring. Both the saved origin and fallback spawn are bounded alike.
+    expect(alwaysBlocked).toHaveBeenCalledTimes(42);
   });
 });
