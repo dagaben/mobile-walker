@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { sampleBiome } from "./biomes";
 import { CHUNK_SIZE } from "./chunkCoordinates";
+import { generateTrees } from "./forest";
 import { isRiverAt, mountainSnowCoverage, sampleTerrainHeight } from "./terrainSampling";
 import { generateVegetation } from "./vegetation";
 
@@ -23,6 +24,19 @@ describe("biome vegetation", () => {
     expect(meadow.plains).toBeGreaterThan(0.5);
     expect(vegetation.flowers.length).toBeGreaterThan(100);
     expect(vegetation.flowers.length).toBeGreaterThan(vegetation.leafTrees.length * 8);
+    expect(vegetation.bushes.length).toBeLessThan(vegetation.leafTrees.length);
+  });
+
+  it("uses only broadleaf trees throughout plains", () => {
+    const seed = "summer-meadows";
+    const coordinates = Array.from({ length: 121 }, (_, index) => ({
+      x: index % 11 - 5,
+      z: Math.floor(index / 11) - 5,
+    }));
+    const conifers = coordinates.flatMap((coordinate) => generateTrees(seed, coordinate));
+
+    expect(conifers.length).toBeGreaterThan(0);
+    expect(conifers.every((tree) => sampleBiome(seed, tree.x, tree.z).dominant !== "plains")).toBe(true);
   });
 
   it("places every plant on the terrain and outside water", () => {
