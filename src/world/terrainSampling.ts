@@ -3,7 +3,7 @@ import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
 import { isRiverRow, sampleRiverSpine } from "./river";
 
-export type TerrainSurface = "land" | "river";
+export type TerrainSurface = "land" | "river" | "lake";
 /** Default chunk resolution; dry chunks retain the original generation cost. */
 export const TERRAIN_SEGMENTS = 8;
 
@@ -22,6 +22,11 @@ const LATTICE_SPACING = CHUNK_SIZE / TERRAIN_SEGMENTS;
  * roughly 30% of their height while they cross a river.
  */
 export const RIVER_BED_DEPTH = 0.45;
+/** Shared level and depth for the broad lake basin. */
+export const LAKE_SURFACE_ELEVATION = -0.08;
+export const LAKE_BED_DEPTH = 0.72;
+export const LAKE_WATER_WEIGHT = 0.34;
+const LAKE_BANK_WEIGHT = 0.18;
 /** Horizontal distances beyond the water edge occupied by each bank region. */
 export const RIVER_BANK_WIDTH = 0.75;
 export const RIVER_TRANSITION_WIDTH = 1.25;
@@ -82,6 +87,7 @@ const ELEVATION_PROFILES: Readonly<Record<BiomeId, {
   plains: { base: -0.04, broad: 0.42, detail: 0.1 },
   forest: { base: 0.04, broad: 0.68, detail: 0.18 },
   wetland: { base: -0.12, broad: 0.25, detail: 0.07 },
+  lake: { base: -0.16, broad: 0.22, detail: 0.05 },
   // Highlands deliberately have enough relief for tall hills and locally
   // steep faces, while biome blending still eases the transition into them.
   highlands: { base: 0.5, broad: 2.35, detail: 0.78 },
@@ -145,12 +151,19 @@ export function sampleChannelTerrainLatticeHeight(
 /** Height at any world position after applying the authoritative channel profile. */
 export function sampleChannelTerrainHeight(seed: number, worldX: number, worldZ: number): number {
   const naturalHeight = sampleNaturalTerrainHeight(seed, worldX, worldZ);
+  const lakeWeight = sampleBiome(seed, worldX, worldZ).weights.lake;
+  let shapedHeight = naturalHeight;
+  if (lakeWeight > LAKE_BANK_WEIGHT) {
+    const basinBlend = smoothstep((lakeWeight - LAKE_BANK_WEIGHT) / (LAKE_WATER_WEIGHT - LAKE_BANK_WEIGHT));
+    const bedHeight = LAKE_SURFACE_ELEVATION - LAKE_BED_DEPTH;
+    shapedHeight = naturalHeight + (Math.min(naturalHeight, bedHeight) - naturalHeight) * basinBlend;
+  }
   const crossSection = sampleRiverCrossSection(seed, worldX, worldZ);
-  if (!crossSection) return naturalHeight;
+  if (!crossSection) return shapedHeight;
 
   const halfWidth = crossSection.waterWidth / 2;
   const distanceFromWater = Math.max(0, Math.abs(worldZ - crossSection.centerZ) - halfWidth);
-  if (distanceFromWater >= RIVER_BANK_WIDTH + RIVER_TRANSITION_WIDTH) return naturalHeight;
+  if (distanceFromWater >= RIVER_BANK_WIDTH + RIVER_TRANSITION_WIDTH) return shapedHeight;
 
   // The slight bowl avoids a mechanically flat bed while remaining safely
   // below the water right up to the collision/rendered water boundary.
@@ -201,11 +214,16 @@ export function isRiverAt(seedInput: number | string, worldX: number, worldZ: nu
   return crossSection !== undefined && crossSection.normalizedLateralDistance <= 1 + 1e-9;
 }
 
+/** Returns whether a point lies in the flooded center of a lake biome. */
+export function isLakeAt(seedInput: number | string, worldX: number, worldZ: number): boolean {
+  return sampleBiome(seedInput, worldX, worldZ).weights.lake >= LAKE_WATER_WEIGHT;
+}
+
 export function sampleTerrain(seed: number | string, worldX: number, worldZ: number): TerrainSample {
   const biome = sampleBiome(seed, worldX, worldZ);
   return {
     height: sampleTerrainHeight(seed, worldX, worldZ),
-    surface: isRiverAt(seed, worldX, worldZ) ? "river" : "land",
+    surface: isRiverAt(seed, worldX, worldZ) ? "river" : isLakeAt(seed, worldX, worldZ) ? "lake" : "land",
     biome: biome.dominant,
     biomeWeights: biome.weights,
   };

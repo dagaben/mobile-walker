@@ -1,7 +1,7 @@
 import { hashFloat, normalizeSeed } from "./random";
 
 /** Stable identifiers used by terrain rendering and world-generation systems. */
-export type BiomeId = "plains" | "forest" | "wetland" | "highlands" | "mountain";
+export type BiomeId = "plains" | "forest" | "wetland" | "lake" | "highlands" | "mountain";
 
 export interface BiomeDefinition {
   readonly id: BiomeId;
@@ -15,6 +15,8 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
   plains: { id: "plains", label: "Plains", moisture: 0.28, ruggedness: 0.2 },
   forest: { id: "forest", label: "Forest", moisture: 0.72, ruggedness: 0.38 },
   wetland: { id: "wetland", label: "Wetland", moisture: 0.9, ruggedness: 0.08 },
+  // Lakes occupy the calm, moderately damp basins between plains and wetlands.
+  lake: { id: "lake", label: "Lake", moisture: 0.62, ruggedness: 0.04 },
   highlands: { id: "highlands", label: "Highlands", moisture: 0.42, ruggedness: 0.86 },
   // Keep the mountain center inside the range produced by the climate field.
   // This gives peaks a broad interior instead of restricting them to rare
@@ -27,6 +29,7 @@ export const BIOME_DEBUG_COLORS: Readonly<Record<BiomeId, string>> = {
   plains: "#d7c66f",
   forest: "#2f8a57",
   wetland: "#45a9bd",
+  lake: "#287fa8",
   highlands: "#9b75c8",
   mountain: "#e8edf2",
 };
@@ -91,7 +94,12 @@ export function sampleBiome(seedInput: number | string, worldX: number, worldZ: 
     const definition = BIOMES[id];
     const moistureDistance = moisture - definition.moisture;
     const ruggednessDistance = ruggedness - definition.ruggedness;
-    const score = Math.exp(-(moistureDistance ** 2 + ruggednessDistance ** 2) / 0.12);
+    // Lake cores are deliberately compact and decisive. Their narrow score
+    // leaves the established climate blends unchanged away from a basin while
+    // still producing a broad contiguous flooded interior near its center.
+    const score = id === "lake"
+      ? 5 * Math.exp(-(moistureDistance ** 2 + ruggednessDistance ** 2) / 0.015)
+      : Math.exp(-(moistureDistance ** 2 + ruggednessDistance ** 2) / 0.12);
     scores[id] = score;
     total += score;
   }

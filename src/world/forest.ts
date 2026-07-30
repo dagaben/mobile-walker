@@ -1,7 +1,7 @@
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
-import { isRiverAt, MOUNTAIN_SNOW_LINE, sampleTerrainHeight } from "./terrainSampling";
+import { isLakeAt, isRiverAt, MOUNTAIN_SNOW_LINE, sampleTerrainHeight } from "./terrainSampling";
 
 export interface TreePlacement {
   readonly x: number;
@@ -44,6 +44,7 @@ const TREE_PROFILES: Readonly<Record<BiomeId, {
   plains: { sparseChance: 0.002, denseChance: 0.055, minScale: 0.68, maxScale: 0.98 },
   forest: { sparseChance: 0.12, denseChance: 0.76, minScale: 0.92, maxScale: 1.34 },
   wetland: { sparseChance: 0.005, denseChance: 0.07, minScale: 0.72, maxScale: 1.02 },
+  lake: { sparseChance: 0, denseChance: 0, minScale: 0.7, maxScale: 0.9 },
   highlands: { sparseChance: 0.025, denseChance: 0.24, minScale: 0.58, maxScale: 0.88 },
   mountain: { sparseChance: 0.004, denseChance: 0.035, minScale: 0.55, maxScale: 0.78 },
 };
@@ -83,7 +84,8 @@ export function generateTrees(
 
       // Keep the banks readable and leave room to walk beside the water.
       if (
-        isRiverAt(seed, x, z)
+        isLakeAt(seed, x, z)
+        || isRiverAt(seed, x, z)
         || isRiverAt(seed, x, z - RIVER_CLEARANCE)
         || isRiverAt(seed, x, z + RIVER_CLEARANCE)
       ) continue;

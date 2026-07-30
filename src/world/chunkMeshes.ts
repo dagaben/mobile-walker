@@ -5,7 +5,7 @@ import { TREE_TRUNK_RADIUS } from "./forest";
 import type { GeneratedChunkData, RiverChannelSection } from "./generateChunk";
 import type { RiverPoint } from "./river";
 import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
-import { MOUNTAIN_SNOW_LINE, RIVER_BED_DEPTH } from "./terrainSampling";
+import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, MOUNTAIN_SNOW_LINE, RIVER_BED_DEPTH } from "./terrainSampling";
 
 export interface DebugViewOptions {
   readonly wireframe: boolean;
@@ -24,6 +24,7 @@ const TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
   plains: new THREE.Color(0x829b69),
   forest: new THREE.Color(0x183d24),
   wetland: new THREE.Color(0x665746),
+  lake: new THREE.Color(0x536b50),
   highlands: new THREE.Color(0x8b7358),
   mountain: new THREE.Color(0x34383d),
 };
@@ -32,6 +33,7 @@ const DEBUG_TERRAIN_PALETTE: Readonly<Record<BiomeId, THREE.Color>> = {
   plains: new THREE.Color(BIOME_DEBUG_COLORS.plains),
   forest: new THREE.Color(BIOME_DEBUG_COLORS.forest),
   wetland: new THREE.Color(BIOME_DEBUG_COLORS.wetland),
+  lake: new THREE.Color(BIOME_DEBUG_COLORS.lake),
   highlands: new THREE.Color(BIOME_DEBUG_COLORS.highlands),
   mountain: new THREE.Color(BIOME_DEBUG_COLORS.mountain),
 };
@@ -156,6 +158,7 @@ export class ChunkMeshFactory {
     group.add(this.createChunkBoundary(data));
     if (data.river) group.add(this.createRiver(data.river.spine));
     if (data.river) group.add(this.createRiverChannel(data.river.channelSections));
+    group.add(this.createLake(data));
     group.add(this.createWetlandPools(data));
     group.add(this.createTrees(data));
     group.add(this.createVegetation(data));
@@ -303,6 +306,37 @@ export class ChunkMeshFactory {
     pools.renderOrder = 1;
     group.add(pools);
     return group;
+  }
+
+  /** Floods contiguous lake-biome cells with the exact material used by wetland puddles. */
+  private createLake(data: GeneratedChunkData): THREE.Mesh {
+    const side = data.terrainVerticesPerSide;
+    const step = data.size / (side - 1);
+    const originX = data.coordinate.x * data.size;
+    const originZ = data.coordinate.z * data.size;
+    const positions: number[] = [];
+    const indices: number[] = [];
+    for (let z = 0; z < side - 1; z += 1) for (let x = 0; x < side - 1; x += 1) {
+      const corners = [z * side + x, z * side + x + 1, (z + 1) * side + x, (z + 1) * side + x + 1];
+      if (!corners.every((index) => data.terrainBiomeWeights[index]!.lake >= LAKE_WATER_WEIGHT)) continue;
+      const vertex = positions.length / 3;
+      positions.push(
+        originX + x * step, LAKE_SURFACE_ELEVATION, originZ + z * step,
+        originX + (x + 1) * step, LAKE_SURFACE_ELEVATION, originZ + z * step,
+        originX + x * step, LAKE_SURFACE_ELEVATION, originZ + (z + 1) * step,
+        originX + (x + 1) * step, LAKE_SURFACE_ELEVATION, originZ + (z + 1) * step,
+      );
+      indices.push(vertex, vertex + 2, vertex + 1, vertex + 1, vertex + 2, vertex + 3);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    const lake = new THREE.Mesh(geometry, this.wetlandWaterMaterial);
+    lake.name = "lake";
+    lake.receiveShadow = true;
+    lake.renderOrder = 1;
+    return lake;
   }
 
   private createTrees(data: GeneratedChunkData): THREE.Group {

@@ -5,10 +5,12 @@ import { generateChunk } from "./generateChunk";
 import { normalizeSeed } from "./random";
 import {
   isRiverAt,
+  isLakeAt,
   MOUNTAIN_SNOW_LINE,
   RIVER_BANK_WIDTH,
   RIVER_BED_DEPTH,
   RIVER_TRANSITION_WIDTH,
+  TERRAIN_SEGMENTS,
   sampleChannelTerrainHeight,
   sampleChannelTerrainLatticeHeight,
   sampleRiverCrossSection,
@@ -79,15 +81,19 @@ describe("terrain sampling", () => {
     expect(RIVER_BED_DEPTH).toBeLessThanOrEqual(1.5 * 0.4);
   });
 
-  it("neither classifies nor carves a river outside chunk row zero", () => {
+  it("never classifies terrain outside chunk row zero as river", () => {
     const seed = "row-zero-only";
     for (const worldZ of [-CHUNK_SIZE / 2, CHUNK_SIZE * 1.5]) {
       expect(isRiverAt(seed, 3, worldZ)).toBe(false);
-      expect(sampleTerrain(seed, 3, worldZ).surface).toBe("land");
+      expect(sampleTerrain(seed, 3, worldZ).surface).not.toBe("river");
     }
     for (const latticeZ of [-4, 20]) {
-      expect(sampleChannelTerrainLatticeHeight(41, 2, latticeZ))
-        .toBe(sampleTerrainLatticeHeight(41, 2, latticeZ));
+      const worldX = 2 * CHUNK_SIZE / TERRAIN_SEGMENTS;
+      const worldZ = latticeZ * CHUNK_SIZE / TERRAIN_SEGMENTS;
+      if (!isLakeAt(41, worldX, worldZ)) {
+        expect(sampleChannelTerrainLatticeHeight(41, 2, latticeZ))
+          .toBe(sampleTerrainLatticeHeight(41, 2, latticeZ));
+      }
     }
   });
 
