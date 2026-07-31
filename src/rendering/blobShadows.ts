@@ -4,15 +4,76 @@ export const BLOB_SHADOW_NAME = "blob-shadow";
 export const BLOB_SHADOW_SEGMENTS = 12;
 export const BLOB_SHADOW_TRIANGLES = BLOB_SHADOW_SEGMENTS;
 
-/** A deliberately small, unlit contact shadow that does not rely on shadow maps. */
-export function createBlobShadowMaterial(opacity = 0.14): THREE.MeshBasicMaterial {
+/** A dark, unlit contact-shadow material that does not rely on shadow maps. */
+export function createBlobShadowMaterial(opacity = 0.28): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
-    color: 0x405044,
+    color: 0x17221b,
     transparent: true,
     opacity,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
+}
+
+const PLAYER_SHADOW_RINGS = 4;
+const PLAYER_SHADOW_SEGMENTS = 20;
+
+/**
+ * A denser, subtly asymmetric footprint for the player. Its concentric rings
+ * give the presentation system enough vertices to drape it over uneven ground
+ * instead of intersecting the terrain as one rigid floating disc.
+ */
+export function createPlayerShadowGeometry(): THREE.BufferGeometry {
+  const positions: number[] = [0, 0, 0];
+  const indices: number[] = [];
+  for (let ring = 1; ring <= PLAYER_SHADOW_RINGS; ring += 1) {
+    const radius = ring / PLAYER_SHADOW_RINGS;
+    for (let segment = 0; segment < PLAYER_SHADOW_SEGMENTS; segment += 1) {
+      const angle = segment / PLAYER_SHADOW_SEGMENTS * Math.PI * 2;
+      // Broaden the shoulders and taper the trailing edge, avoiding a perfect
+      // geometric circle even when viewed directly from above.
+      const silhouette = 1 + 0.07 * Math.cos(angle) - 0.05 * Math.cos(angle * 2);
+      positions.push(
+        Math.cos(angle) * radius * silhouette,
+        0,
+        Math.sin(angle) * radius * (1 - 0.04 * Math.cos(angle)),
+      );
+    }
+  }
+  for (let segment = 0; segment < PLAYER_SHADOW_SEGMENTS; segment += 1) {
+    indices.push(0, 1 + segment, 1 + (segment + 1) % PLAYER_SHADOW_SEGMENTS);
+  }
+  for (let ring = 1; ring < PLAYER_SHADOW_RINGS; ring += 1) {
+    const inner = 1 + (ring - 1) * PLAYER_SHADOW_SEGMENTS;
+    const outer = inner + PLAYER_SHADOW_SEGMENTS;
+    for (let segment = 0; segment < PLAYER_SHADOW_SEGMENTS; segment += 1) {
+      const next = (segment + 1) % PLAYER_SHADOW_SEGMENTS;
+      indices.push(inner + segment, outer + segment, outer + next);
+      indices.push(inner + segment, outer + next, inner + next);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** Drape every player-shadow vertex over the generated terrain. */
+export function conformBlobShadowToTerrain(
+  shadow: THREE.Mesh,
+  sampleHeight: (x: number, z: number) => number,
+  clearance = 0.035,
+): void {
+  const positions = shadow.geometry.getAttribute("position");
+  for (let index = 0; index < positions.count; index += 1) {
+    const worldX = shadow.position.x + positions.getX(index) * shadow.scale.x;
+    const worldZ = shadow.position.z + positions.getZ(index) * shadow.scale.z;
+    // Divide out the mesh scale because Three.js applies it again at render time.
+    positions.setY(index, (sampleHeight(worldX, worldZ) + clearance) / shadow.scale.y);
+  }
+  positions.needsUpdate = true;
+  shadow.geometry.computeVertexNormals();
 }
 
 /** CircleGeometry is authored in XY; lay it just above the terrain in XZ. */

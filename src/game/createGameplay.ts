@@ -7,7 +7,7 @@ import { InputSnapshotSystem, PlayerMovementSystem, TerrainSamplingSystem, TreeC
 import type { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
 import { CameraPresentationSystem, PlayerShadowPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
-import { createBlobShadowGeometry, createBlobShadowMaterial, markBlobShadow } from "../rendering/blobShadows";
+import { createBlobShadowMaterial, createPlayerShadowGeometry, markBlobShadow } from "../rendering/blobShadows";
 import { CollectionSystem, createCollectionState, ExplorationPresentationSystem, ProximityDetectionSystem } from "./exploration";
 import { BiomeDebugPresentationSystem } from "./biomeDebug";
 import { getBrowserStorage, loadGameState, PersistenceSystem } from "./persistence";
@@ -63,9 +63,9 @@ export function createGameplay(
   }
   renderer.scene.add(player);
   const playerShadow = markBlobShadow(new THREE.Mesh(
-    createBlobShadowGeometry(), createBlobShadowMaterial(0.16),
+    createPlayerShadowGeometry(), createBlobShadowMaterial(0.36),
   ));
-  playerShadow.scale.set(0.48, 1, 0.36);
+  playerShadow.scale.set(0.58, 1, 0.43);
   renderer.scene.add(playerShadow);
 
   world.add({
