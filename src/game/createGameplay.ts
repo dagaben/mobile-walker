@@ -18,6 +18,7 @@ export interface GameplayControllers {
   readonly biomeDebug: BiomeDebugPresentationSystem;
   readonly camera: CameraPresentationSystem;
   readonly persistence: PersistenceSystem;
+  readonly exploration: ExplorationPresentationSystem;
 }
 
 export function createGameplay(
@@ -87,7 +88,8 @@ export function createGameplay(
   const streamingOffsets = { west: 1, east: 1, south: 1, north: 4 } as const;
   const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1, { offsets: streamingOffsets });
   systems.addRenderSystem(chunks);
-  systems.addRenderSystem(new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets));
+  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets);
+  systems.addRenderSystem(exploration);
   systems.addRenderSystem(new TransformInterpolationSystem());
   const camera = new CameraPresentationSystem(renderer.camera, input);
   systems.addRenderSystem(camera);
@@ -96,5 +98,5 @@ export function createGameplay(
   if (!biomeOverlay || !biomeLabel) throw new Error("Biome guide elements could not be found.");
   const biomeDebug = new BiomeDebugPresentationSystem(worldSeed, biomeOverlay, biomeLabel);
   systems.addRenderSystem(biomeDebug);
-  return { chunks, biomeDebug, camera, persistence };
+  return { chunks, biomeDebug, camera, persistence, exploration };
 }

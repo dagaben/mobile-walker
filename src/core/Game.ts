@@ -8,6 +8,8 @@ import type { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
 import type { BiomeDebugPresentationSystem } from "../game/biomeDebug";
 import type { CameraPresentationSystem } from "../game/presentationSystems";
 import type { PersistenceSystem } from "../game/persistence";
+import type { ExplorationPresentationSystem } from "../game/exploration";
+import type { ChunkNeighborhoodOffsets } from "../world/chunkCoordinates";
 
 export class Game {
   private readonly renderer: ThreeRenderer;
@@ -18,6 +20,7 @@ export class Game {
   private readonly biomeDebug: BiomeDebugPresentationSystem;
   private readonly cameraPresentation: CameraPresentationSystem;
   private readonly persistence: PersistenceSystem;
+  private readonly exploration: ExplorationPresentationSystem;
   private readonly cameraDetails: HTMLOutputElement;
   private readonly performanceView: HTMLOutputElement;
   private smoothedFrameSeconds = 1 / 60;
@@ -33,6 +36,7 @@ export class Game {
     this.biomeDebug = gameplay.biomeDebug;
     this.cameraPresentation = gameplay.camera;
     this.persistence = gameplay.persistence;
+    this.exploration = gameplay.exploration;
     const cameraDetails = document.querySelector<HTMLOutputElement>("#camera-details");
     const performanceView = document.querySelector<HTMLOutputElement>("#performance-view");
     if (!cameraDetails || !performanceView) throw new Error("Debug readouts could not be found.");
@@ -67,6 +71,11 @@ export class Game {
 
   setPerformanceViewEnabled(enabled: boolean): void {
     this.performanceView.hidden = !enabled;
+  }
+
+  setNeighborhoodOffsets(offsets: ChunkNeighborhoodOffsets): void {
+    this.chunks.setNeighborhoodOffsets(offsets);
+    this.exploration.setNeighborhoodOffsets(offsets);
   }
 
   dispose(): void {

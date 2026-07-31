@@ -1,15 +1,23 @@
 import { describe, expect, it } from "vitest";
 
 import { createEcsWorld } from "../ecs/createEcsWorld";
-import { GAME_STATE_STORAGE_KEY, loadGameState, PersistenceSystem } from "./persistence";
+import { GAME_STATE_STORAGE_KEY, loadGameState, PersistenceSystem, resetGameState } from "./persistence";
 
 class MemoryStorage {
   readonly values = new Map<string, string>();
   getItem(key: string): string | null { return this.values.get(key) ?? null; }
   setItem(key: string, value: string): void { this.values.set(key, value); }
+  removeItem(key: string): void { this.values.delete(key); }
 }
 
 describe("game persistence", () => {
+  it("resets saved progress", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(GAME_STATE_STORAGE_KEY, "saved");
+    resetGameState(storage);
+    expect(storage.getItem(GAME_STATE_STORAGE_KEY)).toBeNull();
+  });
+
   it("round-trips player progress and collected waypoint ids", () => {
     const storage = new MemoryStorage();
     const world = createEcsWorld();
