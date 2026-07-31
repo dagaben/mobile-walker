@@ -10,6 +10,7 @@ import type { CameraPresentationSystem } from "../game/presentationSystems";
 import type { PersistenceSystem } from "../game/persistence";
 import type { ExplorationPresentationSystem } from "../game/exploration";
 import type { ChunkNeighborhoodOffsets } from "../world/chunkCoordinates";
+import type { SunlightAngles } from "../rendering/ThreeRenderer";
 
 export class Game {
   private readonly renderer: ThreeRenderer;
@@ -83,6 +84,10 @@ export class Game {
   setNeighborhoodOffsets(offsets: ChunkNeighborhoodOffsets): void {
     this.chunks.setNeighborhoodOffsets(offsets);
     this.exploration.setNeighborhoodOffsets(offsets);
+  }
+
+  setSunlightAngles(angles: SunlightAngles): void {
+    this.renderer.setSunlightAngles(angles);
   }
 
   dispose(): void {

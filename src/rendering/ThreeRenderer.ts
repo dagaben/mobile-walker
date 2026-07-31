@@ -4,6 +4,23 @@ import { getBlobShadowStats } from "./blobShadows";
 const MAX_PIXEL_RATIO = 2;
 const MAX_DRAW_DISTANCE = 150;
 const FOG_DEPTH = 20;
+const SUNLIGHT_DISTANCE = 10;
+
+export interface SunlightAngles {
+  vertical: number;
+  horizontal: number;
+}
+
+export function sunlightPosition({ vertical, horizontal }: SunlightAngles): THREE.Vector3 {
+  const elevation = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(vertical, 10, 90));
+  const azimuth = THREE.MathUtils.degToRad(THREE.MathUtils.euclideanModulo(horizontal, 360));
+  const horizontalDistance = Math.cos(elevation) * SUNLIGHT_DISTANCE;
+  return new THREE.Vector3(
+    -Math.cos(azimuth) * horizontalDistance,
+    Math.sin(elevation) * SUNLIGHT_DISTANCE,
+    Math.sin(azimuth) * horizontalDistance,
+  );
+}
 
 export class ThreeRenderer {
   private readonly renderer: THREE.WebGLRenderer;
@@ -13,6 +30,7 @@ export class ThreeRenderer {
   private appliedHeight = -1;
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, MAX_DRAW_DISTANCE);
+  private readonly sunlight = new THREE.DirectionalLight(0xfff1d6, 2.2);
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -25,9 +43,8 @@ export class ThreeRenderer {
     this.camera.lookAt(0, 0, 0);
 
     this.scene.add(new THREE.HemisphereLight(0xfff8e8, 0x9ebba5, 2.4));
-    const sunlight = new THREE.DirectionalLight(0xfff1d6, 2.2);
-    sunlight.position.set(-4, 8, 5);
-    this.scene.add(sunlight);
+    this.setSunlightAngles({ vertical: 51, horizontal: 51 });
+    this.scene.add(this.sunlight);
 
     this.resizeObserver = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(this.resize);
     this.resizeObserver?.observe(canvas);
@@ -40,6 +57,10 @@ export class ThreeRenderer {
 
   render(_deltaSeconds: number): void {
     this.renderer.render(this.scene, this.camera);
+  }
+
+  setSunlightAngles(angles: SunlightAngles): void {
+    this.sunlight.position.copy(sunlightPosition(angles));
   }
 
   getPerformanceDetails(): { drawCalls: number; triangles: number; shadowDrawCalls: number; shadowTriangles: number } {

@@ -81,6 +81,19 @@
             </div>
           </div>
         </fieldset>
+        <fieldset>
+          <legend>Sunlight</legend>
+          <p>Direction the light shines from</p>
+          <label class="range-setting" for="sunlight-vertical">
+            <span>Vertical <output id="sunlight-vertical-value" for="sunlight-vertical">51°</output></span>
+            <input id="sunlight-vertical" type="range" min="10" max="90" value="51" step="1" />
+          </label>
+          <label class="range-setting" for="sunlight-horizontal">
+            <span>Horizontal <output id="sunlight-horizontal-value" for="sunlight-horizontal">51°</output></span>
+            <input id="sunlight-horizontal" type="range" min="0" max="360" value="51" step="1" />
+          </label>
+          <div class="compass-labels" aria-hidden="true"><span>W · 0°</span><span>S · 90°</span><span>E · 180°</span><span>N · 270°</span><span>360°</span></div>
+        </fieldset>
         <button class="settings-action" id="restart-button" type="button">Restart</button>
         <button class="settings-action danger" id="reset-progress-button" type="button">Reset progress</button>
       </section>
