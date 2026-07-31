@@ -8,3 +8,5 @@ export * from "./river";
 export * from "./terrainSampling";
 export * from "./terrainOcclusion";
 export * from "./vegetation";
+export * from "./poi";
+export * from "./poiMeshes";

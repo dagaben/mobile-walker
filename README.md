@@ -87,6 +87,26 @@ edges can remain sharp while streaming work stays focused on generating and
 activating the player's neighborhood. Camera-distance fog covers the final 20
 units of the camera's draw distance, becoming fully opaque at the far plane.
 
+### POI generation and presentation
+
+World generation is layered in a fixed order: terrain/elevation, biomes,
+hydrology, POI selection, vegetation with POI exclusions, and rendering.
+`src/world/poi.ts` owns plain-data POI definitions, globally addressed candidate
+cells, suitability scoring, terrain-footprint analysis, stable IDs, ownership,
+spacing, footprints, and exclusion zones. Definitions carry their placement
+policy, so adding a landmark does not require changes to biome, hydrology,
+vegetation, or chunk rendering code. Candidate randomness is hash-addressed by
+seed and cell rather than consumed from mutable random state.
+
+Generated POIs contain no Three.js state. `PoiMeshFactory` is a separate
+presentation registry that converts those records into named disposable object
+groups; `ChunkMeshFactory` only composes them into the owning chunk. A POI origin
+has exactly one owning chunk even when its footprint crosses a boundary.
+Neighboring generation contributes exclusion zones before trees, bushes,
+flowers, and pools are placed, without altering biome or terrain data. Candidate,
+rejection, footprint, stable-ID, and entrance information remains available as
+plain debug data, with accepted-only and full-candidate visualization levels.
+
 ## Controls
 
 - **Desktop:** move with <kbd>WASD</kbd> or the arrow keys and jump with

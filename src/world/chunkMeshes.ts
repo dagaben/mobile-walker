@@ -10,12 +10,14 @@ import type { RiverPoint } from "./river";
 import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
 import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, mountainSnowCoverage, RIVER_BED_DEPTH } from "./terrainSampling";
 import { terrainDarkening } from "./terrainOcclusion";
+import { PoiMeshFactory } from "./poiMeshes";
 
 export interface DebugViewOptions {
   readonly wireframe: boolean;
   readonly biomeGuide: boolean;
   readonly occlusionMap?: boolean;
   readonly disableTerrainOcclusion?: boolean;
+  readonly pois?: "off" | "accepted" | "candidates";
 }
 
 const DEBUG_CHUNK_BOUNDARY_NAME = "debug:chunk-boundary";
@@ -168,6 +170,7 @@ export function createRiverChannelGeometry(
 
 /** Presentation-only conversion of plain generated data into disposable Three.js objects. */
 export class ChunkMeshFactory {
+  private readonly poiMeshes = new PoiMeshFactory();
   private readonly sunlight: SunlightDirection;
   private readonly unsubscribeSunlight: () => void;
   private readonly groups = new Set<THREE.Group>();
@@ -219,6 +222,10 @@ export class ChunkMeshFactory {
     if (data.river) group.add(this.createRiverChannel(data.river.channelSections, data.terrainMaximumDarkening));
     group.add(this.createLake(data));
     group.add(this.createWetlandPools(data));
+    const poiGroup = new THREE.Group(); poiGroup.name = "pois";
+    for (const poi of data.pois) poiGroup.add(this.poiMeshes.create(poi));
+    group.add(poiGroup);
+    group.add(this.poiMeshes.createDebug(data.pois, data.poiCandidates));
     group.add(this.createTrees(data));
     group.add(this.createVegetation(data));
     group.add(this.createTreeShadows(data));
@@ -243,13 +250,14 @@ export class ChunkMeshFactory {
 
   disposeChunk(group: THREE.Group): void {
     group.traverse((object) => {
-      if (object instanceof THREE.Mesh || object instanceof THREE.Line) object.geometry.dispose();
+      if ((object instanceof THREE.Mesh || object instanceof THREE.Line) && object.geometry.userData.poiShared !== true) object.geometry.dispose();
     });
     group.removeFromParent();
   }
 
   dispose(): void {
     this.unsubscribeSunlight();
+    this.poiMeshes.dispose();
     this.terrainMaterial.dispose();
     this.riverMaterial.dispose();
     this.wetlandWaterMaterial.dispose();
@@ -580,6 +588,11 @@ export class ChunkMeshFactory {
     if (shadows) shadows.visible = this.shadowsEnabled;
     const chunkBoundary = group.getObjectByName(DEBUG_CHUNK_BOUNDARY_NAME);
     if (chunkBoundary) chunkBoundary.visible = this.debugView.wireframe;
+    const poiDebug = group.getObjectByName("debug:pois");
+    if (poiDebug) {
+      poiDebug.visible = (this.debugView.pois ?? "off") !== "off";
+      for (const child of poiDebug.children) if (child.userData.poiId) child.visible = this.debugView.pois === "candidates";
+    }
     group.traverse((object) => {
       if (!(object instanceof THREE.Mesh) || object.userData.isTerrainSurface !== true) return;
       const terrain = object;

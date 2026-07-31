@@ -2,6 +2,7 @@ import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
 import { isLakeAt, isRiverAt, mountainSnowCoverage, sampleTerrainHeight } from "./terrainSampling";
+import { isVegetationExcluded, type PoiZone } from "./poi";
 
 export type VegetationKind = "pine" | "leafTree" | "bush" | "flower";
 
@@ -119,7 +120,7 @@ function blendedFixed(weights: BiomeWeights, probabilities: FixedProbabilities):
 }
 
 /** Deterministically runs the common candidate, terrain and constraint pipeline. */
-export function generateVegetationKind(kind: VegetationKind, seedInput: number | string, coordinate: ChunkCoordinate): readonly VegetationPlacement[] {
+export function generateVegetationKind(kind: VegetationKind, seedInput: number | string, coordinate: ChunkCoordinate, exclusions: readonly PoiZone[] = []): readonly VegetationPlacement[] {
   const seed = normalizeSeed(seedInput), profile = VEGETATION_PROFILES[kind];
   const cellsPerSide = Math.ceil(CHUNK_SIZE / profile.cellSize);
   const startX = coordinate.x * CHUNK_SIZE, startZ = coordinate.z * CHUNK_SIZE;
@@ -134,6 +135,7 @@ export function generateVegetationKind(kind: VegetationKind, seedInput: number |
       ? (cellZ + 0.5) * profile.cellSize + (hashFloat(seed, cellX, cellZ, profile.salt + 1) - 0.5) * 1.3
       : startZ + (localZ + 0.15 + hashFloat(seed, cellX, cellZ, profile.salt + 1) * 0.7) * profile.cellSize;
     if (x < startX || z < startZ || x >= startX + CHUNK_SIZE || z >= startZ + CHUNK_SIZE) continue;
+    if (isVegetationExcluded(x, z, exclusions)) continue;
     const biome = sampleBiome(seed, x, z), rules = profile.dominantBiomes;
     if (rules?.deny?.includes(biome.dominant) || (rules?.allow && !rules.allow.includes(biome.dominant))) continue;
     if (profile.constraints.lake && isLakeAt(seed, x, z)) continue;
@@ -173,12 +175,12 @@ export interface GeneratedVegetation {
   readonly flowers: readonly FlowerPlacement[];
 }
 
-export function generateVegetation(seedInput: number | string, coordinate: ChunkCoordinate): GeneratedVegetation {
+export function generateVegetation(seedInput: number | string, coordinate: ChunkCoordinate, exclusions: readonly PoiZone[] = []): GeneratedVegetation {
   const seed = normalizeSeed(seedInput);
   return {
-    leafTrees: generateVegetationKind("leafTree", seed, coordinate),
-    bushes: generateVegetationKind("bush", seed, coordinate),
-    flowers: generateVegetationKind("flower", seed, coordinate).map((placement) => ({
+    leafTrees: generateVegetationKind("leafTree", seed, coordinate, exclusions),
+    bushes: generateVegetationKind("bush", seed, coordinate, exclusions),
+    flowers: generateVegetationKind("flower", seed, coordinate, exclusions).map((placement) => ({
       ...placement,
       color: FLOWER_COLORS[Math.floor(hashFloat(seed, Math.floor(placement.x / 0.8), Math.floor(placement.z / 0.8), 547) * FLOWER_COLORS.length)]!,
     })),
