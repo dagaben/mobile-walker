@@ -34,7 +34,7 @@ export function placeCollectibles(seedInput: number | string, coordinate: ChunkC
     // The inset keeps objects away from seams where presentation chunks churn.
     const x = origin.x + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 101) * (CHUNK_SIZE - 4);
     const z = origin.z + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 211) * (CHUNK_SIZE - 4);
-    return { id: `${owner}:waypoint:${index}`, chunkId: owner, x, y: sampleTerrainHeight(seed, x, z) + 0.72, z };
+    return { id: `${owner}:waypoint:${index}`, chunkId: owner, x, y: sampleTerrainHeight(seed, x, z), z };
   });
 }
 
@@ -89,6 +89,7 @@ export class ExplorationPresentationSystem implements RenderSystem {
     private readonly seed: number | string,
     radius = 1,
     offsets: Partial<ChunkNeighborhoodOffsets> = {},
+    private readonly collectedCount?: HTMLElement,
   ) {
     this.offsets = resolveNeighborhoodOffsets(radius, offsets);
   }
@@ -101,6 +102,9 @@ export class ExplorationPresentationSystem implements RenderSystem {
     const player = world.entities.find((entity) => entity.playerControl && entity.transform);
     const state = world.entities.find((entity) => entity.collectionState)?.collectionState;
     if (!player?.transform || !state) return;
+    if (this.collectedCount && this.collectedCount.textContent !== String(state.discovered)) {
+      this.collectedCount.textContent = String(state.discovered);
+    }
     this.center = selectChunkCenter(player.transform.x, player.transform.z, this.center);
     const wanted = new Set<string>();
     for (let z = this.center.z - this.offsets.north; z <= this.center.z + this.offsets.south; z += 1) {
@@ -110,10 +114,7 @@ export class ExplorationPresentationSystem implements RenderSystem {
         wanted.add(id);
         if (this.active.has(id)) continue;
         const entities = placeCollectibles(this.seed, coordinate).map((placement) => {
-          const mesh = new THREE.Mesh(
-            new THREE.OctahedronGeometry(0.45, 0),
-            new THREE.MeshStandardMaterial({ color: 0xf4c95d, emissive: 0x604510, flatShading: true }),
-          );
+          const mesh = createMushroom();
           mesh.position.set(placement.x, placement.y, placement.z);
           mesh.visible = !state.collectedIds.has(placement.id);
           this.scene.add(mesh);
@@ -148,4 +149,23 @@ export class ExplorationPresentationSystem implements RenderSystem {
     }
     this.active.clear();
   }
+}
+
+function createMushroom(): THREE.Group {
+  const mushroom = new THREE.Group();
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.22, 0.55, 8),
+    new THREE.MeshStandardMaterial({ color: 0xfffaf0, roughness: 0.9, flatShading: true }),
+  );
+  stem.position.y = 0.275;
+  stem.castShadow = true;
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.48, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0xd94b45, roughness: 0.82, flatShading: true }),
+  );
+  cap.scale.y = 0.65;
+  cap.position.y = 0.55;
+  cap.castShadow = true;
+  mushroom.add(stem, cap);
+  return mushroom;
 }

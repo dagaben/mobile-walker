@@ -42,6 +42,28 @@ describe("exploration placement", () => {
 });
 
 describe("exploration presentation neighborhood", () => {
+  it("renders red-capped mushrooms and keeps the collected counter in sync", () => {
+    const scene = new THREE.Scene();
+    const world = createEcsWorld();
+    world.add({
+      transform: { x: 1, y: 0, z: 1, yaw: 0 },
+      playerControl: { moveX: 0, moveZ: 0, active: false, jump: false },
+    });
+    world.add({ collectionState: createCollectionState(["one", "two"]) });
+    const count = { textContent: "" } as HTMLElement;
+    const system = new ExplorationPresentationSystem(scene, "mushrooms", 0, {}, count);
+
+    system.prepareRender(world);
+
+    expect(count.textContent).toBe("2");
+    const mushroom = scene.children[0] as THREE.Group;
+    expect(mushroom.children).toHaveLength(2);
+    const [stem, cap] = mushroom.children as THREE.Mesh[];
+    expect((stem.material as THREE.MeshStandardMaterial).color.getHex()).toBe(0xfffaf0);
+    expect((cap.material as THREE.MeshStandardMaterial).color.getHex()).toBe(0xd94b45);
+    system.dispose();
+  });
+
   it("keeps collectibles aligned with asymmetric streaming offsets", () => {
     const scene = new THREE.Scene();
     const world = createEcsWorld();
