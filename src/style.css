@@ -17,6 +17,34 @@ body { overscroll-behavior: none; touch-action: none; }
 
 #game-canvas { display: block; width: 100%; height: 100%; outline: none; }
 
+.mushroom-counter {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  left: max(1rem, env(safe-area-inset-left));
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-width: 3.6rem;
+  height: 2.25rem;
+  padding: .3rem .65rem .3rem .45rem;
+  border: 1px solid rgb(49 71 58 / 14%);
+  border-radius: 999px;
+  color: #31473a;
+  background: rgb(255 255 255 / 78%);
+  box-shadow: 0 .2rem .8rem rgb(49 71 58 / 12%);
+  font-size: .95rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  backdrop-filter: blur(.45rem);
+  -webkit-backdrop-filter: blur(.45rem);
+}
+
+.mushroom-counter svg { width: 1.5rem; height: 1.5rem; overflow: visible; }
+.mushroom-counter .mushroom-cap { fill: #d94b45; }
+.mushroom-counter .mushroom-stem { fill: #fffaf0; stroke: #d8d2c6; stroke-width: 1; }
+.mushroom-counter circle { fill: #fffaf0; }
+
 .drag-origin {
   position: fixed;
   z-index: 1;
@@ -128,8 +156,10 @@ body { overscroll-behavior: none; touch-action: none; }
   -webkit-backdrop-filter: blur(.5rem);
 }
 
-.performance-view { top: max(1rem, env(safe-area-inset-top)); }
-.debug-readout:has(~ .performance-view:not([hidden])) { top: calc(max(1rem, env(safe-area-inset-top)) + 7.25rem); }
+.mushroom-counter ~ .debug-readout { top: calc(max(1rem, env(safe-area-inset-top)) + 3rem); }
+
+.performance-view { top: calc(max(1rem, env(safe-area-inset-top)) + 3rem); }
+.debug-readout:has(~ .performance-view:not([hidden])) { top: calc(max(1rem, env(safe-area-inset-top)) + 10.25rem); }
 
 .biome-guide { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .current-biome {

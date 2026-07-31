@@ -88,7 +88,9 @@ export function createGameplay(
   const streamingOffsets = { west: 1, east: 1, south: 1, north: 4 } as const;
   const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1, { offsets: streamingOffsets });
   systems.addRenderSystem(chunks);
-  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets);
+  const mushroomCount = document.querySelector<HTMLElement>("#mushroom-count");
+  if (!mushroomCount) throw new Error("The mushroom counter could not be found.");
+  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, mushroomCount);
   systems.addRenderSystem(exploration);
   systems.addRenderSystem(new TransformInterpolationSystem());
   const camera = new CameraPresentationSystem(renderer.camera, input);
