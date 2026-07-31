@@ -19,6 +19,7 @@ const debugPanel = document.querySelector<HTMLElement>("#debug-panel");
 const wireframeInput = document.querySelector<HTMLInputElement>("#debug-wireframe");
 const biomesInput = document.querySelector<HTMLInputElement>("#debug-biomes");
 const terrainOcclusionInput = document.querySelector<HTMLInputElement>("#debug-terrain-occlusion");
+const occlusionMapInput = document.querySelector<HTMLInputElement>("#debug-occlusion-map");
 const cameraInput = document.querySelector<HTMLInputElement>("#debug-camera");
 const performanceInput = document.querySelector<HTMLInputElement>("#debug-performance");
 const shadowsInput = document.querySelector<HTMLInputElement>("#debug-shadows");
@@ -27,7 +28,7 @@ const offsetOutputs = Object.fromEntries(["west", "east", "north", "south"].map(
 ])) as Record<keyof ChunkNeighborhoodOffsets, HTMLOutputElement | null>;
 const offsetButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-offset-direction][data-offset-change]")];
 
-if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !terrainOcclusionInput || !cameraInput || !performanceInput || !shadowsInput || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
+if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !terrainOcclusionInput || !occlusionMapInput || !cameraInput || !performanceInput || !shadowsInput || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
   throw new Error("The game interface could not be found.");
 }
 
@@ -65,7 +66,8 @@ const toggleDebugPanel = (): void => {
 const updateDebugView = (): void => game.setDebugView({
   wireframe: wireframeInput.checked,
   biomeGuide: biomesInput.checked,
-  terrainOcclusion: terrainOcclusionInput.checked,
+  disableTerrainOcclusion: terrainOcclusionInput.checked,
+  occlusionMap: occlusionMapInput.checked,
 });
 const updateCameraDetails = (): void => game.setCameraDetailsEnabled(cameraInput.checked);
 const updatePerformanceView = (): void => game.setPerformanceViewEnabled(performanceInput.checked);
@@ -97,7 +99,7 @@ restartButton.addEventListener("click", restartGame);
 resetProgressButton.addEventListener("click", resetProgress);
 settingsButton.addEventListener("click", toggleSettingsPanel);
 debugButton.addEventListener("click", toggleDebugPanel);
-for (const input of [wireframeInput, biomesInput, terrainOcclusionInput]) input.addEventListener("change", updateDebugView);
+for (const input of [wireframeInput, biomesInput, terrainOcclusionInput, occlusionMapInput]) input.addEventListener("change", updateDebugView);
 cameraInput.addEventListener("change", updateCameraDetails);
 performanceInput.addEventListener("change", updatePerformanceView);
 shadowsInput.addEventListener("change", updateShadows);
@@ -112,7 +114,7 @@ if (import.meta.hot) {
     resetProgressButton.removeEventListener("click", resetProgress);
     settingsButton.removeEventListener("click", toggleSettingsPanel);
     debugButton.removeEventListener("click", toggleDebugPanel);
-    for (const input of [wireframeInput, biomesInput, terrainOcclusionInput]) input.removeEventListener("change", updateDebugView);
+    for (const input of [wireframeInput, biomesInput, terrainOcclusionInput, occlusionMapInput]) input.removeEventListener("change", updateDebugView);
     cameraInput.removeEventListener("change", updateCameraDetails);
     performanceInput.removeEventListener("change", updatePerformanceView);
     shadowsInput.removeEventListener("change", updateShadows);
