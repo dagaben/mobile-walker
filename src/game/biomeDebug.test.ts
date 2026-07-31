@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import { BIOME_IDS, sampleBiome } from "../world/biomes";
-import { findNearestBiomes, formatBiomeDistance, worldToOverlayDisplacement } from "./biomeDebug";
+import { findNearestBiomes, formatBiomeDistance, riverIndicatorEdge, worldToOverlayDisplacement } from "./biomeDebug";
+
+describe("riverIndicatorEdge", () => {
+  it("glows on the edge facing the river column", () => {
+    expect(riverIndicatorEdge(-0.01)).toBe("right");
+    expect(riverIndicatorEdge(-16)).toBe("right");
+    expect(riverIndicatorEdge(16)).toBe("left");
+  });
+
+  it("does not glow while the player is inside the river chunk column", () => {
+    expect(riverIndicatorEdge(0)).toBeNull();
+    expect(riverIndicatorEdge(15.999)).toBeNull();
+  });
+});
 
 describe("formatBiomeDistance", () => {
   it("reports rounded distances in world units", () => {

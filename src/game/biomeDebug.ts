@@ -1,11 +1,22 @@
 import type { RenderSystem } from "../ecs/System";
 import { BIOMES, BIOME_DEBUG_COLORS, BIOME_IDS, sampleBiome, type BiomeId } from "../world/biomes";
+import { worldToChunk } from "../world/chunkCoordinates";
+import { isRiverColumn } from "../world/river";
 
 export interface BiomeDirection {
   readonly id: BiomeId;
   readonly x: number;
   readonly z: number;
   readonly distance: number;
+}
+
+export type RiverIndicatorEdge = "left" | "right" | null;
+
+/** Returns the screen edge pointing horizontally toward the river's chunk column. */
+export function riverIndicatorEdge(playerX: number): RiverIndicatorEdge {
+  const coordinate = worldToChunk(playerX, 0);
+  if (isRiverColumn(coordinate)) return null;
+  return coordinate.x < 0 ? "right" : "left";
 }
 
 /** Formats world-space distance for the compact biome direction markers. */
@@ -52,12 +63,19 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
   private elapsed = Number.POSITIVE_INFINITY;
   private currentBiome?: BiomeId;
   private readonly indicators = new Map<BiomeId, HTMLElement>();
+  private readonly riverIndicator: HTMLElement;
 
   constructor(
     private readonly seed: number | string,
     private readonly overlay: HTMLElement,
     private readonly currentLabel: HTMLElement,
   ) {
+    this.riverIndicator = document.createElement("div");
+    this.riverIndicator.className = "river-indicator";
+    this.riverIndicator.setAttribute("aria-hidden", "true");
+    this.riverIndicator.hidden = true;
+    this.overlay.append(this.riverIndicator);
+
     for (const id of BIOME_IDS) {
       const indicator = document.createElement("div");
       indicator.className = "biome-indicator";
@@ -92,6 +110,12 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
     if (!player?.transform) return;
 
     const { x, z } = player.transform;
+    const riverEdge = riverIndicatorEdge(x);
+    this.riverIndicator.hidden = riverEdge === null;
+    this.riverIndicator.className = riverEdge === null
+      ? "river-indicator"
+      : `river-indicator river-indicator--${riverEdge}`;
+
     const current = sampleBiome(this.seed, x, z).dominant;
     if (current !== this.currentBiome) {
       this.currentBiome = current;
@@ -127,6 +151,7 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
   }
 
   dispose(): void {
+    this.riverIndicator.remove();
     for (const indicator of this.indicators.values()) indicator.remove();
     this.indicators.clear();
   }
