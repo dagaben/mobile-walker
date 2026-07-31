@@ -166,16 +166,16 @@ body { overscroll-behavior: none; touch-action: none; }
   position: absolute;
   top: 0;
   bottom: 0;
-  width: min(8rem, 24vw);
-  opacity: .42;
+  width: min(4.5rem, 14vw);
+  opacity: .88;
 }
 .river-indicator--left {
   left: 0;
-  background: linear-gradient(to right, rgb(62 156 220 / 34%), transparent);
+  background: linear-gradient(to right, rgb(0 174 255 / 92%) 0%, rgb(0 174 255 / 72%) 24%, rgb(0 174 255 / 18%) 70%, transparent 100%);
 }
 .river-indicator--right {
   right: 0;
-  background: linear-gradient(to left, rgb(62 156 220 / 34%), transparent);
+  background: linear-gradient(to left, rgb(0 174 255 / 92%) 0%, rgb(0 174 255 / 72%) 24%, rgb(0 174 255 / 18%) 70%, transparent 100%);
 }
 .current-biome {
   margin-top: .3rem;
