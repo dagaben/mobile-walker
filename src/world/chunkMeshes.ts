@@ -13,7 +13,8 @@ import { terrainDarkening } from "./terrainOcclusion";
 export interface DebugViewOptions {
   readonly wireframe: boolean;
   readonly biomeGuide: boolean;
-  readonly terrainOcclusion?: boolean;
+  readonly occlusionMap?: boolean;
+  readonly disableTerrainOcclusion?: boolean;
 }
 
 const DEBUG_CHUNK_BOUNDARY_NAME = "debug:chunk-boundary";
@@ -156,7 +157,9 @@ export class ChunkMeshFactory {
   });
   private readonly chunkBoundaryMaterial = new THREE.LineBasicMaterial({ color: 0x8b0000, depthTest: false });
   private readonly blobShadowMaterial = createBlobShadowMaterial(0.3);
-  private debugView: DebugViewOptions = { wireframe: false, biomeGuide: false, terrainOcclusion: false };
+  private debugView: DebugViewOptions = {
+    wireframe: false, biomeGuide: false, occlusionMap: false, disableTerrainOcclusion: false,
+  };
   private shadowsEnabled = true;
 
   create(data: GeneratedChunkData): THREE.Group {
@@ -242,7 +245,8 @@ export class ChunkMeshFactory {
   private createTerrain(data: GeneratedChunkData): THREE.Mesh {
     const side = data.terrainVerticesPerSide;
     const positions: number[] = [];
-    const colors: number[] = [];
+    const baseTerrainColors: number[] = [];
+    const terrainColors: number[] = [];
     const debugColors: number[] = [];
     const occlusionColors: number[] = [];
     const indices: number[] = [];
@@ -259,13 +263,16 @@ export class ChunkMeshFactory {
       blendBiomeColor(vertex.biomeWeights, color);
       const snow = mountainSnowCoverage(vertex.height, vertex.biomeWeights);
       color.lerp(SNOW_COLOR, snow);
+      baseTerrainColors.push(color.r, color.g, color.b);
       color.multiplyScalar(1 - terrainDarkening(vertex.occlusion, data.terrainMaximumDarkening));
-      colors.push(color.r, color.g, color.b);
+      terrainColors.push(color.r, color.g, color.b);
       const dominant = (Object.keys(vertex.biomeWeights) as BiomeId[])
         .reduce((best, id) => vertex.biomeWeights[id] > vertex.biomeWeights[best] ? id : best);
       const debugColor = DEBUG_TERRAIN_PALETTE[dominant];
       debugColors.push(debugColor.r, debugColor.g, debugColor.b);
-      const shade = 1 - vertex.occlusion;
+      // Amplification makes the otherwise subtle baked values legible in the
+      // dedicated map without confusing unoccluded terrain with white paint.
+      const shade = Math.min(1, vertex.occlusion * 2);
       occlusionColors.push(shade, shade, shade);
     }
     if (data.irregularTerrain) indices.push(...data.irregularTerrain.indices);
@@ -275,9 +282,11 @@ export class ChunkMeshFactory {
       }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    const biomeColorAttribute = new THREE.Float32BufferAttribute(colors, 3);
-    geometry.setAttribute("biomeColor", biomeColorAttribute);
-    geometry.setAttribute("color", biomeColorAttribute);
+    const baseTerrainColorAttribute = new THREE.Float32BufferAttribute(baseTerrainColors, 3);
+    const terrainColorAttribute = new THREE.Float32BufferAttribute(terrainColors, 3);
+    geometry.setAttribute("baseTerrainColor", baseTerrainColorAttribute);
+    geometry.setAttribute("terrainColor", terrainColorAttribute);
+    geometry.setAttribute("color", terrainColorAttribute);
     geometry.setAttribute("debugColor", new THREE.Float32BufferAttribute(debugColors, 3));
     geometry.setAttribute("occlusionColor", new THREE.Float32BufferAttribute(occlusionColors, 3));
     geometry.setIndex(indices);
@@ -533,11 +542,14 @@ export class ChunkMeshFactory {
     const terrain = group.getObjectByName("terrain") as THREE.Mesh | undefined;
     if (terrain) {
       const geometry = terrain.geometry as THREE.BufferGeometry;
-      const debugAttribute = this.debugView.terrainOcclusion ? "occlusionColor" : "debugColor";
-      geometry.setAttribute("color", geometry.getAttribute(
-        this.debugView.biomeGuide || this.debugView.terrainOcclusion ? debugAttribute : "biomeColor",
-      ));
-      terrain.material = this.debugView.biomeGuide || this.debugView.terrainOcclusion
+      // Keep precedence explicit so combinations selected through programmatic
+      // debug controls always resolve predictably.
+      const colorAttribute = this.debugView.biomeGuide ? "debugColor"
+        : this.debugView.occlusionMap ? "occlusionColor"
+          : this.debugView.disableTerrainOcclusion ? "baseTerrainColor"
+            : "terrainColor";
+      geometry.setAttribute("color", geometry.getAttribute(colorAttribute));
+      terrain.material = this.debugView.biomeGuide || this.debugView.occlusionMap
         ? this.debugTerrainMaterial
         : this.terrainMaterial;
     }

@@ -272,6 +272,84 @@ describe("terrain biome colors", () => {
     factory.disposeChunk(shadedGroup);
     factory.dispose();
   });
+
+  it("stores base and final terrain colours separated only by baked occlusion", () => {
+    const factory = new ChunkMeshFactory();
+    const data = generateChunk("terrain-color-attributes", { x: 4, z: -5 });
+    const group = factory.create(data);
+    const geometry = (group.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry>).geometry;
+    const base = geometry.getAttribute("baseTerrainColor");
+    const occluded = geometry.getAttribute("terrainColor");
+    const vertices = data.irregularTerrain?.vertices ?? data.terrainHeights.map((_, index) => ({
+      occlusion: data.terrainOcclusion[index] ?? 0,
+    }));
+
+    expect(base.count).toBe(occluded.count);
+    for (let index = 0; index < base.count; index += 1) {
+      const multiplier = 1 - vertices[index]!.occlusion * data.terrainMaximumDarkening;
+      expect(occluded.getX(index)).toBeCloseTo(base.getX(index) * multiplier, 6);
+      expect(occluded.getY(index)).toBeCloseTo(base.getY(index) * multiplier, 6);
+      expect(occluded.getZ(index)).toBeCloseTo(base.getZ(index) * multiplier, 6);
+    }
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
+  it("restores biome and snow colours instead of inverse grayscale when occlusion is disabled", () => {
+    const factory = new ChunkMeshFactory();
+    const group = factory.create(generateChunk("disable-occlusion", { x: 4, z: -5 }));
+    factory.registerGroup(group);
+    const geometry = (group.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry>).geometry;
+
+    factory.setDebugView({ wireframe: false, biomeGuide: false, disableTerrainOcclusion: true });
+
+    expect(geometry.getAttribute("color")).toBe(geometry.getAttribute("baseTerrainColor"));
+    expect(geometry.getAttribute("color")).not.toBe(geometry.getAttribute("occlusionColor"));
+    const color = geometry.getAttribute("color");
+    expect(Array.from({ length: color.count }, (_, index) =>
+      color.getX(index) === 1 && color.getY(index) === 1 && color.getZ(index) === 1,
+    ).every(Boolean)).toBe(false);
+
+    factory.unregisterGroup(group);
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
+  it("applies the selected terrain mode to existing and subsequently streamed chunks", () => {
+    const factory = new ChunkMeshFactory();
+    const existing = factory.create(generateChunk("existing-debug-chunk", { x: 2, z: 1 }));
+    factory.registerGroup(existing);
+    factory.setDebugView({ wireframe: false, biomeGuide: false, disableTerrainOcclusion: true });
+    const streamed = factory.create(generateChunk("streamed-debug-chunk", { x: 3, z: 1 }));
+    factory.registerGroup(streamed);
+
+    for (const group of [existing, streamed]) {
+      const geometry = (group.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry>).geometry;
+      expect(geometry.getAttribute("color")).toBe(geometry.getAttribute("baseTerrainColor"));
+      factory.unregisterGroup(group);
+      factory.disposeChunk(group);
+    }
+    factory.dispose();
+  });
+
+  it("uses explicit biome, occlusion-map, unoccluded, and normal precedence", () => {
+    const factory = new ChunkMeshFactory();
+    const group = factory.create(generateChunk("debug-precedence", { x: 1, z: 1 }));
+    factory.registerGroup(group);
+    const geometry = (group.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry>).geometry;
+
+    factory.setDebugView({ wireframe: false, biomeGuide: false, occlusionMap: false, disableTerrainOcclusion: false });
+    expect(geometry.getAttribute("color")).toBe(geometry.getAttribute("terrainColor"));
+    factory.setDebugView({ wireframe: false, biomeGuide: false, occlusionMap: true, disableTerrainOcclusion: true });
+    expect(geometry.getAttribute("color")).toBe(geometry.getAttribute("occlusionColor"));
+    factory.setDebugView({ wireframe: false, biomeGuide: true, occlusionMap: true, disableTerrainOcclusion: true });
+    expect(geometry.getAttribute("color")).toBe(geometry.getAttribute("debugColor"));
+
+    factory.unregisterGroup(group);
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
 });
 
 describe("terrain wireframe debug view", () => {
