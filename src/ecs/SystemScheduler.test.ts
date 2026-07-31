@@ -33,4 +33,20 @@ describe("SystemScheduler", () => {
 
     expect(dispose).toHaveBeenCalledTimes(1);
   });
+
+  it("attributes an injected long frame to the responsible system", () => {
+    let now = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    class SlowPresentationSystem { prepareRender(): void { now += 24; } }
+    class FastPresentationSystem { prepareRender(): void { now += 1; } }
+    const scheduler = new SystemScheduler(createEcsWorld());
+    scheduler.addRenderSystem(new SlowPresentationSystem());
+    scheduler.addRenderSystem(new FastPresentationSystem());
+    scheduler.prepareRender(0, 1 / 60);
+    expect(scheduler.getDiagnostics().get("SlowPresentationSystem.render")).toMatchObject({
+      currentMs: 24, maximumMs: 24, rollingMaximumMs: 24,
+    });
+    expect(scheduler.getDiagnostics().get("FastPresentationSystem.render")?.currentMs).toBe(1);
+    vi.restoreAllMocks();
+  });
 });
