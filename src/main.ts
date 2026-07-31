@@ -4,6 +4,8 @@ import { Game } from "./core/Game";
 import { getBrowserStorage, resetGameState } from "./game/persistence";
 import {
   clampNeighborhoodOffset,
+  MAX_NEIGHBORHOOD_OFFSET,
+  MIN_NEIGHBORHOOD_OFFSET,
   type ChunkNeighborhoodOffsets,
 } from "./world/chunkCoordinates";
 
@@ -18,11 +20,12 @@ const wireframeInput = document.querySelector<HTMLInputElement>("#debug-wirefram
 const biomesInput = document.querySelector<HTMLInputElement>("#debug-biomes");
 const cameraInput = document.querySelector<HTMLInputElement>("#debug-camera");
 const performanceInput = document.querySelector<HTMLInputElement>("#debug-performance");
-const offsetInputs = Object.fromEntries(["west", "east", "north", "south"].map((direction) => [
-  direction, document.querySelector<HTMLInputElement>(`#offset-${direction}`),
-])) as Record<keyof ChunkNeighborhoodOffsets, HTMLInputElement | null>;
+const offsetOutputs = Object.fromEntries(["west", "east", "north", "south"].map((direction) => [
+  direction, document.querySelector<HTMLOutputElement>(`#offset-${direction}`),
+])) as Record<keyof ChunkNeighborhoodOffsets, HTMLOutputElement | null>;
+const offsetButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-offset-direction][data-offset-change]")];
 
-if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !cameraInput || !performanceInput || Object.values(offsetInputs).some((input) => !input)) {
+if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !cameraInput || !performanceInput || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
   throw new Error("The game interface could not be found.");
 }
 
@@ -30,9 +33,9 @@ const NEIGHBORHOOD_STORAGE_KEY = "mobile-walker:neighborhood-offsets";
 const storage = getBrowserStorage();
 try {
   const savedOffsets = JSON.parse(storage.getItem(NEIGHBORHOOD_STORAGE_KEY) ?? "null") as Partial<ChunkNeighborhoodOffsets> | null;
-  if (savedOffsets) for (const [direction, input] of Object.entries(offsetInputs)) {
+  if (savedOffsets) for (const [direction, output] of Object.entries(offsetOutputs)) {
     const value = savedOffsets[direction as keyof ChunkNeighborhoodOffsets];
-    if (typeof value === "number" && Number.isFinite(value)) input!.value = String(value);
+    if (typeof value === "number" && Number.isFinite(value)) output!.value = String(clampNeighborhoodOffset(value));
   }
 } catch { /* Invalid or unavailable settings fall back to the values in the interface. */ }
 
@@ -64,13 +67,26 @@ const updateDebugView = (): void => game.setDebugView({
 const updateCameraDetails = (): void => game.setCameraDetailsEnabled(cameraInput.checked);
 const updatePerformanceView = (): void => game.setPerformanceViewEnabled(performanceInput.checked);
 const updateNeighborhood = (): void => {
-  const offsets = Object.fromEntries(Object.entries(offsetInputs).map(([direction, input]) => {
-    const value = clampNeighborhoodOffset(Number(input!.value));
-    input!.value = String(value);
+  const offsets = Object.fromEntries(Object.entries(offsetOutputs).map(([direction, output]) => {
+    const value = clampNeighborhoodOffset(Number(output!.value));
+    output!.value = String(value);
     return [direction, value];
   })) as unknown as ChunkNeighborhoodOffsets;
+  for (const button of offsetButtons) {
+    const direction = button.dataset.offsetDirection as keyof ChunkNeighborhoodOffsets;
+    const change = Number(button.dataset.offsetChange);
+    button.disabled = change < 0
+      ? offsets[direction] <= MIN_NEIGHBORHOOD_OFFSET
+      : offsets[direction] >= MAX_NEIGHBORHOOD_OFFSET;
+  }
   game.setNeighborhoodOffsets(offsets);
   try { storage.setItem(NEIGHBORHOOD_STORAGE_KEY, JSON.stringify(offsets)); } catch { /* Gameplay remains live without storage. */ }
+};
+const changeNeighborhoodOffset = (event: MouseEvent): void => {
+  const button = event.currentTarget as HTMLButtonElement;
+  const direction = button.dataset.offsetDirection as keyof ChunkNeighborhoodOffsets;
+  offsetOutputs[direction]!.value = String(Number(offsetOutputs[direction]!.value) + Number(button.dataset.offsetChange));
+  updateNeighborhood();
 };
 
 restartButton.addEventListener("click", restartGame);
@@ -80,7 +96,7 @@ debugButton.addEventListener("click", toggleDebugPanel);
 for (const input of [wireframeInput, biomesInput]) input.addEventListener("change", updateDebugView);
 cameraInput.addEventListener("change", updateCameraDetails);
 performanceInput.addEventListener("change", updatePerformanceView);
-for (const input of Object.values(offsetInputs)) input!.addEventListener("input", updateNeighborhood);
+for (const button of offsetButtons) button.addEventListener("click", changeNeighborhoodOffset);
 updateNeighborhood();
 game.start();
 
@@ -93,7 +109,7 @@ if (import.meta.hot) {
     for (const input of [wireframeInput, biomesInput]) input.removeEventListener("change", updateDebugView);
     cameraInput.removeEventListener("change", updateCameraDetails);
     performanceInput.removeEventListener("change", updatePerformanceView);
-    for (const input of Object.values(offsetInputs)) input!.removeEventListener("input", updateNeighborhood);
+    for (const button of offsetButtons) button.removeEventListener("click", changeNeighborhoodOffset);
     game.dispose();
   });
 }

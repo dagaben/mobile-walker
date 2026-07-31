@@ -98,9 +98,15 @@ body { overscroll-behavior: none; touch-action: none; }
 .settings-panel fieldset { margin: 0 0 .65rem; padding: .75rem; border: 1px solid rgb(49 71 58 / 16%); border-radius: .75rem; }
 .settings-panel legend { padding: 0 .25rem; font-size: .85rem; font-weight: 750; }
 .settings-panel p { margin: -.15rem 0 .65rem; color: #587064; font-size: .72rem; }
-.offset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
-.offset-grid label { display: flex; align-items: center; justify-content: space-between; gap: .35rem; font-size: .78rem; }
-.offset-grid input { width: 3.25rem; padding: .3rem; border: 1px solid rgb(49 71 58 / 25%); border-radius: .45rem; color: inherit; background: rgb(255 255 255 / 70%); font: inherit; }
+.offset-grid { display: grid; gap: .55rem; }
+.offset-setting { display: flex; align-items: center; justify-content: space-between; gap: .75rem; font-size: .78rem; }
+.offset-stepper { display: grid; grid-template-columns: 2rem 2.25rem 2rem; align-items: stretch; overflow: hidden; border: 1px solid rgb(49 71 58 / 25%); border-radius: .55rem; background: rgb(255 255 255 / 70%); }
+.offset-stepper button { min-height: 2rem; padding: 0; border: 0; color: #31473a; background: rgb(49 71 58 / 8%); font: 700 1.05rem/1 inherit; cursor: pointer; }
+.offset-stepper button:hover:not(:disabled) { background: rgb(49 71 58 / 16%); }
+.offset-stepper button:active:not(:disabled) { background: rgb(49 71 58 / 22%); }
+.offset-stepper button:focus-visible { position: relative; outline: 2px solid #376d51; outline-offset: -2px; }
+.offset-stepper button:disabled { color: rgb(49 71 58 / 30%); cursor: default; }
+.offset-stepper output { display: grid; place-items: center; border-right: 1px solid rgb(49 71 58 / 16%); border-left: 1px solid rgb(49 71 58 / 16%); font-weight: 750; font-variant-numeric: tabular-nums; }
 .settings-action { width: 100%; margin-top: .35rem; padding: .58rem .7rem; border: 0; border-radius: .6rem; color: #31473a; background: rgb(49 71 58 / 10%); font: 700 .8rem/1 inherit; cursor: pointer; }
 .settings-action.danger { color: #8a3434; background: rgb(180 55 55 / 10%); }
 

@@ -36,10 +36,38 @@
           <legend>Neighborhood</legend>
           <p>Loaded chunks around you</p>
           <div class="offset-grid">
-            <label>North <input id="offset-north" type="number" min="1" max="10" step="1" value="4" inputmode="numeric" /></label>
-            <label>West <input id="offset-west" type="number" min="1" max="10" step="1" value="1" inputmode="numeric" /></label>
-            <label>East <input id="offset-east" type="number" min="1" max="10" step="1" value="1" inputmode="numeric" /></label>
-            <label>South <input id="offset-south" type="number" min="1" max="10" step="1" value="1" inputmode="numeric" /></label>
+            <div class="offset-setting">
+              <span>North</span>
+              <div class="offset-stepper" role="group" aria-label="North offset">
+                <button type="button" data-offset-direction="north" data-offset-change="-1" aria-label="Decrease north offset">−</button>
+                <output id="offset-north" aria-live="polite">4</output>
+                <button type="button" data-offset-direction="north" data-offset-change="1" aria-label="Increase north offset">+</button>
+              </div>
+            </div>
+            <div class="offset-setting">
+              <span>West</span>
+              <div class="offset-stepper" role="group" aria-label="West offset">
+                <button type="button" data-offset-direction="west" data-offset-change="-1" aria-label="Decrease west offset">−</button>
+                <output id="offset-west" aria-live="polite">1</output>
+                <button type="button" data-offset-direction="west" data-offset-change="1" aria-label="Increase west offset">+</button>
+              </div>
+            </div>
+            <div class="offset-setting">
+              <span>East</span>
+              <div class="offset-stepper" role="group" aria-label="East offset">
+                <button type="button" data-offset-direction="east" data-offset-change="-1" aria-label="Decrease east offset">−</button>
+                <output id="offset-east" aria-live="polite">1</output>
+                <button type="button" data-offset-direction="east" data-offset-change="1" aria-label="Increase east offset">+</button>
+              </div>
+            </div>
+            <div class="offset-setting">
+              <span>South</span>
+              <div class="offset-stepper" role="group" aria-label="South offset">
+                <button type="button" data-offset-direction="south" data-offset-change="-1" aria-label="Decrease south offset">−</button>
+                <output id="offset-south" aria-live="polite">1</output>
+                <button type="button" data-offset-direction="south" data-offset-change="1" aria-label="Increase south offset">+</button>
+              </div>
+            </div>
           </div>
         </fieldset>
         <button class="settings-action" id="restart-button" type="button">Restart</button>
