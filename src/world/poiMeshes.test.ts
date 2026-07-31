@@ -5,7 +5,7 @@ import type { GeneratedPoi } from "./poi";
 import { createRoofGeometry, PoiMeshFactory } from "./poiMeshes";
 
 describe("building roof geometry", () => {
-  it("winds both gable ends outward so front-sided materials render a complete roof", () => {
+  it("winds every visible face outward and leaves the underside open", () => {
     const geometry = createRoofGeometry();
     const positions = geometry.getAttribute("position");
     const indices = geometry.getIndex()!;
@@ -17,6 +17,14 @@ describe("building roof geometry", () => {
 
     expect(triangleNormal(0).z).toBeLessThan(0);
     expect(triangleNormal(1).z).toBeGreaterThan(0);
+    expect(triangleNormal(2).x).toBeGreaterThan(0);
+    expect(triangleNormal(3).x).toBeGreaterThan(0);
+    expect(triangleNormal(4).x).toBeLessThan(0);
+    expect(triangleNormal(5).x).toBeLessThan(0);
+    expect(indices.count).toBe(18);
+    for (let triangle = 0; triangle < indices.count / 3; triangle++) {
+      expect(triangleNormal(triangle).y).toBeGreaterThanOrEqual(0);
+    }
     geometry.dispose();
   });
 
