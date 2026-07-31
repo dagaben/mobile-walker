@@ -225,7 +225,9 @@ export class ChunkMeshFactory {
     const poiGroup = new THREE.Group(); poiGroup.name = "pois";
     for (const poi of data.pois) poiGroup.add(this.poiMeshes.create(poi));
     group.add(poiGroup);
-    group.add(this.poiMeshes.createDebug(data.pois, data.poiCandidates));
+    group.userData.poiDebugData = { pois: data.pois, candidates: data.poiCandidates };
+    const poiDebugLevel = this.debugView.pois ?? "off";
+    if (poiDebugLevel !== "off") group.add(this.poiMeshes.createDebug(data.pois, data.poiCandidates, poiDebugLevel));
     group.add(this.createTrees(data));
     group.add(this.createVegetation(data));
     group.add(this.createTreeShadows(data));
@@ -249,6 +251,7 @@ export class ChunkMeshFactory {
   }
 
   disposeChunk(group: THREE.Group): void {
+    this.groups.delete(group);
     group.traverse((object) => {
       if ((object instanceof THREE.Mesh || object instanceof THREE.Line) && object.geometry.userData.poiShared !== true) object.geometry.dispose();
     });
@@ -588,10 +591,17 @@ export class ChunkMeshFactory {
     if (shadows) shadows.visible = this.shadowsEnabled;
     const chunkBoundary = group.getObjectByName(DEBUG_CHUNK_BOUNDARY_NAME);
     if (chunkBoundary) chunkBoundary.visible = this.debugView.wireframe;
+    const level = this.debugView.pois ?? "off";
     const poiDebug = group.getObjectByName("debug:pois");
-    if (poiDebug) {
-      poiDebug.visible = (this.debugView.pois ?? "off") !== "off";
-      for (const child of poiDebug.children) if (child.userData.poiId) child.visible = this.debugView.pois === "candidates";
+    if (poiDebug && poiDebug.userData.level !== level) {
+      group.remove(poiDebug);
+      poiDebug.traverse(object => {
+        if ((object instanceof THREE.Mesh || object instanceof THREE.Line) && object.geometry.userData.poiShared !== true) object.geometry.dispose();
+      });
+    }
+    if (level !== "off" && (!poiDebug || poiDebug.userData.level !== level)) {
+      const data = group.userData.poiDebugData as { pois: GeneratedChunkData["pois"]; candidates: GeneratedChunkData["poiCandidates"] };
+      group.add(this.poiMeshes.createDebug(data.pois, data.candidates, level));
     }
     group.traverse((object) => {
       if (!(object instanceof THREE.Mesh) || object.userData.isTerrainSurface !== true) return;
