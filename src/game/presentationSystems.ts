@@ -18,11 +18,11 @@ export class TransformInterpolationSystem implements RenderSystem {
 
 export class CameraPresentationSystem implements RenderSystem {
   private static readonly minimumElevation = THREE.MathUtils.degToRad(5);
-  private static readonly defaultElevation = THREE.MathUtils.degToRad(26.3);
+  private static readonly defaultElevation = THREE.MathUtils.degToRad(22);
   private readonly desired = new THREE.Vector3();
   private readonly lookAt = new THREE.Vector3();
   private readonly debugDirection = new THREE.Vector3();
-  private zoom = 0.03;
+  private zoom = 0.05;
   private tilt: number | undefined;
 
   constructor(

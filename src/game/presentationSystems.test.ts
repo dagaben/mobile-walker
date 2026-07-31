@@ -22,8 +22,8 @@ describe("CameraPresentationSystem", () => {
   it("starts at the configured default angle and zoom and smooths subsequent changes", () => {
     const { camera, world, system, setInput } = fixture();
     system.prepareRender(world, 0, 0);
-    expect(system.getDebugDetails().angleDegrees).toBeCloseTo(26.3);
-    expect(system.getDebugDetails().zoomLevel).toBeCloseTo(0.03);
+    expect(system.getDebugDetails().angleDegrees).toBeCloseTo(22);
+    expect(system.getDebugDetails().zoomLevel).toBeCloseTo(0.05);
     const initialHeight = camera.position.y;
     setInput(1, 0);
     system.prepareRender(world, 0, 1 / 60);
