@@ -14,6 +14,7 @@ import {
   TERRAIN_SEGMENTS,
 } from "./terrainSampling";
 import { generateVegetation, type GeneratedVegetation } from "./vegetation";
+import { generatePois, isVegetationExcluded, type GeneratedPoi, type PoiDebugCandidate } from "./poi";
 import { generateWetlandPools, type WetlandPoolPlacement } from "./wetlands";
 import {
   DEFAULT_TERRAIN_OCCLUSION_OPTIONS,
@@ -60,6 +61,8 @@ export interface GeneratedChunkData {
     readonly indices: readonly number[];
   };
   readonly pines: readonly TreePlacement[];
+  readonly pois: readonly GeneratedPoi[];
+  readonly poiCandidates: readonly PoiDebugCandidate[];
   readonly vegetation: GeneratedVegetation;
   readonly wetlandPools: readonly WetlandPoolPlacement[];
   readonly river?: {
@@ -190,6 +193,17 @@ export function generateChunk(
   }
 
   const channel = isRiverColumn(coordinate) ? generateRiverChannel(seed, coordinate, occlusionOptions) : undefined;
+  // POIs deliberately precede every placed-object pass. Their global zones may
+  // cross this chunk even when the owning origin is in a neighbor.
+  const poiNeighborhood = [] as GeneratedPoi[];
+  let ownedCandidates: readonly PoiDebugCandidate[] = [];
+  for (let dz = -1; dz <= 1; dz += 1) for (let dx = -1; dx <= 1; dx += 1) {
+    const generated = generatePois(seed, { x: coordinate.x + dx, z: coordinate.z + dz });
+    poiNeighborhood.push(...generated.pois);
+    if (dx === 0 && dz === 0) ownedCandidates = generated.candidates;
+  }
+  const pois = poiNeighborhood.filter(poi => poi.ownerChunk.x === coordinate.x && poi.ownerChunk.z === coordinate.z);
+  const exclusionZones = poiNeighborhood.flatMap(poi => poi.zones);
   return {
     id: chunkId(coordinate),
     coordinate: { ...coordinate },
@@ -200,9 +214,11 @@ export function generateChunk(
     terrainMaximumDarkening: occlusionOptions.maximumDarkening,
     terrainVerticesPerSide: verticesPerSide,
     irregularTerrain: channel ? generateIrregularTerrain(seed, coordinate, channel.sections, occlusionOptions) : undefined,
-    pines: generateTrees(seed, coordinate),
-    vegetation: generateVegetation(seed, coordinate),
-    wetlandPools: generateWetlandPools(seed, coordinate),
+    pines: generateTrees(seed, coordinate).filter(tree => !isVegetationExcluded(tree.x, tree.z, exclusionZones)),
+    pois,
+    poiCandidates: ownedCandidates,
+    vegetation: generateVegetation(seed, coordinate, exclusionZones),
+    wetlandPools: generateWetlandPools(seed, coordinate).filter(pool => !isVegetationExcluded(pool.x, pool.z, exclusionZones)),
     river: channel ? {
       entry: sampleRiverBoundary(seed, coordinate, "north"),
       exit: sampleRiverBoundary(seed, coordinate, "south"),
