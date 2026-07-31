@@ -108,6 +108,8 @@ body { overscroll-behavior: none; touch-action: none; }
   top: calc(max(1rem, env(safe-area-inset-top)) + 3rem);
   right: max(1rem, env(safe-area-inset-right));
   width: min(16rem, calc(100vw - 2rem));
+  max-height: calc(100vh - max(1rem, env(safe-area-inset-top)) - 4rem);
+  overflow-y: auto;
   padding: 1rem;
   border: 1px solid rgb(49 71 58 / 20%);
   border-radius: 1rem;
@@ -135,6 +137,12 @@ body { overscroll-behavior: none; touch-action: none; }
 .offset-stepper button:focus-visible { position: relative; outline: 2px solid #376d51; outline-offset: -2px; }
 .offset-stepper button:disabled { color: rgb(49 71 58 / 30%); cursor: default; }
 .offset-stepper output { display: grid; place-items: center; border-right: 1px solid rgb(49 71 58 / 16%); border-left: 1px solid rgb(49 71 58 / 16%); font-weight: 750; font-variant-numeric: tabular-nums; }
+.range-setting { display: grid; gap: .3rem; margin-top: .6rem; color: #31473a; font-size: .78rem; }
+.range-setting > span { display: flex; justify-content: space-between; gap: 1rem; }
+.range-setting output { font-weight: 750; font-variant-numeric: tabular-nums; }
+.range-setting input { width: 100%; margin: 0; accent-color: #376d51; cursor: pointer; }
+.range-setting input:focus-visible { outline: 2px solid #376d51; outline-offset: 3px; }
+.compass-labels { display: flex; justify-content: space-between; margin-top: .2rem; color: #6b7f74; font-size: .55rem; font-variant-numeric: tabular-nums; }
 .settings-action { width: 100%; margin-top: .35rem; padding: .58rem .7rem; border: 0; border-radius: .6rem; color: #31473a; background: rgb(49 71 58 / 10%); font: 700 .8rem/1 inherit; cursor: pointer; }
 .settings-action.danger { color: #8a3434; background: rgb(180 55 55 / 10%); }
 

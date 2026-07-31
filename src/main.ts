@@ -23,16 +23,21 @@ const occlusionMapInput = document.querySelector<HTMLInputElement>("#debug-occlu
 const cameraInput = document.querySelector<HTMLInputElement>("#debug-camera");
 const performanceInput = document.querySelector<HTMLInputElement>("#debug-performance");
 const shadowsInput = document.querySelector<HTMLInputElement>("#debug-shadows");
+const sunlightVerticalInput = document.querySelector<HTMLInputElement>("#sunlight-vertical");
+const sunlightHorizontalInput = document.querySelector<HTMLInputElement>("#sunlight-horizontal");
+const sunlightVerticalValue = document.querySelector<HTMLOutputElement>("#sunlight-vertical-value");
+const sunlightHorizontalValue = document.querySelector<HTMLOutputElement>("#sunlight-horizontal-value");
 const offsetOutputs = Object.fromEntries(["west", "east", "north", "south"].map((direction) => [
   direction, document.querySelector<HTMLOutputElement>(`#offset-${direction}`),
 ])) as Record<keyof ChunkNeighborhoodOffsets, HTMLOutputElement | null>;
 const offsetButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-offset-direction][data-offset-change]")];
 
-if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !terrainOcclusionInput || !occlusionMapInput || !cameraInput || !performanceInput || !shadowsInput || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
+if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !terrainOcclusionInput || !occlusionMapInput || !cameraInput || !performanceInput || !shadowsInput || !sunlightVerticalInput || !sunlightHorizontalInput || !sunlightVerticalValue || !sunlightHorizontalValue || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
   throw new Error("The game interface could not be found.");
 }
 
 const NEIGHBORHOOD_STORAGE_KEY = "mobile-walker:neighborhood-offsets";
+const SUNLIGHT_STORAGE_KEY = "mobile-walker:sunlight-angles";
 const storage = getBrowserStorage();
 try {
   const savedOffsets = JSON.parse(storage.getItem(NEIGHBORHOOD_STORAGE_KEY) ?? "null") as Partial<ChunkNeighborhoodOffsets> | null;
@@ -40,6 +45,11 @@ try {
     const value = savedOffsets[direction as keyof ChunkNeighborhoodOffsets];
     if (typeof value === "number" && Number.isFinite(value)) output!.value = String(clampNeighborhoodOffset(value));
   }
+} catch { /* Invalid or unavailable settings fall back to the values in the interface. */ }
+try {
+  const savedAngles = JSON.parse(storage.getItem(SUNLIGHT_STORAGE_KEY) ?? "null") as { vertical?: unknown; horizontal?: unknown } | null;
+  if (typeof savedAngles?.vertical === "number" && Number.isFinite(savedAngles.vertical)) sunlightVerticalInput.value = String(Math.min(90, Math.max(10, savedAngles.vertical)));
+  if (typeof savedAngles?.horizontal === "number" && Number.isFinite(savedAngles.horizontal)) sunlightHorizontalInput.value = String(Math.min(360, Math.max(0, savedAngles.horizontal)));
 } catch { /* Invalid or unavailable settings fall back to the values in the interface. */ }
 
 const game = new Game(canvas);
@@ -72,6 +82,13 @@ const updateDebugView = (): void => game.setDebugView({
 const updateCameraDetails = (): void => game.setCameraDetailsEnabled(cameraInput.checked);
 const updatePerformanceView = (): void => game.setPerformanceViewEnabled(performanceInput.checked);
 const updateShadows = (): void => game.setShadowsEnabled(shadowsInput.checked);
+const updateSunlight = (): void => {
+  const angles = { vertical: Number(sunlightVerticalInput.value), horizontal: Number(sunlightHorizontalInput.value) };
+  sunlightVerticalValue.value = `${angles.vertical}°`;
+  sunlightHorizontalValue.value = `${angles.horizontal}°`;
+  game.setSunlightAngles(angles);
+  try { storage.setItem(SUNLIGHT_STORAGE_KEY, JSON.stringify(angles)); } catch { /* Gameplay remains live without storage. */ }
+};
 const updateNeighborhood = (): void => {
   const offsets = Object.fromEntries(Object.entries(offsetOutputs).map(([direction, output]) => {
     const value = clampNeighborhoodOffset(Number(output!.value));
@@ -103,10 +120,13 @@ for (const input of [wireframeInput, biomesInput, terrainOcclusionInput, occlusi
 cameraInput.addEventListener("change", updateCameraDetails);
 performanceInput.addEventListener("change", updatePerformanceView);
 shadowsInput.addEventListener("change", updateShadows);
+sunlightVerticalInput.addEventListener("input", updateSunlight);
+sunlightHorizontalInput.addEventListener("input", updateSunlight);
 for (const button of offsetButtons) button.addEventListener("click", changeNeighborhoodOffset);
 updateNeighborhood();
 game.start();
 updateShadows();
+updateSunlight();
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
@@ -118,6 +138,8 @@ if (import.meta.hot) {
     cameraInput.removeEventListener("change", updateCameraDetails);
     performanceInput.removeEventListener("change", updatePerformanceView);
     shadowsInput.removeEventListener("change", updateShadows);
+    sunlightVerticalInput.removeEventListener("input", updateSunlight);
+    sunlightHorizontalInput.removeEventListener("input", updateSunlight);
     for (const button of offsetButtons) button.removeEventListener("click", changeNeighborhoodOffset);
     game.dispose();
   });
