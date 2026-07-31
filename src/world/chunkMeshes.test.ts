@@ -532,6 +532,22 @@ describe("lazy POI debug presentation", () => {
     const batches = debug.children.filter(child => child.name.startsWith("debug:poi-candidates"));
     expect(batches.length).toBeLessThanOrEqual(2);
     expect(batches.every(batch => batch instanceof THREE.InstancedMesh)).toBe(true);
+    for (const batch of batches as THREE.InstancedMesh[]) {
+      const material = batch.material as THREE.MeshBasicMaterial;
+      expect(material.transparent).toBe(true);
+      expect(material.opacity).toBeGreaterThanOrEqual(0.68);
+      expect(material.depthTest).toBe(false);
+      expect(material.depthWrite).toBe(false);
+      expect(batch.renderOrder).toBe(100);
+
+      const transform = new THREE.Matrix4();
+      const scale = new THREE.Vector3();
+      batch.getMatrixAt(0, transform);
+      transform.decompose(new THREE.Vector3(), new THREE.Quaternion(), scale);
+      expect(scale.x).toBeCloseTo(2.8);
+      expect(scale.y).toBeCloseTo(0.22);
+      expect(scale.z).toBeCloseTo(2.8);
+    }
 
     factory.disposeChunk(group);
     factory.dispose();
