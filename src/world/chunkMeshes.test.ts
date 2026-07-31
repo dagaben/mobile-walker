@@ -515,3 +515,62 @@ describe("terrain wireframe debug view", () => {
     factory.dispose();
   });
 });
+
+describe("lazy POI debug presentation", () => {
+  const view = (pois: "off" | "accepted" | "candidates") => ({ wireframe: false, biomeGuide: false, pois });
+
+  it("creates no candidate meshes until debug is enabled, then uses at most two batches", () => {
+    const factory = new ChunkMeshFactory();
+    const group = factory.create(generateChunk("poi-debug-batches", { x: 0, z: 0 }));
+    factory.registerGroup(group);
+
+    expect(group.getObjectByName("debug:pois")).toBeUndefined();
+    expect(group.children.filter(child => child.name.startsWith("debug:poi-candidates"))).toHaveLength(0);
+
+    factory.setDebugView(view("candidates"));
+    const debug = group.getObjectByName("debug:pois")!;
+    const batches = debug.children.filter(child => child.name.startsWith("debug:poi-candidates"));
+    expect(batches.length).toBeLessThanOrEqual(2);
+    expect(batches.every(batch => batch instanceof THREE.InstancedMesh)).toBe(true);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
+  it("disposes debug-owned geometry and does not accumulate objects across toggles", () => {
+    const factory = new ChunkMeshFactory();
+    const group = factory.create(generateChunk("poi-debug-lifecycle", { x: 1, z: 0 }));
+    factory.registerGroup(group);
+    let expectedDebugObjects = 0;
+
+    for (let toggle = 0; toggle < 3; toggle += 1) {
+      factory.setDebugView(view("candidates"));
+      const debug = group.getObjectByName("debug:pois")!;
+      expectedDebugObjects ||= debug.children.length;
+      expect(debug.children).toHaveLength(expectedDebugObjects);
+      const lines = debug.getObjectByName("debug:poi-lines") as THREE.LineSegments | undefined;
+      const dispose = lines ? vi.spyOn(lines.geometry, "dispose") : undefined;
+
+      factory.setDebugView(view("off"));
+      expect(group.getObjectByName("debug:pois")).toBeUndefined();
+      if (dispose) expect(dispose).toHaveBeenCalledOnce();
+    }
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
+  it("applies the active POI mode to newly streamed chunks", () => {
+    const factory = new ChunkMeshFactory();
+    factory.setDebugView(view("accepted"));
+    const group = factory.create(generateChunk("poi-debug-streamed", { x: 2, z: 0 }));
+    factory.registerGroup(group);
+
+    const debug = group.getObjectByName("debug:pois")!;
+    expect(debug).toBeDefined();
+    expect(debug.getObjectByName("debug:poi-candidates:rejected")).toBeUndefined();
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+});
