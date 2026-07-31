@@ -8,10 +8,12 @@ import type { GeneratedChunkData, RiverChannelSection } from "./generateChunk";
 import type { RiverPoint } from "./river";
 import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
 import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, mountainSnowCoverage, RIVER_BED_DEPTH } from "./terrainSampling";
+import { terrainDarkening } from "./terrainOcclusion";
 
 export interface DebugViewOptions {
   readonly wireframe: boolean;
   readonly biomeGuide: boolean;
+  readonly terrainOcclusion?: boolean;
 }
 
 const DEBUG_CHUNK_BOUNDARY_NAME = "debug:chunk-boundary";
@@ -154,7 +156,7 @@ export class ChunkMeshFactory {
   });
   private readonly chunkBoundaryMaterial = new THREE.LineBasicMaterial({ color: 0x8b0000, depthTest: false });
   private readonly blobShadowMaterial = createBlobShadowMaterial(0.3);
-  private debugView: DebugViewOptions = { wireframe: false, biomeGuide: false };
+  private debugView: DebugViewOptions = { wireframe: false, biomeGuide: false, terrainOcclusion: false };
   private shadowsEnabled = true;
 
   create(data: GeneratedChunkData): THREE.Group {
@@ -242,6 +244,7 @@ export class ChunkMeshFactory {
     const positions: number[] = [];
     const colors: number[] = [];
     const debugColors: number[] = [];
+    const occlusionColors: number[] = [];
     const indices: number[] = [];
     const color = new THREE.Color();
     const renderedVertices = data.irregularTerrain?.vertices ?? data.terrainHeights.map((height, vertexIndex) => ({
@@ -249,17 +252,21 @@ export class ChunkMeshFactory {
       z: data.coordinate.z * data.size + Math.floor(vertexIndex / side) * data.size / (side - 1),
       height,
       biomeWeights: data.terrainBiomeWeights[vertexIndex],
+      occlusion: data.terrainOcclusion[vertexIndex] ?? 0,
     }));
     for (const vertex of renderedVertices) {
       positions.push(vertex.x, vertex.height, vertex.z);
       blendBiomeColor(vertex.biomeWeights, color);
       const snow = mountainSnowCoverage(vertex.height, vertex.biomeWeights);
       color.lerp(SNOW_COLOR, snow);
+      color.multiplyScalar(1 - terrainDarkening(vertex.occlusion, data.terrainMaximumDarkening));
       colors.push(color.r, color.g, color.b);
       const dominant = (Object.keys(vertex.biomeWeights) as BiomeId[])
         .reduce((best, id) => vertex.biomeWeights[id] > vertex.biomeWeights[best] ? id : best);
       const debugColor = DEBUG_TERRAIN_PALETTE[dominant];
       debugColors.push(debugColor.r, debugColor.g, debugColor.b);
+      const shade = 1 - vertex.occlusion;
+      occlusionColors.push(shade, shade, shade);
     }
     if (data.irregularTerrain) indices.push(...data.irregularTerrain.indices);
     else for (let z = 0; z < side - 1; z += 1) for (let x = 0; x < side - 1; x += 1) {
@@ -272,6 +279,7 @@ export class ChunkMeshFactory {
     geometry.setAttribute("biomeColor", biomeColorAttribute);
     geometry.setAttribute("color", biomeColorAttribute);
     geometry.setAttribute("debugColor", new THREE.Float32BufferAttribute(debugColors, 3));
+    geometry.setAttribute("occlusionColor", new THREE.Float32BufferAttribute(occlusionColors, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
     const mesh = new THREE.Mesh(geometry, this.terrainMaterial);
@@ -525,8 +533,13 @@ export class ChunkMeshFactory {
     const terrain = group.getObjectByName("terrain") as THREE.Mesh | undefined;
     if (terrain) {
       const geometry = terrain.geometry as THREE.BufferGeometry;
-      geometry.setAttribute("color", geometry.getAttribute(this.debugView.biomeGuide ? "debugColor" : "biomeColor"));
-      terrain.material = this.debugView.biomeGuide ? this.debugTerrainMaterial : this.terrainMaterial;
+      const debugAttribute = this.debugView.terrainOcclusion ? "occlusionColor" : "debugColor";
+      geometry.setAttribute("color", geometry.getAttribute(
+        this.debugView.biomeGuide || this.debugView.terrainOcclusion ? debugAttribute : "biomeColor",
+      ));
+      terrain.material = this.debugView.biomeGuide || this.debugView.terrainOcclusion
+        ? this.debugTerrainMaterial
+        : this.terrainMaterial;
     }
   }
 }

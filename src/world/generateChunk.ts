@@ -14,6 +14,11 @@ import {
 } from "./terrainSampling";
 import { generateVegetation, type GeneratedVegetation } from "./vegetation";
 import { generateWetlandPools, type WetlandPoolPlacement } from "./wetlands";
+import {
+  DEFAULT_TERRAIN_OCCLUSION_OPTIONS,
+  sampleTerrainOcclusion,
+  type TerrainOcclusionOptions,
+} from "./terrainOcclusion";
 
 export { TERRAIN_SEGMENTS } from "./terrainSampling";
 
@@ -32,6 +37,7 @@ export interface IrregularTerrainVertex {
   readonly z: number;
   readonly height: number;
   readonly biomeWeights: BiomeWeights;
+  readonly occlusion: number;
 }
 
 export interface GeneratedChunkData {
@@ -41,6 +47,9 @@ export interface GeneratedChunkData {
   readonly terrainHeights: readonly number[];
   /** Biome blend at each terrain vertex, using the same row-major layout as terrainHeights. */
   readonly terrainBiomeWeights: readonly BiomeWeights[];
+  /** Worker-baked, global sunlight obstruction in the range [0, 1]. */
+  readonly terrainOcclusion: readonly number[];
+  readonly terrainMaximumDarkening: number;
   readonly terrainVerticesPerSide: number;
   /** Explicit coarse regions used when a rectangular grid would overlap the river channel. */
   readonly irregularTerrain?: {
@@ -96,6 +105,7 @@ function generateIrregularTerrain(
   seed: number,
   coordinate: ChunkCoordinate,
   sections: readonly RiverChannelSection[],
+  occlusionOptions: Readonly<TerrainOcclusionOptions>,
 ): GeneratedChunkData["irregularTerrain"] {
   const vertices: IrregularTerrainVertex[] = [];
   const indices: number[] = [];
@@ -110,7 +120,15 @@ function generateIrregularTerrain(
       [eastShoulderX, section.eastShoulderHeight],
       [eastEdge, sampleNaturalTerrainHeight(seed, eastEdge, section.z)],
     ] as const) {
-      vertices.push({ x, z: section.z, height, biomeWeights: sampleBiome(seed, x, section.z).weights });
+      vertices.push({
+        x, z: section.z, height,
+        biomeWeights: sampleBiome(seed, x, section.z).weights,
+        occlusion: sampleTerrainOcclusion(
+          x, section.z, height,
+          (sampleX, sampleZ) => sampleChannelTerrainHeight(seed, sampleX, sampleZ),
+          occlusionOptions,
+        ),
+      });
     }
   }
   for (let z = 0; z < sections.length - 1; z += 1) {
@@ -123,19 +141,30 @@ function generateIrregularTerrain(
 }
 
 /** Pure, random-access generation: output is solely a function of seed and coordinate. */
-export function generateChunk(seedInput: number | string, coordinate: ChunkCoordinate): GeneratedChunkData {
+export function generateChunk(
+  seedInput: number | string,
+  coordinate: ChunkCoordinate,
+  occlusionOptions: Readonly<TerrainOcclusionOptions> = DEFAULT_TERRAIN_OCCLUSION_OPTIONS,
+): GeneratedChunkData {
   const seed = normalizeSeed(seedInput);
   const terrainSegments = TERRAIN_SEGMENTS;
   const verticesPerSide = terrainSegments + 1;
   const terrainHeights: number[] = [];
   const terrainBiomeWeights: BiomeWeights[] = [];
+  const terrainOcclusion: number[] = [];
   for (let z = 0; z < verticesPerSide; z += 1) {
     for (let x = 0; x < verticesPerSide; x += 1) {
       // Use global lattice coordinates so neighboring terrain edges also agree.
       const worldX = coordinate.x * CHUNK_SIZE + x * CHUNK_SIZE / terrainSegments;
       const worldZ = coordinate.z * CHUNK_SIZE + z * CHUNK_SIZE / terrainSegments;
-      terrainHeights.push(sampleChannelTerrainHeight(seed, worldX, worldZ));
+      const height = sampleChannelTerrainHeight(seed, worldX, worldZ);
+      terrainHeights.push(height);
       terrainBiomeWeights.push(sampleBiome(seed, worldX, worldZ).weights);
+      terrainOcclusion.push(sampleTerrainOcclusion(
+        worldX, worldZ, height,
+        (sampleX, sampleZ) => sampleChannelTerrainHeight(seed, sampleX, sampleZ),
+        occlusionOptions,
+      ));
     }
   }
 
@@ -146,8 +175,10 @@ export function generateChunk(seedInput: number | string, coordinate: ChunkCoord
     size: CHUNK_SIZE,
     terrainHeights,
     terrainBiomeWeights,
+    terrainOcclusion,
+    terrainMaximumDarkening: occlusionOptions.maximumDarkening,
     terrainVerticesPerSide: verticesPerSide,
-    irregularTerrain: channel ? generateIrregularTerrain(seed, coordinate, channel.sections) : undefined,
+    irregularTerrain: channel ? generateIrregularTerrain(seed, coordinate, channel.sections, occlusionOptions) : undefined,
     pines: generateTrees(seed, coordinate),
     vegetation: generateVegetation(seed, coordinate),
     wetlandPools: generateWetlandPools(seed, coordinate),

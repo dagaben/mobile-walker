@@ -246,6 +246,32 @@ describe("terrain biome colors", () => {
     factory.disposeChunk(group);
     factory.dispose();
   });
+
+  it("preserves biome and snow colour hue while applying baked occlusion", () => {
+    const factory = new ChunkMeshFactory();
+    const coordinate = { x: 4, z: -5 };
+    const lit = generateChunk("preserved-terrain-colors", coordinate, {
+      sampleCount: 8, sampleDistance: 32, heightThreshold: 1.5, softness: 3, maximumDarkening: 0,
+    });
+    const shaded = generateChunk("preserved-terrain-colors", coordinate, {
+      sampleCount: 8, sampleDistance: 32, heightThreshold: 1.5, softness: 3, maximumDarkening: 0.5,
+    });
+    const litGroup = factory.create(lit);
+    const shadedGroup = factory.create(shaded);
+    const litColors = (litGroup.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry>).geometry.getAttribute("color");
+    const shadedColors = (shadedGroup.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry>).geometry.getAttribute("color");
+
+    for (let index = 0; index < litColors.count; index += 1) {
+      const ratio = shadedColors.getX(index) / litColors.getX(index);
+      expect(ratio).toBeGreaterThanOrEqual(0.5);
+      expect(shadedColors.getY(index) / litColors.getY(index)).toBeCloseTo(ratio, 5);
+      expect(shadedColors.getZ(index) / litColors.getZ(index)).toBeCloseTo(ratio, 5);
+    }
+
+    factory.disposeChunk(litGroup);
+    factory.disposeChunk(shadedGroup);
+    factory.dispose();
+  });
 });
 
 describe("terrain wireframe debug view", () => {
