@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { getBlobShadowStats } from "./blobShadows";
 
 const MAX_PIXEL_RATIO = 2;
 const MAX_DRAW_DISTANCE = 150;
@@ -41,10 +42,13 @@ export class ThreeRenderer {
     this.renderer.render(this.scene, this.camera);
   }
 
-  getPerformanceDetails(): { drawCalls: number; triangles: number } {
+  getPerformanceDetails(): { drawCalls: number; triangles: number; shadowDrawCalls: number; shadowTriangles: number } {
+    const shadows = getBlobShadowStats(this.scene);
     return {
       drawCalls: this.renderer.info.render.calls,
       triangles: this.renderer.info.render.triangles,
+      shadowDrawCalls: shadows.drawCalls,
+      shadowTriangles: shadows.triangles,
     };
   }
 
