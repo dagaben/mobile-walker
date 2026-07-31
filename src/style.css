@@ -162,6 +162,21 @@ body { overscroll-behavior: none; touch-action: none; }
 .debug-readout:has(~ .performance-view:not([hidden])) { top: calc(max(1rem, env(safe-area-inset-top)) + 10.25rem); }
 
 .biome-guide { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.river-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: min(8rem, 24vw);
+  opacity: .42;
+}
+.river-indicator--left {
+  left: 0;
+  background: linear-gradient(to right, rgb(62 156 220 / 34%), transparent);
+}
+.river-indicator--right {
+  right: 0;
+  background: linear-gradient(to left, rgb(62 156 220 / 34%), transparent);
+}
 .current-biome {
   margin-top: .3rem;
   color: #587064;
