@@ -2,6 +2,7 @@ import type { TransformComponent } from "../ecs/Entity";
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { chunkId } from "./chunkId";
 import { generateVegetationKind, VEGETATION_PROFILES, type VegetationKind, type VegetationPlacement } from "./vegetation";
+import type { GeneratedChunkRepository } from "./GeneratedChunkRepository";
 
 export const PLAYER_COLLISION_RADIUS = 0.38;
 
@@ -40,7 +41,9 @@ function cacheKey(seed: number | string, coordinate: ChunkCoordinate): string {
   return JSON.stringify([typeof seed, seed, chunkId(coordinate)]);
 }
 
-function trunksForChunk(seed: number | string, coordinate: ChunkCoordinate): CachedTrunks {
+function trunksForChunk(seed: number | string, coordinate: ChunkCoordinate, repository?: GeneratedChunkRepository): CachedTrunks {
+  const shared = repository?.get(chunkId(coordinate));
+  if (shared) return { pine: shared.pines, leafTree: shared.vegetation.leafTrees };
   const key = cacheKey(seed, coordinate);
   const cached = placementCache.get(key);
   if (cached) {
@@ -116,10 +119,11 @@ export function resolveTreeTrunkMovement(
   from: TransformComponent,
   to: TransformComponent,
   playerRadius = PLAYER_COLLISION_RADIUS,
+  repository?: GeneratedChunkRepository,
 ): TransformComponent {
   const maximumRadius = Math.max(...COLLIDABLE_KINDS.map((kind) => VEGETATION_PROFILES[kind].collision!.radius));
   const chunks = chunksBetween(from, to, playerRadius + maximumRadius * 1.18);
-  const placements = chunks.map((coordinate) => trunksForChunk(seed, coordinate));
+  const placements = chunks.map((coordinate) => trunksForChunk(seed, coordinate, repository));
   const trunks: TrunkGroup[] = COLLIDABLE_KINDS.map((kind) => ({
     placements: placements.flatMap((byKind) => byKind[kind] ?? []),
     radius: VEGETATION_PROFILES[kind].collision!.radius,

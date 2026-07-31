@@ -83,7 +83,6 @@ export function createGameplay(
   const input = new InputController(inputElement, dragIndicator);
   systems.addFixedSystem(new InputSnapshotSystem(input));
   systems.addFixedSystem(new PlayerMovementSystem(worldSeed));
-  systems.addFixedSystem(new TreeCollisionSystem(worldSeed));
   systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
   systems.addFixedSystem(new ProximityDetectionSystem());
   systems.addFixedSystem(new CollectionSystem());
@@ -97,10 +96,11 @@ export function createGameplay(
     offsets: streamingOffsets,
     sunlightDirection: renderer.sunlightDirection,
   });
+  systems.addFixedSystem(new TreeCollisionSystem(worldSeed, chunks.repository));
   systems.addRenderSystem(chunks);
   const mushroomCount = document.querySelector<HTMLElement>("#mushroom-count");
   if (!mushroomCount) throw new Error("The mushroom counter could not be found.");
-  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, mushroomCount);
+  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, mushroomCount, chunks.repository);
   systems.addRenderSystem(exploration);
   systems.addRenderSystem(new TransformInterpolationSystem());
   systems.addRenderSystem(new PlayerShadowPresentationSystem(worldSeed, playerShadow, renderer.sunlightDirection));

@@ -4,44 +4,15 @@ import type { Entity } from "../ecs/Entity";
 import type { EcsWorld } from "../ecs/createEcsWorld";
 import type { FixedSystem, RenderSystem } from "../ecs/System";
 import {
-  CHUNK_SIZE,
-  chunkOrigin,
   resolveNeighborhoodOffsets,
   selectChunkCenter,
   type ChunkCoordinate,
   type ChunkNeighborhoodOffsets,
 } from "../world/chunkCoordinates";
 import { chunkId } from "../world/chunkId";
-import { hashFloat, normalizeSeed } from "../world/random";
-import { generatePois, isVegetationExcluded, type PoiZone } from "../world/poi";
-import { sampleTerrainHeight } from "../world/terrainSampling";
-
-export interface CollectiblePlacement {
-  readonly id: string;
-  readonly chunkId: string;
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-}
-
-const COLLECTIBLES_PER_CHUNK = 2;
-
-/** Pure, random-access placement. A chunk always produces exactly the same objects. */
-export function placeCollectibles(seedInput: number | string, coordinate: ChunkCoordinate): readonly CollectiblePlacement[] {
-  const seed = normalizeSeed(seedInput);
-  const origin = chunkOrigin(coordinate);
-  const owner = chunkId(coordinate);
-  const poiZones: PoiZone[] = [];
-  for (let dz = -1; dz <= 1; dz += 1) for (let dx = -1; dx <= 1; dx += 1) {
-    poiZones.push(...generatePois(seed, { x: coordinate.x + dx, z: coordinate.z + dz }).pois.flatMap((poi) => poi.zones));
-  }
-  return Array.from({ length: COLLECTIBLES_PER_CHUNK }, (_, index) => {
-    // The inset keeps objects away from seams where presentation chunks churn.
-    const x = origin.x + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 101) * (CHUNK_SIZE - 4);
-    const z = origin.z + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 211) * (CHUNK_SIZE - 4);
-    return { id: `${owner}:waypoint:${index}`, chunkId: owner, x, y: sampleTerrainHeight(seed, x, z), z };
-  }).filter((placement) => !isVegetationExcluded(placement.x, placement.z, poiZones));
-}
+import type { GeneratedChunkRepository } from "../world/GeneratedChunkRepository";
+import { placeCollectibles } from "../world/collectibles";
+export { placeCollectibles } from "../world/collectibles";
 
 export function createCollectionState(collectedIds: Iterable<string> = []): NonNullable<Entity["collectionState"]> {
   const ids = new Set(collectedIds);
@@ -73,15 +44,7 @@ export class CollectionSystem implements FixedSystem {
   }
 }
 
-function disposeObject(object: THREE.Object3D): void {
-  object.removeFromParent();
-  object.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
-    child.geometry.dispose();
-    const materials = Array.isArray(child.material) ? child.material : [child.material];
-    for (const material of materials) material.dispose();
-  });
-}
+function disposeObject(object: THREE.Object3D): void { object.removeFromParent(); }
 
 /** Streams only ECS/presentation shells; collection truth lives on the persistent state entity. */
 export class ExplorationPresentationSystem implements RenderSystem {
@@ -95,6 +58,7 @@ export class ExplorationPresentationSystem implements RenderSystem {
     radius = 1,
     offsets: Partial<ChunkNeighborhoodOffsets> = {},
     private readonly collectedCount?: HTMLElement,
+    private readonly chunks?: GeneratedChunkRepository,
   ) {
     this.offsets = resolveNeighborhoodOffsets(radius, offsets);
   }
@@ -118,7 +82,9 @@ export class ExplorationPresentationSystem implements RenderSystem {
         const id = chunkId(coordinate);
         wanted.add(id);
         if (this.active.has(id)) continue;
-        const entities = placeCollectibles(this.seed, coordinate).map((placement) => {
+        const data = this.chunks?.get(id);
+        if (this.chunks && !data) continue;
+        const entities = (data?.collectibles ?? placeCollectibles(this.seed, coordinate)).map((placement) => {
           const mesh = createMushroom();
           mesh.position.set(placement.x, placement.y, placement.z);
           mesh.visible = !state.collectedIds.has(placement.id);
@@ -153,20 +119,19 @@ export class ExplorationPresentationSystem implements RenderSystem {
       if (entity.renderable) disposeObject(entity.renderable);
     }
     this.active.clear();
+    mushroomStemGeometry.dispose(); mushroomCapGeometry.dispose(); mushroomStemMaterial.dispose(); mushroomCapMaterial.dispose();
   }
 }
 
 function createMushroom(): THREE.Group {
   const mushroom = new THREE.Group();
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.16, 0.22, 0.55, 8),
-    new THREE.MeshStandardMaterial({ color: 0xfffaf0, roughness: 0.9, flatShading: true }),
+    mushroomStemGeometry, mushroomStemMaterial,
   );
   stem.position.y = 0.275;
   stem.castShadow = true;
   const cap = new THREE.Mesh(
-    new THREE.SphereGeometry(0.48, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshStandardMaterial({ color: 0xd94b45, roughness: 0.82, flatShading: true }),
+    mushroomCapGeometry, mushroomCapMaterial,
   );
   cap.scale.y = 0.65;
   cap.position.y = 0.55;
@@ -174,3 +139,8 @@ function createMushroom(): THREE.Group {
   mushroom.add(stem, cap);
   return mushroom;
 }
+
+const mushroomStemGeometry = new THREE.CylinderGeometry(0.16, 0.22, 0.55, 8);
+const mushroomCapGeometry = new THREE.SphereGeometry(0.48, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+const mushroomStemMaterial = new THREE.MeshStandardMaterial({ color: 0xfffaf0, roughness: 0.9, flatShading: true });
+const mushroomCapMaterial = new THREE.MeshStandardMaterial({ color: 0xd94b45, roughness: 0.82, flatShading: true });

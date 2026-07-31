@@ -3,6 +3,7 @@ import { sampleTerrain } from "../world/terrainSampling";
 import { resolveTreeTrunkMovement } from "../world/treeCollision";
 import { sampleWetlandSpeedMultiplier } from "../world/wetlands";
 import type { InputController } from "./InputController";
+import type { GeneratedChunkRepository } from "../world/GeneratedChunkRepository";
 import { integrateMovement, normalizeInput } from "./movement";
 
 export class InputSnapshotSystem implements FixedSystem {
@@ -41,14 +42,14 @@ export class PlayerMovementSystem implements FixedSystem {
 
 /** Blocks players at tree trunks while allowing movement beneath their crowns. */
 export class TreeCollisionSystem implements FixedSystem {
-  constructor(private readonly seed: number | string) {}
+  constructor(private readonly seed: number | string, private readonly chunks?: GeneratedChunkRepository) {}
 
   fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0]): void {
     for (const entity of world.entities) {
       if (!entity.transform || !entity.previousTransform || !entity.playerControl) continue;
       if (entity.previousTransform.x === entity.transform.x
         && entity.previousTransform.z === entity.transform.z) continue;
-      const resolved = resolveTreeTrunkMovement(this.seed, entity.previousTransform, entity.transform);
+      const resolved = resolveTreeTrunkMovement(this.seed, entity.previousTransform, entity.transform, undefined, this.chunks);
       if (entity.velocity) {
         if (resolved.x !== entity.transform.x) entity.velocity.x = 0;
         if (resolved.z !== entity.transform.z) entity.velocity.z = 0;

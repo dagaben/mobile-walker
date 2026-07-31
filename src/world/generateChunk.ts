@@ -16,6 +16,7 @@ import {
 import { generateVegetation, type GeneratedVegetation } from "./vegetation";
 import { generatePois, isVegetationExcluded, type GeneratedPoi, type PoiDebugCandidate } from "./poi";
 import { generateWetlandPools, type WetlandPoolPlacement } from "./wetlands";
+import { placeCollectibles, type CollectiblePlacement } from "./collectibles";
 import {
   DEFAULT_TERRAIN_OCCLUSION_OPTIONS,
   sampleTerrainOcclusion,
@@ -64,7 +65,8 @@ export interface GeneratedChunkData {
   };
   readonly pines: readonly TreePlacement[];
   readonly pois: readonly GeneratedPoi[];
-  readonly poiCandidates: readonly PoiDebugCandidate[];
+  readonly poiCandidates?: readonly PoiDebugCandidate[];
+  readonly collectibles: readonly CollectiblePlacement[];
   readonly vegetation: GeneratedVegetation;
   readonly wetlandPools: readonly WetlandPoolPlacement[];
   readonly river?: {
@@ -171,6 +173,7 @@ export function generateChunk(
   seedInput: number | string,
   coordinate: ChunkCoordinate,
   occlusionOptions: Readonly<TerrainOcclusionOptions> = DEFAULT_TERRAIN_OCCLUSION_OPTIONS,
+  includeDebugData = false,
 ): GeneratedChunkData {
   const seed = normalizeSeed(seedInput);
   const terrainSegments = TERRAIN_SEGMENTS;
@@ -242,7 +245,8 @@ export function generateChunk(
     irregularTerrain,
     pines: generateTrees(seed, coordinate).filter(tree => !isVegetationExcluded(tree.x, tree.z, exclusionZones)),
     pois,
-    poiCandidates: ownedCandidates,
+    poiCandidates: includeDebugData ? ownedCandidates : undefined,
+    collectibles: placeCollectibles(seed, coordinate, exclusionZones),
     vegetation: generateVegetation(seed, coordinate, exclusionZones),
     wetlandPools: generateWetlandPools(seed, coordinate).filter(pool => !isVegetationExcluded(pool.x, pool.z, exclusionZones)),
     river: channel ? {

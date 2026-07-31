@@ -176,6 +176,7 @@ export class ChunkMeshFactory {
   private readonly sunlight: SunlightDirection;
   private readonly unsubscribeSunlight: () => void;
   private readonly groups = new Set<THREE.Group>();
+  private readonly disposedGeometries = new WeakSet<THREE.BufferGeometry>();
   private readonly terrainMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff, vertexColors: true, flatShading: true, roughness: 1,
   });
@@ -239,7 +240,7 @@ export class ChunkMeshFactory {
       group.userData.poiDebugData = { pois: data.pois, candidates: data.poiCandidates };
       const level = this.debugView.pois ?? "off";
       // Candidate geometry is deliberately not constructed in the normal mode.
-      if (level !== "off") group.add(this.poiMeshes.createDebug(data.pois, data.poiCandidates, level));
+      if (level !== "off") group.add(this.poiMeshes.createDebug(data.pois, data.poiCandidates ?? [], level));
     } else {
       group.add(this.createChunkBoundary(data), this.createTreeShadows(data));
     }
@@ -264,7 +265,11 @@ export class ChunkMeshFactory {
   disposeChunk(group: THREE.Group): void {
     this.groups.delete(group);
     group.traverse((object) => {
-      if ((object instanceof THREE.Mesh || object instanceof THREE.Line) && object.geometry.userData.poiShared !== true) object.geometry.dispose();
+      if ((object instanceof THREE.Mesh || object instanceof THREE.Line)
+        && object.geometry.userData.poiShared !== true && !this.disposedGeometries.has(object.geometry)) {
+        this.disposedGeometries.add(object.geometry);
+        object.geometry.dispose();
+      }
     });
     group.removeFromParent();
   }
@@ -602,7 +607,7 @@ export class ChunkMeshFactory {
     }
     if (level !== "off" && (!poiDebug || poiDebug.userData.level !== level)) {
       const data = group.userData.poiDebugData as { pois: GeneratedChunkData["pois"]; candidates: GeneratedChunkData["poiCandidates"] };
-      group.add(this.poiMeshes.createDebug(data.pois, data.candidates, level));
+      group.add(this.poiMeshes.createDebug(data.pois, data.candidates ?? [], level));
     }
     group.traverse((object) => {
       if (!(object instanceof THREE.Mesh) || object.userData.isTerrainSurface !== true) return;

@@ -26,6 +26,7 @@ export class Game {
   private readonly cameraDetails: HTMLOutputElement;
   private readonly performanceView: HTMLOutputElement;
   private smoothedFrameSeconds = 1 / 60;
+  private readonly frameSamples: { at: number; ms: number }[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
     const world = createEcsWorld();
@@ -111,6 +112,9 @@ export class Game {
 
   private updateDebugReadouts(deltaSeconds: number): void {
     if (deltaSeconds > 0) this.smoothedFrameSeconds += (deltaSeconds - this.smoothedFrameSeconds) * 0.1;
+    const rawFrameMs = deltaSeconds * 1000, now = performance.now();
+    this.frameSamples.push({ at: now, ms: rawFrameMs });
+    while (this.frameSamples[0] && this.frameSamples[0].at < now - 1000) this.frameSamples.shift();
     if (!this.cameraDetails.hidden) {
       const details = this.cameraPresentation.getDebugDetails();
       this.cameraDetails.textContent = `CAMERA\nAngle   ${details.angleDegrees.toFixed(1)}°\nZoom    ${Math.round(details.zoomLevel * 100)}%\nHeight  ${details.height.toFixed(2)} m`;
@@ -118,8 +122,9 @@ export class Game {
     if (!this.performanceView.hidden) {
       const details = this.renderer.getPerformanceDetails();
       const streaming = this.chunks.getDiagnostics();
-      const frameMs = this.smoothedFrameSeconds * 1000;
-      this.performanceView.textContent = `PERFORMANCE\nFPS       ${(1 / this.smoothedFrameSeconds).toFixed(0)}\nFrame     ${frameMs.toFixed(1)} ms\nDraws     ${details.drawCalls}\nTriangles ${details.triangles.toLocaleString()}\nBlob shadows\n  +${details.shadowDrawCalls} draws\n  +${details.shadowTriangles.toLocaleString()} triangles\nSTREAMING\nGeneration ${streaming.generationQueued} queued / ${streaming.generationInProgress} running\nActivation ${streaming.awaitingActivation} ready / ${streaming.partiallyActivated} partial\nWorker     ${streaming.lastWorkerGenerationMs.toFixed(1)} ms (${streaming.maxWorkerGenerationMs.toFixed(1)} max)\nTransfer   ${streaming.lastTransferDelayMs.toFixed(1)} ms (${streaming.maxTransferDelayMs.toFixed(1)} max)\nThis frame ${streaming.activationMsThisFrame.toFixed(1)} ms\nLongest    ${streaming.longestActivationStage} ${streaming.longestActivationStageMs.toFixed(1)} ms\nCache      ${streaming.cacheHits} hits / ${streaming.cacheMisses} misses`;
+      const systems = [...this.systems.getDiagnostics()].map(([name, timing]) => `  ${name} ${timing.currentMs.toFixed(1)} / ${timing.maximumMs.toFixed(1)} / ${timing.rollingMaximumMs.toFixed(1)}`).join("\n");
+      const submit = this.renderer.getSubmissionTiming();
+      this.performanceView.textContent = `PERFORMANCE\nFPS       ${(1 / this.smoothedFrameSeconds).toFixed(0)}\nFrame raw ${rawFrameMs.toFixed(1)} ms\nFrame 1s  ${Math.max(0, ...this.frameSamples.map(s => s.ms)).toFixed(1)} ms\nDraws     ${details.drawCalls}\nTriangles ${details.triangles.toLocaleString()}\nRenderer  ${submit.currentMs.toFixed(1)} / ${submit.maximumMs.toFixed(1)} / ${submit.rollingMaximumMs.toFixed(1)} ms\nSYSTEMS current / max / 1s max (ms)\n${systems}\nSTREAMING\nMain queue ${streaming.generationQueued}\nWorker busy ${streaming.workerBusy ? 1 : 0}\nWorker backlog ${streaming.workerRequestBacklog}\nActivation ${streaming.awaitingActivation} ready / ${streaming.partiallyActivated} partial\nWorker generation ${streaming.lastWorkerGenerationMs.toFixed(1)} ms (${streaming.maxWorkerGenerationMs.toFixed(1)} max)\nRound trip ${streaming.lastRequestRoundTripMs.toFixed(1)} ms (${streaming.maxRequestRoundTripMs.toFixed(1)} max)\nThis frame ${streaming.activationMsThisFrame.toFixed(1)} ms\nLongest    ${streaming.longestActivationStage} ${streaming.longestActivationStageMs.toFixed(1)} ms\nCache      ${streaming.cacheHits} hits / ${streaming.cacheMisses} misses`;
     }
   }
 }

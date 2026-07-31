@@ -30,6 +30,7 @@ export class ThreeRenderer {
   readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, MAX_DRAW_DISTANCE);
   private readonly sunlight = new THREE.DirectionalLight(0xfff1d6, 2.2);
   readonly sunlightDirection = new SunlightDirection();
+  private submission = { currentMs: 0, maximumMs: 0, rollingMaximumMs: 0, samples: [] as { at: number; ms: number }[] };
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -55,7 +56,13 @@ export class ThreeRenderer {
   }
 
   render(_deltaSeconds: number): void {
+    const started = performance.now();
     this.renderer.render(this.scene, this.camera);
+    const ended = performance.now(), ms = ended - started;
+    this.submission.currentMs = ms; this.submission.maximumMs = Math.max(this.submission.maximumMs, ms);
+    this.submission.samples.push({ at: ended, ms });
+    while (this.submission.samples[0] && this.submission.samples[0].at < ended - 1000) this.submission.samples.shift();
+    this.submission.rollingMaximumMs = Math.max(0, ...this.submission.samples.map(sample => sample.ms));
   }
 
   setSunlightAngles(angles: SunlightAngles): void {
@@ -72,6 +79,8 @@ export class ThreeRenderer {
       shadowTriangles: shadows.triangles,
     };
   }
+
+  getSubmissionTiming(): Readonly<{ currentMs: number; maximumMs: number; rollingMaximumMs: number }> { return this.submission; }
 
   dispose(): void {
     this.resizeObserver?.disconnect();
