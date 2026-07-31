@@ -32,7 +32,7 @@ export class PlayerShadowPresentationSystem implements RenderSystem {
     if (!player?.renderable) return;
     const { x, z } = player.renderable.position;
     const projection = blobShadowProjection(this.sunlight.direction, this.shadow.rotation.y);
-    const offset = 0.15 * projection.stretch;
+    const offset = 0.15 * projection.offsetScale;
     this.shadow.position.set(x + projection.directionX * offset, 0, z + projection.directionZ * offset);
     this.shadow.rotation.y = projection.rotationY;
     this.shadow.scale.set(0.58 * projection.stretch, 1, 0.43);

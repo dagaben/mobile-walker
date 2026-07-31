@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   BLOB_SHADOW_MAX_STRETCH,
+  BLOB_SHADOW_MAX_OFFSET_SCALE,
   BLOB_SHADOW_MIN_STRETCH,
   blobShadowProjection,
   SunlightDirection,
@@ -26,6 +27,16 @@ describe("directional blob-shadow projection", () => {
     expect(low.stretch).toBeGreaterThan(high.stretch);
     expect(high.stretch).toBeGreaterThanOrEqual(BLOB_SHADOW_MIN_STRETCH);
     expect(low.stretch).toBeLessThanOrEqual(BLOB_SHADOW_MAX_STRETCH);
+  });
+
+  it("moves farther from its caster as the sun approaches the horizon", () => {
+    const overhead = blobShadowProjection(new THREE.Vector3(0, 1, 0));
+    const high = blobShadowProjection(new THREE.Vector3(1, 8, 0));
+    const low = blobShadowProjection(new THREE.Vector3(8, 1, 0));
+
+    expect(overhead.offsetScale).toBe(0);
+    expect(low.offsetScale).toBeGreaterThan(high.offsetScale);
+    expect(low.offsetScale).toBe(BLOB_SHADOW_MAX_OFFSET_SCALE);
   });
 
   it("keeps a nearly overhead projection short, finite, and azimuth-stable", () => {

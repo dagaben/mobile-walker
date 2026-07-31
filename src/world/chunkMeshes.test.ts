@@ -197,6 +197,34 @@ describe("pine tree geometry", () => {
     factory.dispose();
   });
 
+  it("moves tree shadows farther from their trees at lower sun elevations", () => {
+    const sunlight = new SunlightDirection();
+    const factory = new ChunkMeshFactory(sunlight);
+    const data = generateChunk("forest-biomes", { x: -4, z: -4 });
+    const group = factory.create(data);
+    factory.registerGroup(group);
+    const shadows = group.getObjectByName("tree-shadows") as THREE.InstancedMesh;
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    const matrix = new THREE.Matrix4();
+
+    sunlight.set(new THREE.Vector3(-1, 8, 0));
+    shadows.getMatrixAt(0, matrix);
+    matrix.decompose(position, rotation, scale);
+    const highElevationOffset = Math.hypot(position.x - data.pines[0]!.x, position.z - data.pines[0]!.z);
+
+    sunlight.set(new THREE.Vector3(-8, 1, 0));
+    shadows.getMatrixAt(0, matrix);
+    matrix.decompose(position, rotation, scale);
+    const lowElevationOffset = Math.hypot(position.x - data.pines[0]!.x, position.z - data.pines[0]!.z);
+
+    expect(lowElevationOffset).toBeGreaterThan(highElevationOffset);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
   it("renders each tree with an instanced trunk and layered crown", () => {
     const factory = new ChunkMeshFactory();
     const data = generateChunk("forest-biomes", { x: -4, z: -4 });

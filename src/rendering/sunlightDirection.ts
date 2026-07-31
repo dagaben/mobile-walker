@@ -10,10 +10,13 @@ export interface BlobShadowProjection {
   readonly directionZ: number;
   readonly rotationY: number;
   readonly stretch: number;
+  /** Horizontal displacement per unit of the shadow caster's visual height. */
+  readonly offsetScale: number;
 }
 
 export const BLOB_SHADOW_MIN_STRETCH = 1;
 export const BLOB_SHADOW_MAX_STRETCH = 2.4;
+export const BLOB_SHADOW_MAX_OFFSET_SCALE = 2.4;
 const CHANGE_THRESHOLD = 1e-5;
 const HORIZONTAL_EPSILON = 1e-6;
 
@@ -54,5 +57,14 @@ export function blobShadowProjection(
   const directionZ = horizontalLength > HORIZONTAL_EPSILON ? -sunlight.z / horizontalLength : -Math.sin(fallbackAzimuth);
   const rotationY = Math.atan2(-directionZ, directionX);
   const stretch = THREE.MathUtils.lerp(maximumStretch, minimumStretch, elevation);
-  return { directionX, directionZ, rotationY, stretch };
+  // A projected point moves horizontally by height / tan(elevation). Keep that
+  // relationship separate from the artistic footprint stretch so the whole
+  // blob actually travels away from its caster as the sun approaches the
+  // horizon, and returns to the caster when the sun is overhead.
+  const offsetScale = THREE.MathUtils.clamp(
+    horizontalLength / Math.max(sunlight.y, HORIZONTAL_EPSILON),
+    0,
+    BLOB_SHADOW_MAX_OFFSET_SCALE,
+  );
+  return { directionX, directionZ, rotationY, stretch, offsetScale };
 }
