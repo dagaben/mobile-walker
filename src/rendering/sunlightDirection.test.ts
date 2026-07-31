@@ -32,11 +32,28 @@ describe("directional blob-shadow projection", () => {
   it("moves farther from its caster as the sun approaches the horizon", () => {
     const overhead = blobShadowProjection(new THREE.Vector3(0, 1, 0));
     const high = blobShadowProjection(new THREE.Vector3(1, 8, 0));
-    const low = blobShadowProjection(new THREE.Vector3(8, 1, 0));
+    const twentyTwoDegrees = blobShadowProjection(new THREE.Vector3(
+      Math.cos(THREE.MathUtils.degToRad(22)),
+      Math.sin(THREE.MathUtils.degToRad(22)),
+      0,
+    ));
+    const fifteenDegrees = blobShadowProjection(new THREE.Vector3(
+      Math.cos(THREE.MathUtils.degToRad(15)),
+      Math.sin(THREE.MathUtils.degToRad(15)),
+      0,
+    ));
+    const low = blobShadowProjection(new THREE.Vector3(
+      Math.cos(THREE.MathUtils.degToRad(10)),
+      Math.sin(THREE.MathUtils.degToRad(10)),
+      0,
+    ));
 
     expect(overhead.offsetScale).toBe(0);
-    expect(low.offsetScale).toBeGreaterThan(high.offsetScale);
-    expect(low.offsetScale).toBe(BLOB_SHADOW_MAX_OFFSET_SCALE);
+    expect(twentyTwoDegrees.offsetScale).toBeCloseTo(1 / Math.tan(THREE.MathUtils.degToRad(22)));
+    expect(fifteenDegrees.offsetScale).toBeGreaterThan(twentyTwoDegrees.offsetScale);
+    expect(low.offsetScale).toBeGreaterThan(fifteenDegrees.offsetScale);
+    expect(low.offsetScale).toBeLessThanOrEqual(BLOB_SHADOW_MAX_OFFSET_SCALE);
+    expect(twentyTwoDegrees.offsetScale).toBeGreaterThan(high.offsetScale);
   });
 
   it("keeps a nearly overhead projection short, finite, and azimuth-stable", () => {

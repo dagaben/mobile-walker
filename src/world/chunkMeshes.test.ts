@@ -225,6 +225,28 @@ describe("pine tree geometry", () => {
     factory.dispose();
   });
 
+  it("offsets a 22-degree tree shadow by the projected crown height", () => {
+    const sunlight = new SunlightDirection();
+    const factory = new ChunkMeshFactory(sunlight);
+    const data = generateChunk("forest-biomes", { x: -4, z: -4 });
+    const group = factory.create(data);
+    factory.registerGroup(group);
+    const shadows = group.getObjectByName("tree-shadows") as THREE.InstancedMesh;
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+
+    const elevation = THREE.MathUtils.degToRad(22);
+    sunlight.set(new THREE.Vector3(Math.cos(elevation), Math.sin(elevation), 0));
+    shadows.getMatrixAt(0, matrix);
+    position.setFromMatrixPosition(matrix);
+
+    const offset = Math.hypot(position.x - data.pines[0]!.x, position.z - data.pines[0]!.z);
+    expect(offset).toBeCloseTo(1.8 * data.pines[0]!.scale / Math.tan(elevation), 4);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
   it("renders each tree with an instanced trunk and layered crown", () => {
     const factory = new ChunkMeshFactory();
     const data = generateChunk("forest-biomes", { x: -4, z: -4 });
