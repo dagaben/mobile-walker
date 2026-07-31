@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
-import { createRoofGeometry } from "./poiMeshes";
+import type { GeneratedPoi } from "./poi";
+import { createRoofGeometry, PoiMeshFactory } from "./poiMeshes";
 
 describe("building roof geometry", () => {
   it("winds both gable ends outward so front-sided materials render a complete roof", () => {
@@ -17,5 +18,23 @@ describe("building roof geometry", () => {
     expect(triangleNormal(0).z).toBeLessThan(0);
     expect(triangleNormal(1).z).toBeGreaterThan(0);
     geometry.dispose();
+  });
+
+  it("places the entire roof above the walls instead of letting the wall top cut through it", () => {
+    const factory = new PoiMeshFactory();
+    const house = factory.create({
+      id: "roof-test",
+      typeId: "plains-farmhouse",
+      position: { x: 0, y: 0, z: 0 },
+      rotation: 0,
+      decorativeTrees: [],
+    } as unknown as GeneratedPoi);
+    const walls = house.getObjectByName("walls")!;
+    const roof = house.getObjectByName("pitched-roof")!;
+    const wallBounds = new THREE.Box3().setFromObject(walls);
+    const roofBounds = new THREE.Box3().setFromObject(roof);
+
+    expect(roofBounds.min.y).toBeGreaterThanOrEqual(wallBounds.max.y);
+    factory.dispose();
   });
 });
