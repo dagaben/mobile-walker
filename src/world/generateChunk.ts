@@ -6,6 +6,7 @@ import { normalizeSeed } from "./random";
 import { isRiverColumn, sampleRiverBoundary, sampleRiverSpine, type RiverBoundary, type RiverPoint } from "./river";
 import {
   RIVER_BANK_WIDTH,
+  RIVER_BED_DEPTH,
   RIVER_TRANSITION_WIDTH,
   sampleChannelTerrainHeight,
   sampleNaturalTerrainHeight,
@@ -30,6 +31,8 @@ export interface RiverChannelSection {
   readonly surfaceElevation: number;
   readonly westShoulderHeight: number;
   readonly eastShoulderHeight: number;
+  /** Terrain presentation inputs for the six channel cross-section vertices. */
+  readonly terrainVertices: readonly Pick<IrregularTerrainVertex, "biomeWeights" | "occlusion">[];
 }
 
 export interface IrregularTerrainVertex {
@@ -67,7 +70,11 @@ export interface GeneratedChunkData {
   };
 }
 
-function generateRiverChannel(seed: number, coordinate: ChunkCoordinate): {
+function generateRiverChannel(
+  seed: number,
+  coordinate: ChunkCoordinate,
+  occlusionOptions: Readonly<TerrainOcclusionOptions>,
+): {
   spine: readonly RiverPoint[];
   sections: readonly RiverChannelSection[];
 } {
@@ -83,19 +90,33 @@ function generateRiverChannel(seed: number, coordinate: ChunkCoordinate): {
     if (!section) continue;
     const waterHalfWidth = section.waterWidth / 2;
     const bankWidth = RIVER_BANK_WIDTH + RIVER_TRANSITION_WIDTH;
+    const westShoulderHeight = sampleNaturalTerrainHeight(seed, section.centerX - waterHalfWidth - bankWidth, z);
+    const eastShoulderHeight = sampleNaturalTerrainHeight(seed, section.centerX + waterHalfWidth + bankWidth, z);
     points.push({ x: section.centerX, z, width: section.waterWidth, surfaceElevation: section.surfaceElevation });
+    const crossSection = [
+      [section.centerX - waterHalfWidth - bankWidth, westShoulderHeight],
+      [section.centerX - waterHalfWidth, section.surfaceElevation + 0.04],
+      [section.centerX - waterHalfWidth + waterHalfWidth * 0.1, section.surfaceElevation - RIVER_BED_DEPTH],
+      [section.centerX + waterHalfWidth - waterHalfWidth * 0.1, section.surfaceElevation - RIVER_BED_DEPTH],
+      [section.centerX + waterHalfWidth, section.surfaceElevation + 0.04],
+      [section.centerX + waterHalfWidth + bankWidth, eastShoulderHeight],
+    ] as const;
     sections.push({
       z,
       centerX: section.centerX,
       waterHalfWidth,
       bankWidth,
       surfaceElevation: section.surfaceElevation,
-      westShoulderHeight: sampleNaturalTerrainHeight(
-        seed, section.centerX - waterHalfWidth - bankWidth, z,
-      ),
-      eastShoulderHeight: sampleNaturalTerrainHeight(
-        seed, section.centerX + waterHalfWidth + bankWidth, z,
-      ),
+      westShoulderHeight,
+      eastShoulderHeight,
+      terrainVertices: crossSection.map(([x, height]) => ({
+        biomeWeights: sampleBiome(seed, x, z).weights,
+        occlusion: sampleTerrainOcclusion(
+          x, z, height,
+          (sampleX, sampleZ) => sampleChannelTerrainHeight(seed, sampleX, sampleZ),
+          occlusionOptions,
+        ),
+      })),
     });
   }
   return { spine: points, sections };
@@ -168,7 +189,7 @@ export function generateChunk(
     }
   }
 
-  const channel = isRiverColumn(coordinate) ? generateRiverChannel(seed, coordinate) : undefined;
+  const channel = isRiverColumn(coordinate) ? generateRiverChannel(seed, coordinate, occlusionOptions) : undefined;
   return {
     id: chunkId(coordinate),
     coordinate: { ...coordinate },

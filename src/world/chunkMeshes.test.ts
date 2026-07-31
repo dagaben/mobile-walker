@@ -50,7 +50,7 @@ describe("river ribbon geometry", () => {
     geometry.dispose();
   });
 
-  it("gives the shoreline a material that does not require absent vertex colors", () => {
+  it("renders banks through the same material and attribute pipeline as terrain", () => {
     const factory = new ChunkMeshFactory();
     const group = factory.create(generateChunk("visible-shoreline", { x: 0, z: 0 }));
     const channel = group.getObjectByName("river-channel") as THREE.Mesh<
@@ -58,9 +58,58 @@ describe("river ribbon geometry", () => {
       THREE.MeshStandardMaterial
     >;
 
-    expect(channel.geometry.getAttribute("color")).toBeUndefined();
-    expect(channel.material.vertexColors).toBe(false);
-    expect(channel.material.color.getHex()).not.toBe(0x000000);
+    const terrain = group.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    expect(channel.material).toBe(terrain.material);
+    expect(channel.material.vertexColors).toBe(true);
+    for (const attribute of ["color", "baseTerrainColor", "terrainColor", "debugColor", "occlusionColor"]) {
+      expect(channel.geometry.getAttribute(attribute).count).toBe(channel.geometry.getAttribute("position").count);
+    }
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
+  it("applies terrain debug modes to banks but not water", () => {
+    const factory = new ChunkMeshFactory();
+    const group = factory.create(generateChunk("river-debug-pipeline", { x: 0, z: 0 }));
+    factory.registerGroup(group);
+    const terrain = group.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    const channel = group.getObjectByName("river-channel") as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    const water = group.getObjectByName("river") as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    const waterMaterial = water.material;
+
+    factory.setDebugView({ wireframe: true, biomeGuide: true, occlusionMap: true });
+    expect(channel.material).toBe(terrain.material);
+    expect(channel.material.wireframe).toBe(true);
+    expect(channel.geometry.getAttribute("color")).toBe(channel.geometry.getAttribute("debugColor"));
+    expect(terrain.geometry.getAttribute("color")).toBe(terrain.geometry.getAttribute("debugColor"));
+    expect(water.material).toBe(waterMaterial);
+    expect(water.material).not.toBe(channel.material);
+    expect(water.material.wireframe).toBe(false);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
+  it("keeps terrain and bank presentation seamless at their shared shoulders", () => {
+    const factory = new ChunkMeshFactory();
+    const data = generateChunk("river-bank-seam", { x: 0, z: 0 });
+    const group = factory.create(data);
+    const terrainColors = (group.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry>).geometry
+      .getAttribute("terrainColor");
+    const bankColors = (group.getObjectByName("river-channel") as THREE.Mesh<THREE.BufferGeometry>).geometry
+      .getAttribute("terrainColor");
+
+    for (let section = 0; section < data.river!.channelSections.length; section += 1) {
+      // Irregular terrain stores west/east shoulders at slots 1/2; channel slots 0/5
+      // are the exact same world-space surface samples.
+      for (const [terrainOffset, bankOffset] of [[1, 0], [2, 5]] as const) {
+        const terrainIndex = section * 4 + terrainOffset;
+        const bankIndex = section * 6 + bankOffset;
+        expect([bankColors.getX(bankIndex), bankColors.getY(bankIndex), bankColors.getZ(bankIndex)])
+          .toEqual([terrainColors.getX(terrainIndex), terrainColors.getY(terrainIndex), terrainColors.getZ(terrainIndex)]);
+      }
+    }
 
     factory.disposeChunk(group);
     factory.dispose();
