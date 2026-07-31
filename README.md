@@ -117,3 +117,36 @@ plain debug data, with accepted-only and full-candidate visualization levels.
   press held and drag to move while jumping.
 - **Camera gestures:** pinch with two fingers to zoom, and drag two fingers
   vertically to tilt between the standard view and a directly overhead view.
+
+#### Available POI types
+
+The registry currently provides two deliberately uncommon building discoveries:
+
+- **Plains farmhouse** — requires a predominantly plains footprint, gentle and
+  even dry terrain, and generous separation from every other POI. Its stable
+  seeded rotation, fenced clearing, explicit approach, and POI-owned decorative
+  tree are generated data rather than incidental vegetation.
+- **Lake house with dock** — uses global biome/lake sampling to find a dry
+  shoreline, turns its entrance and view toward the water, and extends its dock
+  to the fixed lake surface. River channels and submerged or steep house
+  foundations are rejected; lake water continues to be rendered by the normal
+  hydrology layer.
+
+Future types are registered with `registerPoiDefinition` in the plain-data POI
+registry. A definition supplies a unique type ID and label, clearly named rarity
+and cross-type minimum spacing, footprint dimensions, biome/hydrology and
+terrain rules, and a renderer key. Register the matching presentation callback
+with `PoiMeshFactory.register`; terrain and biome generation must not contain
+building meshes.
+
+Every generated POI exposes named solid, clearing, entrance-approach, and (when
+applicable) dock zones. Solid and vegetation-exclusion zones are collected from
+neighboring chunks before trees, bushes, flowers, mushrooms/collectibles, and
+pools are placed, so an exclusion remains continuous across a chunk boundary.
+Decorations intentionally owned by a POI live in that POI's generated record
+and presentation group instead.
+
+Stable IDs combine the world seed, registered type, and global candidate-cell
+address. They do not depend on streaming or generation order, allowing later
+save data to attach persistent gameplay state—such as an opened door, looted
+container, or discovered landmark—to a building without storing its geometry.

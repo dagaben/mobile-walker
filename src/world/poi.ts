@@ -1,131 +1,65 @@
 import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { CHUNK_SIZE, worldToChunk, type ChunkCoordinate } from "./chunkCoordinates";
 import { hashFloat, normalizeSeed } from "./random";
-import { isLakeAt, isRiverAt, sampleTerrainHeight } from "./terrainSampling";
+import { isLakeAt, isRiverAt, LAKE_SURFACE_ELEVATION, sampleTerrainHeight } from "./terrainSampling";
 
 export type PoiFootprint =
   | Readonly<{ kind: "circle"; x: number; z: number; radius: number }>
   | Readonly<{ kind: "rectangle"; x: number; z: number; halfWidth: number; halfDepth: number; rotation: number }>;
-
 export type PoiZonePurpose = "solid" | "vegetation-exclusion" | "decoration";
-export interface PoiZone { readonly purpose: PoiZonePurpose; readonly footprint: PoiFootprint }
-export interface TerrainFootprintAnalysis {
-  readonly averageHeight: number; readonly minimumHeight: number; readonly maximumHeight: number;
-  readonly heightVariation: number; readonly approximateSlope: number; readonly suggestedPlacementHeight: number;
-}
+export interface PoiZone { readonly name?: string; readonly purpose: PoiZonePurpose; readonly footprint: PoiFootprint }
+export interface TerrainFootprintAnalysis { readonly averageHeight:number; readonly minimumHeight:number; readonly maximumHeight:number; readonly heightVariation:number; readonly approximateSlope:number; readonly suggestedPlacementHeight:number }
+export interface PoiDirection { readonly x:number; readonly z:number }
 export interface GeneratedPoi {
-  readonly id: string; readonly typeId: string;
-  readonly position: Readonly<{ x: number; y: number; z: number }>;
-  readonly rotation: number; readonly scale?: number;
-  readonly footprint: PoiFootprint; readonly zones: readonly PoiZone[]; readonly clearanceRadius: number;
-  readonly entrance?: Readonly<{ position: Readonly<{ x: number; y: number; z: number }>; facing: number }>;
-  readonly ownerChunk: ChunkCoordinate;
-  readonly metadata: Readonly<{ biome: BiomeId; biomeWeights: BiomeWeights; candidateCell: Readonly<{ x: number; z: number; index: number }>; suitability: number; terrain: TerrainFootprintAnalysis; distanceToRiver: number; distanceToLake: number; vegetationDensity: number }>;
-  readonly parameters?: Readonly<Record<string, string | number | boolean>>;
+  readonly id:string; readonly typeId:string; readonly position:Readonly<{x:number;y:number;z:number}>; readonly rotation:number;
+  readonly footprint:PoiFootprint; readonly zones:readonly PoiZone[]; readonly clearanceRadius:number;
+  readonly entrance:Readonly<{position:Readonly<{x:number;y:number;z:number}>;facing:number;direction:PoiDirection}>;
+  readonly dock?:Readonly<{footprint:PoiFootprint;direction:PoiDirection;shore:Readonly<{x:number;z:number}>;end:Readonly<{x:number;y:number;z:number}>;surfaceElevation:number}>;
+  readonly decorativeTrees?:readonly Readonly<{x:number;z:number;scale:number}>[];
+  readonly ownerChunk:ChunkCoordinate;
+  readonly metadata:Readonly<{biome:BiomeId;biomeWeights:BiomeWeights;candidateCell:Readonly<{x:number;z:number;index:number}>;suitability:number;terrain:TerrainFootprintAnalysis;distanceToRiver:number;distanceToLake:number;vegetationDensity:number;plainsCoverage:number}>;
+  readonly parameters?:Readonly<Record<string,string|number|boolean>>;
 }
-export type PoiRejectionReason = "wrong biome" | "slope too high" | "uneven terrain" | "underwater" | "river intersection" | "lake requirement not met" | "too close to another POI" | "candidate lost to a higher-scoring candidate" | "rarity";
-export interface PoiDebugCandidate { readonly id: string; readonly typeId: string; readonly x: number; readonly z: number; readonly score: number; readonly accepted: boolean; readonly reason?: PoiRejectionReason; readonly footprint: PoiFootprint }
-
-export interface PoiSuitabilityContext {
-  readonly seed: number; readonly x: number; readonly z: number; readonly rotation: number;
-  readonly biome: ReturnType<typeof sampleBiome>; readonly terrain: TerrainFootprintAnalysis;
-  readonly footprint: PoiFootprint; readonly distanceToRiver: number; readonly distanceToLake: number;
-  readonly underwater: boolean; readonly intersectsRiver: boolean; readonly vegetationDensity: number;
-}
-export interface PoiSuitability { readonly score: number; readonly reason?: PoiRejectionReason }
+export type PoiRejectionReason = "wrong biome"|"insufficient plains footprint"|"slope too high"|"uneven terrain"|"underwater"|"river intersection"|"lake requirement not met"|"invalid shoreline"|"dock not over lake"|"too close to another POI"|"candidate lost to a higher-scoring candidate"|"rarity";
+export interface PoiDebugCandidate { readonly id:string;readonly typeId:string;readonly label:string;readonly x:number;readonly z:number;readonly score:number;readonly accepted:boolean;readonly reason?:PoiRejectionReason;readonly footprint:PoiFootprint;readonly rotation:number;readonly entrance?:Readonly<{x:number;z:number}>;readonly dockDirection?:PoiDirection }
+export interface PoiSuitabilityContext { readonly seed:number;readonly x:number;readonly z:number;readonly rotation:number;readonly biome:ReturnType<typeof sampleBiome>;readonly terrain:TerrainFootprintAnalysis;readonly footprint:PoiFootprint;readonly distanceToRiver:number;readonly distanceToLake:number;readonly underwater:boolean;readonly intersectsRiver:boolean;readonly vegetationDensity:number;readonly plainsCoverage:number;readonly shoreline?:Shoreline }
+export interface PoiSuitability {readonly score:number;readonly reason?:PoiRejectionReason}
 export interface PoiDefinition {
-  readonly id: string; readonly label: string; readonly biomes: Readonly<{ allowed?: readonly BiomeId[]; preferred?: readonly BiomeId[] }>;
-  readonly rarity: number; readonly weight: number; readonly minimumSpacing: number; readonly clearanceRadius: number;
-  readonly footprint: Readonly<{ kind: "circle"; radius: number } | { kind: "rectangle"; width: number; depth: number }>;
-  readonly hydrology?: Readonly<{ requireLakeWithin?: number; rejectRiverIntersection?: boolean }>;
-  readonly terrain: Readonly<{ maximumSlope: number; maximumVariation: number }>;
-  readonly renderer: string; readonly debugColor: number;
-  suitability?(context: PoiSuitabilityContext): PoiSuitability;
-  parameters?(seed: number, cellX: number, cellZ: number): Readonly<Record<string, string | number | boolean>>;
+  readonly id:string;readonly label:string;readonly biomes:Readonly<{allowed?:readonly BiomeId[];preferred?:readonly BiomeId[]}>;
+  readonly rarity:number;readonly weight:number;readonly minimumSpacing:number;readonly clearanceRadius:number;
+  readonly footprint:Readonly<{kind:"circle";radius:number}|{kind:"rectangle";width:number;depth:number}>;
+  readonly hydrology?:Readonly<{requireLakeWithin?:number;rejectRiverIntersection?:boolean;shoreline?:boolean}>;
+  readonly terrain:Readonly<{maximumSlope:number;maximumVariation:number}>;readonly renderer:string;readonly debugColor:number;
+  suitability?(context:PoiSuitabilityContext):PoiSuitability; parameters?(seed:number,cellX:number,cellZ:number):Readonly<Record<string,string|number|boolean>>;
 }
 
-const definitions = new Map<string, PoiDefinition>();
-export function registerPoiDefinition(definition: PoiDefinition): void {
-  if (definitions.has(definition.id)) throw new Error(`Duplicate POI type: ${definition.id}`);
-  definitions.set(definition.id, Object.freeze(definition));
-}
-export function getPoiDefinitions(): readonly PoiDefinition[] { return [...definitions.values()]; }
+const definitions=new Map<string,PoiDefinition>();
+export function registerPoiDefinition(definition:PoiDefinition):void {if(definitions.has(definition.id))throw new Error(`Duplicate POI type: ${definition.id}`);definitions.set(definition.id,Object.freeze(definition));}
+export function getPoiDefinitions():readonly PoiDefinition[]{return [...definitions.values()];}
 
-registerPoiDefinition({
-  id: "waystone", label: "Waystone", biomes: { allowed: ["plains", "forest", "highlands"], preferred: ["plains", "highlands"] },
-  rarity: 0.42, weight: 1, minimumSpacing: 70, clearanceRadius: 5,
-  footprint: { kind: "rectangle", width: 2.2, depth: 1.3 }, terrain: { maximumSlope: 0.32, maximumVariation: 1.2 },
-  hydrology: { rejectRiverIntersection: true }, renderer: "waystone", debugColor: 0xe8b95c,
-  parameters: (seed, x, z) => ({ height: 2.2 + hashFloat(seed, x, z, 918) * 1.2 }),
-});
+export const PLAINS_FARMHOUSE_CONFIG=Object.freeze({rarity:.18,minimumSpacing:112,clearanceRadius:8});
+export const LAKE_HOUSE_CONFIG=Object.freeze({rarity:.25,minimumSpacing:128,clearanceRadius:7});
+registerPoiDefinition({id:"plains-farmhouse",label:"Plains farmhouse",biomes:{allowed:["plains"],preferred:["plains"]},...PLAINS_FARMHOUSE_CONFIG,weight:1,footprint:{kind:"rectangle",width:7,depth:6},hydrology:{rejectRiverIntersection:true},terrain:{maximumSlope:.13,maximumVariation:.72},renderer:"plains-farmhouse",debugColor:0xe7bd72,suitability:c=>c.plainsCoverage<.72?{score:0,reason:"insufficient plains footprint"}:{score:.5+c.plainsCoverage*.35-c.terrain.approximateSlope,reason:c.distanceToLake<12?"lake requirement not met":undefined},parameters:(seed,x,z)=>({roofHue:hashFloat(seed,x,z,923)})});
+registerPoiDefinition({id:"lake-house",label:"Lake house with dock",biomes:{allowed:["plains","forest","wetland"],preferred:["plains","forest"]},...LAKE_HOUSE_CONFIG,weight:1.1,footprint:{kind:"rectangle",width:6,depth:5},hydrology:{shoreline:true,requireLakeWithin:12,rejectRiverIntersection:true},terrain:{maximumSlope:.18,maximumVariation:.9},renderer:"lake-house",debugColor:0x65c4d8,suitability:c=>!c.shoreline?{score:0,reason:"invalid shoreline"}:{score:.82-c.terrain.approximateSlope}});
 
-function axes(shape: Extract<PoiFootprint, { kind: "rectangle" }>): readonly [number, number][] {
-  const c = Math.cos(shape.rotation), s = Math.sin(shape.rotation); return [[c, s], [-s, c]];
-}
-function rectangleCorners(shape: Extract<PoiFootprint, { kind: "rectangle" }>): readonly [number, number][] {
-  const [a, b] = axes(shape); return [[-1,-1],[-1,1],[1,-1],[1,1]].map(([u,v]) => [shape.x + a[0]*shape.halfWidth*u + b[0]*shape.halfDepth*v, shape.z + a[1]*shape.halfWidth*u + b[1]*shape.halfDepth*v]);
-}
-export function pointInFootprint(x: number, z: number, shape: PoiFootprint): boolean {
-  if (shape.kind === "circle") return Math.hypot(x - shape.x, z - shape.z) <= shape.radius;
-  const dx=x-shape.x,dz=z-shape.z,c=Math.cos(shape.rotation),s=Math.sin(shape.rotation);
-  return Math.abs(dx*c+dz*s)<=shape.halfWidth && Math.abs(-dx*s+dz*c)<=shape.halfDepth;
-}
-export function footprintsOverlap(a: PoiFootprint, b: PoiFootprint): boolean {
-  if (a.kind === "circle" && b.kind === "circle") return Math.hypot(a.x-b.x,a.z-b.z) <= a.radius+b.radius;
-  if (a.kind === "circle" || b.kind === "circle") {
-    const circle = (a.kind === "circle" ? a : b) as Extract<PoiFootprint,{kind:"circle"}>, rect = (a.kind === "rectangle" ? a : b) as Extract<PoiFootprint,{kind:"rectangle"}>;
-    const dx=circle.x-rect.x,dz=circle.z-rect.z,c=Math.cos(rect.rotation),s=Math.sin(rect.rotation);
-    const lx=dx*c+dz*s,lz=-dx*s+dz*c, qx=Math.max(-rect.halfWidth,Math.min(rect.halfWidth,lx)),qz=Math.max(-rect.halfDepth,Math.min(rect.halfDepth,lz));
-    return (lx-qx)**2+(lz-qz)**2 <= circle.radius**2;
-  }
-  const cornersA=rectangleCorners(a), cornersB=rectangleCorners(b);
-  for (const axis of [...axes(a),...axes(b)]) { const pa=cornersA.map(p=>p[0]*axis[0]+p[1]*axis[1]),pb=cornersB.map(p=>p[0]*axis[0]+p[1]*axis[1]); if(Math.max(...pa)<Math.min(...pb)||Math.max(...pb)<Math.min(...pa)) return false; }
-  return true;
-}
-export function isVegetationExcluded(x: number, z: number, zones: readonly PoiZone[]): boolean { return zones.some(zone => (zone.purpose === "solid" || zone.purpose === "vegetation-exclusion") && pointInFootprint(x,z,zone.footprint)); }
+function axes(shape:Extract<PoiFootprint,{kind:"rectangle"}>):readonly [number,number][]{const c=Math.cos(shape.rotation),s=Math.sin(shape.rotation);return [[c,s],[-s,c]];}
+function rectangleCorners(shape:Extract<PoiFootprint,{kind:"rectangle"}>):readonly [number,number][]{const[a,b]=axes(shape);return [[-1,-1],[-1,1],[1,-1],[1,1]].map(([u,v])=>[shape.x+a[0]*shape.halfWidth*u+b[0]*shape.halfDepth*v,shape.z+a[1]*shape.halfWidth*u+b[1]*shape.halfDepth*v]);}
+export function pointInFootprint(x:number,z:number,shape:PoiFootprint):boolean{if(shape.kind==="circle")return Math.hypot(x-shape.x,z-shape.z)<=shape.radius;const dx=x-shape.x,dz=z-shape.z,c=Math.cos(shape.rotation),s=Math.sin(shape.rotation);return Math.abs(dx*c+dz*s)<=shape.halfWidth&&Math.abs(-dx*s+dz*c)<=shape.halfDepth;}
+export function footprintsOverlap(a:PoiFootprint,b:PoiFootprint):boolean{if(a.kind==="circle"&&b.kind==="circle")return Math.hypot(a.x-b.x,a.z-b.z)<=a.radius+b.radius;if(a.kind==="circle"||b.kind==="circle"){const circle=(a.kind==="circle"?a:b) as Extract<PoiFootprint,{kind:"circle"}>,rect=(a.kind==="rectangle"?a:b) as Extract<PoiFootprint,{kind:"rectangle"}>;const dx=circle.x-rect.x,dz=circle.z-rect.z,c=Math.cos(rect.rotation),s=Math.sin(rect.rotation),lx=dx*c+dz*s,lz=-dx*s+dz*c,qx=Math.max(-rect.halfWidth,Math.min(rect.halfWidth,lx)),qz=Math.max(-rect.halfDepth,Math.min(rect.halfDepth,lz));return(lx-qx)**2+(lz-qz)**2<=circle.radius**2;}const ca=rectangleCorners(a),cb=rectangleCorners(b);for(const axis of [...axes(a),...axes(b)]){const pa=ca.map(p=>p[0]*axis[0]+p[1]*axis[1]),pb=cb.map(p=>p[0]*axis[0]+p[1]*axis[1]);if(Math.max(...pa)<Math.min(...pb)||Math.max(...pb)<Math.min(...pa))return false;}return true;}
+export function isVegetationExcluded(x:number,z:number,zones:readonly PoiZone[]):boolean{return zones.some(zone=>(zone.purpose==="solid"||zone.purpose==="vegetation-exclusion")&&pointInFootprint(x,z,zone.footprint));}
+function samples(shape:PoiFootprint):readonly [number,number][]{if(shape.kind==="rectangle"){const c=Math.cos(shape.rotation),s=Math.sin(shape.rotation),out:[number,number][]=[];for(let u=-1;u<=1;u+=.5)for(let v=-1;v<=1;v+=.5)out.push([shape.x+c*shape.halfWidth*u-s*shape.halfDepth*v,shape.z+s*shape.halfWidth*u+c*shape.halfDepth*v]);return out;}return [[shape.x,shape.z],...Array.from({length:48},(_,i)=>{const a=(i%12)*Math.PI/6,r=shape.radius*(Math.floor(i/12)+1)/4;return[shape.x+Math.cos(a)*r,shape.z+Math.sin(a)*r] as[number,number];})];}
+export function analyzeTerrainFootprint(seedInput:number|string,shape:PoiFootprint):TerrainFootprintAnalysis{const seed=normalizeSeed(seedInput),heights=samples(shape).map(([x,z])=>sampleTerrainHeight(seed,x,z)),minimumHeight=Math.min(...heights),maximumHeight=Math.max(...heights),averageHeight=heights.reduce((a,b)=>a+b,0)/heights.length,extent=shape.kind==="circle"?shape.radius*2:Math.min(shape.halfWidth,shape.halfDepth)*2;return{averageHeight,minimumHeight,maximumHeight,heightVariation:maximumHeight-minimumHeight,approximateSlope:(maximumHeight-minimumHeight)/Math.max(.01,extent),suggestedPlacementHeight:maximumHeight-.08};}
+export function footprintIntersectsRiver(seedInput:number|string,shape:PoiFootprint):boolean{const seed=normalizeSeed(seedInput);return samples(shape).some(([x,z])=>isRiverAt(seed,x,z));}
+export function footprintLakeCoverage(seedInput:number|string,shape:PoiFootprint):number{const seed=normalizeSeed(seedInput),points=samples(shape);return points.filter(([x,z])=>isLakeAt(seed,x,z)).length/points.length;}
+export function footprintBiomeCoverage(seedInput:number|string,shape:PoiFootprint,biome:BiomeId):number{const seed=normalizeSeed(seedInput),points=samples(shape);return points.filter(([x,z])=>sampleBiome(seed,x,z).dominant===biome).length/points.length;}
 
-function perimeterSamples(shape: PoiFootprint): readonly [number,number][] {
-  if(shape.kind==="rectangle") {
-    const c=Math.cos(shape.rotation),s=Math.sin(shape.rotation),points:[number,number][]=[];
-    for(let u=-1;u<=1;u+=.5)for(let v=-1;v<=1;v+=.5)points.push([shape.x+c*shape.halfWidth*u-s*shape.halfDepth*v,shape.z+s*shape.halfWidth*u+c*shape.halfDepth*v]);
-    return points;
-  }
-  return [[shape.x,shape.z],...Array.from({length:48},(_,i)=>{const angle=(i%12)*Math.PI/6,radius=shape.radius*(Math.floor(i/12)+1)/4;return [shape.x+Math.cos(angle)*radius,shape.z+Math.sin(angle)*radius] as [number,number];})];
-}
-export function analyzeTerrainFootprint(seedInput:number|string, shape:PoiFootprint):TerrainFootprintAnalysis {
-  const seed=normalizeSeed(seedInput), samples=perimeterSamples(shape).map(([x,z])=>sampleTerrainHeight(seed,x,z));
-  const minimumHeight=Math.min(...samples), maximumHeight=Math.max(...samples), averageHeight=samples.reduce((a,b)=>a+b,0)/samples.length;
-  const extent=shape.kind==="circle"?shape.radius*2:Math.min(shape.halfWidth,shape.halfDepth)*2;
-  return {averageHeight,minimumHeight,maximumHeight,heightVariation:maximumHeight-minimumHeight,approximateSlope:(maximumHeight-minimumHeight)/Math.max(.01,extent),suggestedPlacementHeight:averageHeight};
-}
-export function footprintIntersectsRiver(seedInput:number|string, shape:PoiFootprint):boolean { const seed=normalizeSeed(seedInput); return perimeterSamples(shape).some(([x,z])=>isRiverAt(seed,x,z)); }
+export interface Shoreline {readonly land:{x:number;z:number};readonly shore:{x:number;z:number};readonly water:{x:number;z:number};readonly direction:PoiDirection}
+/** Finds a globally sampled dry-to-lake transect; independent of chunk boundaries. */
+export function detectLakeShoreline(seedInput:number|string,x:number,z:number,maxDistance=24):Shoreline|undefined{const seed=normalizeSeed(seedInput);let best:Shoreline|undefined,bestDistance=Infinity;for(let i=0;i<16;i++){const a=i*Math.PI/8,dx=Math.sin(a),dz=Math.cos(a);for(let r=2;r<=maxDistance;r+=2){const px=x+dx*r,pz=z+dz*r;if(isLakeAt(seed,px,pz)){const landR=r-2,land={x:x+dx*landR,z:z+dz*landR};if(!isLakeAt(seed,land.x,land.z)&&!isRiverAt(seed,land.x,land.z)&&r<bestDistance){bestDistance=r;best={land,shore:{x:x+dx*(r-1),z:z+dz*(r-1)},water:{x:x+dx*(r+2),z:z+dz*(r+2)},direction:{x:dx,z:dz}};}break;}}}return best;}
 
-const CELL_SIZE=48;
-const generationCache = new Map<string, Readonly<{ pois: readonly GeneratedPoi[]; candidates: readonly PoiDebugCandidate[] }>>();
-interface Evaluated { definition:PoiDefinition; id:string; cellX:number;cellZ:number;index:number;x:number;z:number;rotation:number;footprint:PoiFootprint; context:PoiSuitabilityContext; score:number; reason?:PoiRejectionReason }
-function distanceToFeature(seed:number,x:number,z:number,predicate:(seed:number,x:number,z:number)=>boolean,max=32):number { if(predicate(seed,x,z))return 0; for(let r=2;r<=max;r+=2) for(let i=0;i<16;i++){const a=i*Math.PI/8;if(predicate(seed,x+Math.cos(a)*r,z+Math.sin(a)*r))return r;} return Infinity; }
-function evaluate(seed:number,definition:PoiDefinition,cellX:number,cellZ:number,index=0):Evaluated {
-  const x=(cellX+.12+hashFloat(seed,cellX,cellZ,801+index)*.76)*CELL_SIZE,z=(cellZ+.12+hashFloat(seed,cellX,cellZ,811+index)*.76)*CELL_SIZE,rotation=hashFloat(seed,cellX,cellZ,821+index)*Math.PI*2;
-  const footprint:PoiFootprint=definition.footprint.kind==="circle"?{kind:"circle",x,z,radius:definition.footprint.radius}:{kind:"rectangle",x,z,halfWidth:definition.footprint.width/2,halfDepth:definition.footprint.depth/2,rotation};
-  const biome=sampleBiome(seed,x,z),terrain=analyzeTerrainFootprint(seed,footprint),distanceToRiver=distanceToFeature(seed,x,z,isRiverAt),distanceToLake=distanceToFeature(seed,x,z,isLakeAt),intersectsRiver=footprintIntersectsRiver(seed,footprint),underwater=isLakeAt(seed,x,z);
-  const vegetationDensity=hashFloat(seed,Math.floor(x/32),Math.floor(z/32),401);
-  const context={seed,x,z,rotation,biome,terrain,footprint,distanceToRiver,distanceToLake,intersectsRiver,underwater,vegetationDensity};
-  let reason:PoiRejectionReason|undefined;
-  if(hashFloat(seed,cellX,cellZ,831+index)>=definition.rarity)reason="rarity"; else if(definition.biomes.allowed&&!definition.biomes.allowed.includes(biome.dominant))reason="wrong biome"; else if(underwater)reason="underwater"; else if(definition.hydrology?.rejectRiverIntersection&&intersectsRiver)reason="river intersection"; else if(definition.hydrology?.requireLakeWithin!==undefined&&distanceToLake>definition.hydrology.requireLakeWithin)reason="lake requirement not met"; else if(terrain.approximateSlope>definition.terrain.maximumSlope)reason="slope too high"; else if(terrain.heightVariation>definition.terrain.maximumVariation)reason="uneven terrain";
-  let score=(definition.biomes.preferred?.includes(biome.dominant)?0.2:0)+definition.weight*.1+hashFloat(seed,cellX,cellZ,841+index)*.7; const custom=definition.suitability?.(context); if(custom){score=Math.max(0,Math.min(1,custom.score));reason=reason??custom.reason;}
-  return {definition,id:`poi:${seed.toString(16)}:${definition.id}:${cellX}:${cellZ}:${index}`,cellX,cellZ,index,x,z,rotation,footprint,context,score,reason};
-}
-function rank(a:Evaluated,b:Evaluated):number { return b.score-a.score || a.id.localeCompare(b.id); }
-export function generatePois(seedInput:number|string,coordinate:ChunkCoordinate):Readonly<{pois:readonly GeneratedPoi[];candidates:readonly PoiDebugCandidate[]}> {
-  const seed=normalizeSeed(seedInput), cacheKey=`${seed}:${definitions.size}:${coordinate.x}:${coordinate.z}`, cached=generationCache.get(cacheKey);
-  if(cached)return cached;
-  const minX=Math.floor(coordinate.x*CHUNK_SIZE/CELL_SIZE)-2,maxX=Math.floor((coordinate.x+1)*CHUNK_SIZE/CELL_SIZE)+2,minZ=Math.floor(coordinate.z*CHUNK_SIZE/CELL_SIZE)-2,maxZ=Math.floor((coordinate.z+1)*CHUNK_SIZE/CELL_SIZE)+2;
-  const all:Evaluated[]=[]; for(let cz=minZ;cz<=maxZ;cz++)for(let cx=minX;cx<=maxX;cx++)for(const d of definitions.values())all.push(evaluate(seed,d,cx,cz));
-  const viable=all.filter(c=>!c.reason); const accepted=new Set<string>();
-  for(const candidate of [...viable].sort(rank)){const conflict=viable.filter(other=>other.id!==candidate.id&&Math.hypot(other.x-candidate.x,other.z-candidate.z)<Math.max(candidate.definition.minimumSpacing,other.definition.minimumSpacing)).sort(rank)[0]; if(!conflict||rank(candidate,conflict)<0)accepted.add(candidate.id);}
-  const owned=all.filter(c=>{const owner=worldToChunk(c.x,c.z);return owner.x===coordinate.x&&owner.z===coordinate.z;});
-  const pois=owned.filter(c=>accepted.has(c.id)).map(c=>{const clearing:PoiFootprint={kind:"circle",x:c.x,z:c.z,radius:c.definition.clearanceRadius};const y=c.context.terrain.suggestedPlacementHeight;return {id:c.id,typeId:c.definition.id,position:{x:c.x,y,z:c.z},rotation:c.rotation,footprint:c.footprint,zones:[{purpose:"solid" as const,footprint:c.footprint},{purpose:"vegetation-exclusion" as const,footprint:clearing}],clearanceRadius:c.definition.clearanceRadius,ownerChunk:{...coordinate},entrance:{position:{x:c.x+Math.sin(c.rotation)*c.definition.clearanceRadius,y,z:c.z+Math.cos(c.rotation)*c.definition.clearanceRadius},facing:c.rotation},metadata:{biome:c.context.biome.dominant,biomeWeights:c.context.biome.weights,candidateCell:{x:c.cellX,z:c.cellZ,index:c.index},suitability:c.score,terrain:c.context.terrain,distanceToRiver:c.context.distanceToRiver,distanceToLake:c.context.distanceToLake,vegetationDensity:c.context.vegetationDensity},parameters:c.definition.parameters?.(seed,c.cellX,c.cellZ)};});
-  const result={pois,candidates:owned.map(c=>({id:c.id,typeId:c.definition.id,x:c.x,z:c.z,score:c.score,accepted:accepted.has(c.id),reason:c.reason??(!accepted.has(c.id)?"candidate lost to a higher-scoring candidate" as const:undefined),footprint:c.footprint}))};
-  generationCache.set(cacheKey,result); if(generationCache.size>256)generationCache.delete(generationCache.keys().next().value!);
-  return result;
-}
+const CELL_SIZE=48;const generationCache=new Map<string,Readonly<{pois:readonly GeneratedPoi[];candidates:readonly PoiDebugCandidate[]}>>();
+interface Evaluated{definition:PoiDefinition;id:string;cellX:number;cellZ:number;index:number;x:number;z:number;rotation:number;footprint:PoiFootprint;context:PoiSuitabilityContext;score:number;reason?:PoiRejectionReason}
+function distanceTo(seed:number,x:number,z:number,predicate:(s:number,x:number,z:number)=>boolean,max=32):number{if(predicate(seed,x,z))return 0;for(let r=2;r<=max;r+=2)for(let i=0;i<16;i++){const a=i*Math.PI/8;if(predicate(seed,x+Math.cos(a)*r,z+Math.sin(a)*r))return r;}return Infinity;}
+function evaluate(seed:number,d:PoiDefinition,cellX:number,cellZ:number,index=0):Evaluated{let x=(cellX+.12+hashFloat(seed,cellX,cellZ,801+index)*.76)*CELL_SIZE,z=(cellZ+.12+hashFloat(seed,cellX,cellZ,811+index)*.76)*CELL_SIZE;if(hashFloat(seed,cellX,cellZ,831+index)>=d.rarity){const rotation=hashFloat(seed,cellX,cellZ,821+index)*Math.PI*2,fp:PoiFootprint=d.footprint.kind==="circle"?{kind:"circle",x,z,radius:d.footprint.radius}:{kind:"rectangle",x,z,halfWidth:d.footprint.width/2,halfDepth:d.footprint.depth/2,rotation},biome=sampleBiome(seed,x,z),terrain:TerrainFootprintAnalysis={averageHeight:0,minimumHeight:0,maximumHeight:0,heightVariation:0,approximateSlope:0,suggestedPlacementHeight:0},context:PoiSuitabilityContext={seed,x,z,rotation,biome,terrain,footprint:fp,distanceToRiver:Infinity,distanceToLake:Infinity,underwater:false,intersectsRiver:false,vegetationDensity:0,plainsCoverage:0};return{definition:d,id:`poi:${seed.toString(16)}:${d.id}:${cellX}:${cellZ}:${index}`,cellX,cellZ,index,x,z,rotation,footprint:fp,context,score:0,reason:"rarity"};}const shoreline=d.hydrology?.shoreline?detectLakeShoreline(seed,x,z):undefined;if(shoreline){x=shoreline.land.x-shoreline.direction.x*5.5;z=shoreline.land.z-shoreline.direction.z*5.5;}let rotation=shoreline?Math.atan2(shoreline.direction.x,shoreline.direction.z):hashFloat(seed,cellX,cellZ,821+index)*Math.PI*2;const fp:PoiFootprint=d.footprint.kind==="circle"?{kind:"circle",x,z,radius:d.footprint.radius}:{kind:"rectangle",x,z,halfWidth:d.footprint.width/2,halfDepth:d.footprint.depth/2,rotation};const biome=sampleBiome(seed,x,z),terrain=analyzeTerrainFootprint(seed,fp),distanceToRiver=distanceTo(seed,x,z,isRiverAt),distanceToLake=distanceTo(seed,x,z,isLakeAt),intersectsRiver=footprintIntersectsRiver(seed,fp),underwater=isLakeAt(seed,x,z),vegetationDensity=hashFloat(seed,Math.floor(x/32),Math.floor(z/32),401),plainsCoverage=footprintBiomeCoverage(seed,fp,"plains"),context={seed,x,z,rotation,biome,terrain,footprint:fp,distanceToRiver,distanceToLake,intersectsRiver,underwater,vegetationDensity,plainsCoverage,shoreline};let reason:PoiRejectionReason|undefined;if(!shoreline&&d.hydrology?.shoreline)reason="invalid shoreline";else if(d.biomes.allowed&&!d.biomes.allowed.includes(biome.dominant))reason="wrong biome";else if(underwater||footprintLakeCoverage(seed,fp)>0)reason="underwater";else if(d.hydrology?.rejectRiverIntersection&&intersectsRiver)reason="river intersection";else if(d.hydrology?.requireLakeWithin!==undefined&&distanceToLake>d.hydrology.requireLakeWithin)reason="lake requirement not met";else if(terrain.approximateSlope>d.terrain.maximumSlope)reason="slope too high";else if(terrain.heightVariation>d.terrain.maximumVariation)reason="uneven terrain";if(shoreline&&!isLakeAt(seed,shoreline.water.x,shoreline.water.z))reason="dock not over lake";let score=(d.biomes.preferred?.includes(biome.dominant)?.2:0)+d.weight*.1+hashFloat(seed,cellX,cellZ,841+index)*.7;const custom=d.suitability?.(context);if(custom){score=Math.max(0,Math.min(1,custom.score));reason=reason??custom.reason;}return{definition:d,id:`poi:${seed.toString(16)}:${d.id}:${cellX}:${cellZ}:${index}`,cellX,cellZ,index,x,z,rotation,footprint:fp,context,score,reason};}
+function rank(a:Evaluated,b:Evaluated):number{return b.score-a.score||a.id.localeCompare(b.id);}
+export function generatePois(seedInput:number|string,coordinate:ChunkCoordinate):Readonly<{pois:readonly GeneratedPoi[];candidates:readonly PoiDebugCandidate[]}>{const seed=normalizeSeed(seedInput),key=`${seed}:${definitions.size}:${coordinate.x}:${coordinate.z}`,cached=generationCache.get(key);if(cached)return cached;const minX=Math.floor(coordinate.x*CHUNK_SIZE/CELL_SIZE)-3,maxX=Math.floor((coordinate.x+1)*CHUNK_SIZE/CELL_SIZE)+3,minZ=Math.floor(coordinate.z*CHUNK_SIZE/CELL_SIZE)-3,maxZ=Math.floor((coordinate.z+1)*CHUNK_SIZE/CELL_SIZE)+3,all:Evaluated[]=[];for(let cz=minZ;cz<=maxZ;cz++)for(let cx=minX;cx<=maxX;cx++)for(const d of definitions.values())all.push(evaluate(seed,d,cx,cz));const viable=all.filter(c=>!c.reason),accepted=new Set<string>();for(const candidate of [...viable].sort(rank)){if([...accepted].every(id=>{const other=viable.find(v=>v.id===id)!;return Math.hypot(other.x-candidate.x,other.z-candidate.z)>=Math.max(other.definition.minimumSpacing,candidate.definition.minimumSpacing);}))accepted.add(candidate.id);}const owned=all.filter(c=>{const o=worldToChunk(c.x,c.z);return o.x===coordinate.x&&o.z===coordinate.z;});const pois:GeneratedPoi[]=owned.filter(c=>accepted.has(c.id)).map(c=>{const y=c.context.terrain.suggestedPlacementHeight,dir={x:Math.sin(c.rotation),z:Math.cos(c.rotation)},clearing:PoiFootprint={kind:"circle",x:c.x,z:c.z,radius:c.definition.clearanceRadius},entrancePosition={x:c.x+dir.x*(c.definition.footprint.kind==="rectangle"?c.definition.footprint.depth/2+.7:c.definition.clearanceRadius),y,z:c.z+dir.z*(c.definition.footprint.kind==="rectangle"?c.definition.footprint.depth/2+.7:c.definition.clearanceRadius)},zones:PoiZone[]=[{name:"house",purpose:"solid",footprint:c.footprint},{name:"clearing",purpose:"vegetation-exclusion",footprint:clearing},{name:"entrance-approach",purpose:"vegetation-exclusion",footprint:{kind:"rectangle",x:entrancePosition.x,z:entrancePosition.z,halfWidth:1.2,halfDepth:2,rotation:c.rotation}}];let dock:GeneratedPoi["dock"];if(c.context.shoreline){const s=c.context.shoreline,mid={x:(s.shore.x+s.water.x)/2,z:(s.shore.z+s.water.z)/2},dockFp:PoiFootprint={kind:"rectangle",x:mid.x,z:mid.z,halfWidth:1.05,halfDepth:Math.hypot(s.water.x-s.shore.x,s.water.z-s.shore.z)/2+.8,rotation:c.rotation};zones.push({name:"dock",purpose:"solid",footprint:dockFp},{name:"dock-approach",purpose:"vegetation-exclusion",footprint:{...dockFp,halfWidth:1.7}});dock={footprint:dockFp,direction:s.direction,shore:s.shore,end:{x:s.water.x,y:LAKE_SURFACE_ELEVATION+.12,z:s.water.z},surfaceElevation:LAKE_SURFACE_ELEVATION};}const decorativeTrees=c.definition.id==="plains-farmhouse"?[{x:c.x-dir.z*7,z:c.z+dir.x*7,scale:.85+hashFloat(seed,c.cellX,c.cellZ,991)*.25}]:undefined;return{id:c.id,typeId:c.definition.id,position:{x:c.x,y,z:c.z},rotation:c.rotation,footprint:c.footprint,zones,clearanceRadius:c.definition.clearanceRadius,entrance:{position:entrancePosition,facing:c.rotation,direction:dir},dock,decorativeTrees,ownerChunk:{...coordinate},metadata:{biome:c.context.biome.dominant,biomeWeights:c.context.biome.weights,candidateCell:{x:c.cellX,z:c.cellZ,index:c.index},suitability:c.score,terrain:c.context.terrain,distanceToRiver:c.context.distanceToRiver,distanceToLake:c.context.distanceToLake,vegetationDensity:c.context.vegetationDensity,plainsCoverage:c.context.plainsCoverage},parameters:c.definition.parameters?.(seed,c.cellX,c.cellZ)};});const result={pois,candidates:owned.map(c=>({id:c.id,typeId:c.definition.id,label:c.definition.label,x:c.x,z:c.z,score:c.score,accepted:accepted.has(c.id),reason:c.reason??(!accepted.has(c.id)?"candidate lost to a higher-scoring candidate" as const:undefined),footprint:c.footprint,rotation:c.rotation,entrance:{x:c.x+Math.sin(c.rotation)*4,z:c.z+Math.cos(c.rotation)*4},dockDirection:c.context.shoreline?.direction}))};generationCache.set(key,result);if(generationCache.size>256)generationCache.delete(generationCache.keys().next().value!);return result;}

@@ -13,6 +13,7 @@ import {
 } from "../world/chunkCoordinates";
 import { chunkId } from "../world/chunkId";
 import { hashFloat, normalizeSeed } from "../world/random";
+import { generatePois, isVegetationExcluded, type PoiZone } from "../world/poi";
 import { sampleTerrainHeight } from "../world/terrainSampling";
 
 export interface CollectiblePlacement {
@@ -30,12 +31,16 @@ export function placeCollectibles(seedInput: number | string, coordinate: ChunkC
   const seed = normalizeSeed(seedInput);
   const origin = chunkOrigin(coordinate);
   const owner = chunkId(coordinate);
+  const poiZones: PoiZone[] = [];
+  for (let dz = -1; dz <= 1; dz += 1) for (let dx = -1; dx <= 1; dx += 1) {
+    poiZones.push(...generatePois(seed, { x: coordinate.x + dx, z: coordinate.z + dz }).pois.flatMap((poi) => poi.zones));
+  }
   return Array.from({ length: COLLECTIBLES_PER_CHUNK }, (_, index) => {
     // The inset keeps objects away from seams where presentation chunks churn.
     const x = origin.x + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 101) * (CHUNK_SIZE - 4);
     const z = origin.z + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 211) * (CHUNK_SIZE - 4);
     return { id: `${owner}:waypoint:${index}`, chunkId: owner, x, y: sampleTerrainHeight(seed, x, z), z };
-  });
+  }).filter((placement) => !isVegetationExcluded(placement.x, placement.z, poiZones));
 }
 
 export function createCollectionState(collectedIds: Iterable<string> = []): NonNullable<Entity["collectionState"]> {
