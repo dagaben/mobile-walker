@@ -293,7 +293,7 @@ export class ChunkMeshFactory {
       const isPine = index < pineCount;
       // Cover the crown as well as the trunk and project it away from the sun.
       const crownRadius = isPine ? 0.92 : 1.02;
-      const offset = crownRadius * 0.48 * tree.scale * projection.stretch;
+      const offset = crownRadius * 0.48 * tree.scale * projection.offsetScale;
       transform.position.set(tree.x + projection.directionX * offset, tree.y + 0.025, tree.z + projection.directionZ * offset);
       transform.rotation.y = projection.rotationY;
       transform.scale.set(crownRadius * 1.5 * tree.scale * projection.stretch, 1, crownRadius * 0.9 * tree.scale);
