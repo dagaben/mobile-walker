@@ -53,6 +53,8 @@ export interface GeneratedChunkData {
   readonly terrainBiomeWeights: readonly BiomeWeights[];
   /** Worker-baked, global sunlight obstruction in the range [0, 1]. */
   readonly terrainOcclusion: readonly number[];
+  /** Presentation-neutral buffers baked off-thread and transferred without cloning. */
+  readonly terrainMesh: { readonly positions: Float32Array; readonly indices: Uint16Array; readonly normals: Float32Array };
   readonly terrainMaximumDarkening: number;
   readonly terrainVerticesPerSide: number;
   /** Explicit coarse regions used when a rectangular grid would overlap the river channel. */
@@ -204,6 +206,29 @@ export function generateChunk(
   }
   const pois = poiNeighborhood.filter(poi => poi.ownerChunk.x === coordinate.x && poi.ownerChunk.z === coordinate.z);
   const exclusionZones = poiNeighborhood.flatMap(poi => poi.zones);
+  const irregularTerrain = channel ? generateIrregularTerrain(seed, coordinate, channel.sections, occlusionOptions) : undefined;
+  const meshVertices = irregularTerrain?.vertices ?? terrainHeights.map((height, vertexIndex) => ({
+    x: coordinate.x * CHUNK_SIZE + vertexIndex % verticesPerSide * CHUNK_SIZE / terrainSegments,
+    z: coordinate.z * CHUNK_SIZE + Math.floor(vertexIndex / verticesPerSide) * CHUNK_SIZE / terrainSegments,
+    height,
+  }));
+  const meshIndices = irregularTerrain?.indices ? [...irregularTerrain.indices] : [];
+  if (!irregularTerrain) for (let z = 0; z < terrainSegments; z++) for (let x = 0; x < terrainSegments; x++) {
+    const topLeft = z * verticesPerSide + x;
+    meshIndices.push(topLeft, topLeft + verticesPerSide, topLeft + 1, topLeft + 1, topLeft + verticesPerSide, topLeft + verticesPerSide + 1);
+  }
+  const positions = new Float32Array(meshVertices.length * 3);
+  meshVertices.forEach((vertex, index) => positions.set([vertex.x, vertex.height, vertex.z], index * 3));
+  const indices = new Uint16Array(meshIndices);
+  const normals = new Float32Array(positions.length);
+  for (let i = 0; i < indices.length; i += 3) {
+    const a=indices[i]!*3,b=indices[i+1]!*3,c=indices[i+2]!*3;
+    const abx=positions[b]!-positions[a]!,aby=positions[b+1]!-positions[a+1]!,abz=positions[b+2]!-positions[a+2]!;
+    const acx=positions[c]!-positions[a]!,acy=positions[c+1]!-positions[a+1]!,acz=positions[c+2]!-positions[a+2]!;
+    const nx=aby*acz-abz*acy,ny=abz*acx-abx*acz,nz=abx*acy-aby*acx;
+    for(const offset of [a,b,c]) { normals[offset]!+=nx;normals[offset+1]!+=ny;normals[offset+2]!+=nz; }
+  }
+  for(let i=0;i<normals.length;i+=3){const length=Math.hypot(normals[i]!,normals[i+1]!,normals[i+2]!)||1;normals[i]!/=length;normals[i+1]!/=length;normals[i+2]!/=length;}
   return {
     id: chunkId(coordinate),
     coordinate: { ...coordinate },
@@ -211,9 +236,10 @@ export function generateChunk(
     terrainHeights,
     terrainBiomeWeights,
     terrainOcclusion,
+    terrainMesh: { positions, indices, normals },
     terrainMaximumDarkening: occlusionOptions.maximumDarkening,
     terrainVerticesPerSide: verticesPerSide,
-    irregularTerrain: channel ? generateIrregularTerrain(seed, coordinate, channel.sections, occlusionOptions) : undefined,
+    irregularTerrain,
     pines: generateTrees(seed, coordinate).filter(tree => !isVegetationExcluded(tree.x, tree.z, exclusionZones)),
     pois,
     poiCandidates: ownedCandidates,
