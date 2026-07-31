@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { CHUNK_SIZE, chunkOrigin, worldToChunk } from "./chunkCoordinates";
+import { CHUNK_SIZE, chunkOrigin, clampNeighborhoodOffset, worldToChunk } from "./chunkCoordinates";
 
 describe("chunk coordinates", () => {
+  it("constrains configurable neighborhood offsets to whole values from 1 through 10", () => {
+    expect(clampNeighborhoodOffset(0)).toBe(1);
+    expect(clampNeighborhoodOffset(4.9)).toBe(4);
+    expect(clampNeighborhoodOffset(11)).toBe(10);
+    expect(clampNeighborhoodOffset(Number.NaN)).toBe(1);
+  });
+
   it("maps exact positive boundaries to the next chunk", () => {
     expect(worldToChunk(CHUNK_SIZE - 0.001, CHUNK_SIZE)).toEqual({ x: 0, z: 1 });
     expect(worldToChunk(CHUNK_SIZE, CHUNK_SIZE * 2)).toEqual({ x: 1, z: 2 });

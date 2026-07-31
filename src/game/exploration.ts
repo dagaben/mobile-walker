@@ -81,7 +81,7 @@ function disposeObject(object: THREE.Object3D): void {
 /** Streams only ECS/presentation shells; collection truth lives on the persistent state entity. */
 export class ExplorationPresentationSystem implements RenderSystem {
   private readonly active = new Map<string, Entity[]>();
-  private readonly offsets: ChunkNeighborhoodOffsets;
+  private offsets: ChunkNeighborhoodOffsets;
   private center?: ChunkCoordinate;
 
   constructor(
@@ -91,6 +91,10 @@ export class ExplorationPresentationSystem implements RenderSystem {
     offsets: Partial<ChunkNeighborhoodOffsets> = {},
   ) {
     this.offsets = resolveNeighborhoodOffsets(radius, offsets);
+  }
+
+  setNeighborhoodOffsets(offsets: Partial<ChunkNeighborhoodOffsets>): void {
+    this.offsets = resolveNeighborhoodOffsets(1, offsets);
   }
 
   prepareRender(world: EcsWorld): void {

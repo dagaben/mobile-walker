@@ -75,7 +75,7 @@ body { overscroll-behavior: none; touch-action: none; }
 .toolbar-button:active { transform: scale(.96); }
 .toolbar-button:focus-visible { outline: 3px solid rgb(49 71 58 / 35%); outline-offset: 3px; }
 
-.debug-panel {
+.debug-panel, .settings-panel {
   position: absolute;
   top: calc(max(1rem, env(safe-area-inset-top)) + 3rem);
   right: max(1rem, env(safe-area-inset-right));
@@ -93,6 +93,16 @@ body { overscroll-behavior: none; touch-action: none; }
 .debug-panel h2 { margin: 0 0 .75rem; font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; }
 .debug-panel label { display: flex; align-items: center; gap: .65rem; padding: .4rem 0; font-size: .85rem; cursor: pointer; }
 .debug-panel input { width: 1rem; height: 1rem; accent-color: #376d51; }
+
+.settings-panel h2 { margin: 0 0 .8rem; font-size: 1rem; }
+.settings-panel fieldset { margin: 0 0 .65rem; padding: .75rem; border: 1px solid rgb(49 71 58 / 16%); border-radius: .75rem; }
+.settings-panel legend { padding: 0 .25rem; font-size: .85rem; font-weight: 750; }
+.settings-panel p { margin: -.15rem 0 .65rem; color: #587064; font-size: .72rem; }
+.offset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
+.offset-grid label { display: flex; align-items: center; justify-content: space-between; gap: .35rem; font-size: .78rem; }
+.offset-grid input { width: 3.25rem; padding: .3rem; border: 1px solid rgb(49 71 58 / 25%); border-radius: .45rem; color: inherit; background: rgb(255 255 255 / 70%); font: inherit; }
+.settings-action { width: 100%; margin-top: .35rem; padding: .58rem .7rem; border: 0; border-radius: .6rem; color: #31473a; background: rgb(49 71 58 / 10%); font: 700 .8rem/1 inherit; cursor: pointer; }
+.settings-action.danger { color: #8a3434; background: rgb(180 55 55 / 10%); }
 
 .debug-readout {
   position: absolute;

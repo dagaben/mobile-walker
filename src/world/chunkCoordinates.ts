@@ -17,6 +17,15 @@ export interface ChunkNeighborhoodOffsets {
   readonly south: number;
 }
 
+export const MIN_NEIGHBORHOOD_OFFSET = 1;
+export const MAX_NEIGHBORHOOD_OFFSET = 10;
+
+/** Sanitizes a user-configurable neighborhood distance. */
+export function clampNeighborhoodOffset(value: number): number {
+  if (!Number.isFinite(value)) return MIN_NEIGHBORHOOD_OFFSET;
+  return Math.min(MAX_NEIGHBORHOOD_OFFSET, Math.max(MIN_NEIGHBORHOOD_OFFSET, Math.floor(value)));
+}
+
 export function resolveNeighborhoodOffsets(
   radius: number,
   offsets: Partial<ChunkNeighborhoodOffsets> = {},

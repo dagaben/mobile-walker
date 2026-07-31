@@ -39,6 +39,22 @@ describe("loaded neighborhood boundary", () => {
     chunks.dispose();
   });
 
+  it("applies changed offsets to the running world", () => {
+    const scene = new THREE.Scene();
+    const { world } = createPlayerWorld();
+    const chunks = new ChunkStreamingSystem(scene, "live-settings", 0, {
+      generator: generateChunk, generationWorkPerFrame: 20, meshWorkPerFrame: 20,
+    });
+    chunks.prepareRender(world, 0, 0);
+    expect(scene.children).toHaveLength(1);
+
+    chunks.setNeighborhoodOffsets({ west: 1, east: 1, north: 1, south: 1 });
+    chunks.prepareRender(world, 0, 0);
+    expect(scene.children).toHaveLength(9);
+    expect(scene.getObjectByName("chunk:-1,-1")).toBeDefined();
+    chunks.dispose();
+  });
+
   it("queues activation and obeys generation and mesh limits per frame", () => {
     const scene = new THREE.Scene();
     const { world } = createPlayerWorld();

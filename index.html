@@ -17,9 +17,9 @@
             <path d="M9 3h6M10 3v3m4-3v3m-7 5H4m16 0h-3M7 15H4m16 0h-3M8 8h8l1 3v5a5 5 0 0 1-10 0v-5l1-3Z" />
           </svg>
         </button>
-        <button class="toolbar-button" id="restart-button" type="button" aria-label="Restart game" title="Restart">
+        <button class="toolbar-button" id="settings-button" type="button" aria-label="Toggle settings" aria-controls="settings-panel" aria-expanded="false">
           <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" />
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.08 14H3v-4h.08A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.63h.01A1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.03 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9v.01A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
           </svg>
         </button>
       </div>
@@ -29,6 +29,21 @@
         <label><input id="debug-biomes" type="checkbox" /> Biome guide</label>
         <label><input id="debug-camera" type="checkbox" /> Camera details</label>
         <label><input id="debug-performance" type="checkbox" /> Performance view</label>
+      </section>
+      <section class="settings-panel" id="settings-panel" aria-label="Settings" hidden>
+        <h2>Settings</h2>
+        <fieldset>
+          <legend>Neighborhood</legend>
+          <p>Loaded chunks around you</p>
+          <div class="offset-grid">
+            <label>North <input id="offset-north" type="number" min="1" max="10" step="1" value="4" inputmode="numeric" /></label>
+            <label>West <input id="offset-west" type="number" min="1" max="10" step="1" value="1" inputmode="numeric" /></label>
+            <label>East <input id="offset-east" type="number" min="1" max="10" step="1" value="1" inputmode="numeric" /></label>
+            <label>South <input id="offset-south" type="number" min="1" max="10" step="1" value="1" inputmode="numeric" /></label>
+          </div>
+        </fieldset>
+        <button class="settings-action" id="restart-button" type="button">Restart</button>
+        <button class="settings-action danger" id="reset-progress-button" type="button">Reset progress</button>
       </section>
       <output class="debug-readout" id="camera-details" aria-label="Camera details" hidden></output>
       <output class="debug-readout performance-view" id="performance-view" aria-label="Performance view" hidden></output>

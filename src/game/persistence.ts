@@ -7,6 +7,11 @@ export const GAME_STATE_STORAGE_KEY = "mobile-walker:game-state";
 interface StorageAdapter {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  removeItem?(key: string): void;
+}
+
+export function resetGameState(storage: StorageAdapter): void {
+  try { storage.removeItem?.(GAME_STATE_STORAGE_KEY); } catch { /* Reset remains safe when storage is denied. */ }
 }
 
 const unavailableStorage: StorageAdapter = {

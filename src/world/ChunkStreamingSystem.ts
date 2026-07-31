@@ -87,7 +87,7 @@ export class ChunkStreamingSystem implements RenderSystem {
   private readonly generationWorkPerFrame: number;
   private readonly meshWorkPerFrame: number;
   private readonly cacheSize: number;
-  private readonly offsets: ChunkNeighborhoodOffsets;
+  private offsets: ChunkNeighborhoodOffsets;
   private wanted = new Set<ChunkId>();
   private center?: ChunkCoordinate;
   private priorityDirection = { x: 0, z: -1 };
@@ -111,6 +111,11 @@ export class ChunkStreamingSystem implements RenderSystem {
 
   setDebugView(options: import("./chunkMeshes").DebugViewOptions): void {
     this.meshes.setDebugView(options);
+  }
+
+  /** Changes the resident neighborhood without rebuilding the game. */
+  setNeighborhoodOffsets(offsets: Partial<ChunkNeighborhoodOffsets>): void {
+    this.offsets = resolveNeighborhoodOffsets(this.radius, offsets);
   }
 
   prepareRender(
