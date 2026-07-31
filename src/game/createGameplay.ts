@@ -6,7 +6,8 @@ import { InputController } from "../player/InputController";
 import { InputSnapshotSystem, PlayerMovementSystem, TerrainSamplingSystem, TreeCollisionSystem } from "../player/systems";
 import type { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
-import { CameraPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
+import { CameraPresentationSystem, PlayerShadowPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
+import { createBlobShadowGeometry, createBlobShadowMaterial, markBlobShadow } from "../rendering/blobShadows";
 import { CollectionSystem, createCollectionState, ExplorationPresentationSystem, ProximityDetectionSystem } from "./exploration";
 import { BiomeDebugPresentationSystem } from "./biomeDebug";
 import { getBrowserStorage, loadGameState, PersistenceSystem } from "./persistence";
@@ -19,6 +20,7 @@ export interface GameplayControllers {
   readonly camera: CameraPresentationSystem;
   readonly persistence: PersistenceSystem;
   readonly exploration: ExplorationPresentationSystem;
+  readonly playerShadow: THREE.Mesh;
 }
 
 export function createGameplay(
@@ -60,6 +62,11 @@ export function createGameplay(
     player.add(eye);
   }
   renderer.scene.add(player);
+  const playerShadow = markBlobShadow(new THREE.Mesh(
+    createBlobShadowGeometry(), createBlobShadowMaterial(0.16),
+  ));
+  playerShadow.scale.set(0.48, 1, 0.36);
+  renderer.scene.add(playerShadow);
 
   world.add({
     transform: { ...initialTransform },
@@ -93,6 +100,7 @@ export function createGameplay(
   const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, mushroomCount);
   systems.addRenderSystem(exploration);
   systems.addRenderSystem(new TransformInterpolationSystem());
+  systems.addRenderSystem(new PlayerShadowPresentationSystem(worldSeed, playerShadow));
   const camera = new CameraPresentationSystem(renderer.camera, input);
   systems.addRenderSystem(camera);
   const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");
@@ -100,5 +108,5 @@ export function createGameplay(
   if (!biomeOverlay || !biomeLabel) throw new Error("Biome guide elements could not be found.");
   const biomeDebug = new BiomeDebugPresentationSystem(worldSeed, biomeOverlay, biomeLabel);
   systems.addRenderSystem(biomeDebug);
-  return { chunks, biomeDebug, camera, persistence, exploration };
+  return { chunks, biomeDebug, camera, persistence, exploration, playerShadow };
 }

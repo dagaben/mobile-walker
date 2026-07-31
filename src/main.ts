@@ -20,12 +20,13 @@ const wireframeInput = document.querySelector<HTMLInputElement>("#debug-wirefram
 const biomesInput = document.querySelector<HTMLInputElement>("#debug-biomes");
 const cameraInput = document.querySelector<HTMLInputElement>("#debug-camera");
 const performanceInput = document.querySelector<HTMLInputElement>("#debug-performance");
+const shadowsInput = document.querySelector<HTMLInputElement>("#debug-shadows");
 const offsetOutputs = Object.fromEntries(["west", "east", "north", "south"].map((direction) => [
   direction, document.querySelector<HTMLOutputElement>(`#offset-${direction}`),
 ])) as Record<keyof ChunkNeighborhoodOffsets, HTMLOutputElement | null>;
 const offsetButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-offset-direction][data-offset-change]")];
 
-if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !cameraInput || !performanceInput || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
+if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !cameraInput || !performanceInput || !shadowsInput || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
   throw new Error("The game interface could not be found.");
 }
 
@@ -66,6 +67,7 @@ const updateDebugView = (): void => game.setDebugView({
 });
 const updateCameraDetails = (): void => game.setCameraDetailsEnabled(cameraInput.checked);
 const updatePerformanceView = (): void => game.setPerformanceViewEnabled(performanceInput.checked);
+const updateShadows = (): void => game.setShadowsEnabled(shadowsInput.checked);
 const updateNeighborhood = (): void => {
   const offsets = Object.fromEntries(Object.entries(offsetOutputs).map(([direction, output]) => {
     const value = clampNeighborhoodOffset(Number(output!.value));
@@ -96,9 +98,11 @@ debugButton.addEventListener("click", toggleDebugPanel);
 for (const input of [wireframeInput, biomesInput]) input.addEventListener("change", updateDebugView);
 cameraInput.addEventListener("change", updateCameraDetails);
 performanceInput.addEventListener("change", updatePerformanceView);
+shadowsInput.addEventListener("change", updateShadows);
 for (const button of offsetButtons) button.addEventListener("click", changeNeighborhoodOffset);
 updateNeighborhood();
 game.start();
+updateShadows();
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
@@ -109,6 +113,7 @@ if (import.meta.hot) {
     for (const input of [wireframeInput, biomesInput]) input.removeEventListener("change", updateDebugView);
     cameraInput.removeEventListener("change", updateCameraDetails);
     performanceInput.removeEventListener("change", updatePerformanceView);
+    shadowsInput.removeEventListener("change", updateShadows);
     for (const button of offsetButtons) button.removeEventListener("click", changeNeighborhoodOffset);
     game.dispose();
   });

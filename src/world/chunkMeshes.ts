@@ -1,5 +1,7 @@
 import * as THREE from "three";
 
+import { createBlobShadowGeometry, createBlobShadowMaterial, markBlobShadow } from "../rendering/blobShadows";
+
 import { BIOME_DEBUG_COLORS, type BiomeId, type BiomeWeights } from "./biomes";
 import { TREE_TRUNK_RADIUS } from "./forest";
 import type { GeneratedChunkData, RiverChannelSection } from "./generateChunk";
@@ -151,7 +153,9 @@ export class ChunkMeshFactory {
     color: 0xffffff, flatShading: true, roughness: 0.9,
   });
   private readonly chunkBoundaryMaterial = new THREE.LineBasicMaterial({ color: 0x8b0000, depthTest: false });
+  private readonly blobShadowMaterial = createBlobShadowMaterial(0.11);
   private debugView: DebugViewOptions = { wireframe: false, biomeGuide: false };
+  private shadowsEnabled = true;
 
   create(data: GeneratedChunkData): THREE.Group {
     const group = new THREE.Group();
@@ -164,6 +168,7 @@ export class ChunkMeshFactory {
     group.add(this.createWetlandPools(data));
     group.add(this.createTrees(data));
     group.add(this.createVegetation(data));
+    group.add(this.createTreeShadows(data));
     return group;
   }
 
@@ -175,6 +180,14 @@ export class ChunkMeshFactory {
     this.debugTerrainMaterial.needsUpdate = true;
     // Debug objects share stable names, including chunks streamed after a toggle.
     for (const group of this.groups) this.applyDebugVisibility(group);
+  }
+
+  setShadowsEnabled(enabled: boolean): void {
+    this.shadowsEnabled = enabled;
+    for (const group of this.groups) {
+      const shadows = group.getObjectByName("tree-shadows");
+      if (shadows) shadows.visible = enabled;
+    }
   }
 
   disposeChunk(group: THREE.Group): void {
@@ -197,6 +210,28 @@ export class ChunkMeshFactory {
     this.flowerStemMaterial.dispose();
     this.flowerHeadMaterial.dispose();
     this.chunkBoundaryMaterial.dispose();
+    this.blobShadowMaterial.dispose();
+  }
+
+  private createTreeShadows(data: GeneratedChunkData): THREE.InstancedMesh {
+    const trees = [...data.pines, ...data.vegetation.leafTrees];
+    const shadows = markBlobShadow(new THREE.InstancedMesh(
+      createBlobShadowGeometry(), this.blobShadowMaterial, trees.length,
+    ));
+    shadows.name = "tree-shadows";
+    shadows.visible = this.shadowsEnabled && trees.length > 0;
+    shadows.renderOrder = 2;
+    const transform = new THREE.Object3D();
+    // Sunlight is at (-4, 8, 5), so the long axis points away toward (+X, -Z).
+    const awayFromSun = Math.atan2(-5, 4);
+    trees.forEach((tree, index) => {
+      transform.position.set(tree.x + 0.12 * tree.scale, tree.y + 0.025, tree.z - 0.15 * tree.scale);
+      transform.rotation.y = awayFromSun;
+      transform.scale.set(0.56 * tree.scale, 1, 0.38 * tree.scale);
+      transform.updateMatrix();
+      shadows.setMatrixAt(index, transform.matrix);
+    });
+    return shadows;
   }
 
   private createTerrain(data: GeneratedChunkData): THREE.Mesh {
@@ -480,6 +515,8 @@ export class ChunkMeshFactory {
   }
 
   private applyDebugVisibility(group: THREE.Group): void {
+    const shadows = group.getObjectByName("tree-shadows");
+    if (shadows) shadows.visible = this.shadowsEnabled;
     const chunkBoundary = group.getObjectByName(DEBUG_CHUNK_BOUNDARY_NAME);
     if (chunkBoundary) chunkBoundary.visible = this.debugView.wireframe;
     const terrain = group.getObjectByName("terrain") as THREE.Mesh | undefined;

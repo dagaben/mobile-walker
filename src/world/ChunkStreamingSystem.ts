@@ -113,6 +113,10 @@ export class ChunkStreamingSystem implements RenderSystem {
     this.meshes.setDebugView(options);
   }
 
+  setShadowsEnabled(enabled: boolean): void {
+    this.meshes.setShadowsEnabled(enabled);
+  }
+
   /** Changes the resident neighborhood without rebuilding the game. */
   setNeighborhoodOffsets(offsets: Partial<ChunkNeighborhoodOffsets>): void {
     this.offsets = resolveNeighborhoodOffsets(this.radius, offsets);

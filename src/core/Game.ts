@@ -21,6 +21,7 @@ export class Game {
   private readonly cameraPresentation: CameraPresentationSystem;
   private readonly persistence: PersistenceSystem;
   private readonly exploration: ExplorationPresentationSystem;
+  private readonly playerShadow: import("three").Mesh;
   private readonly cameraDetails: HTMLOutputElement;
   private readonly performanceView: HTMLOutputElement;
   private smoothedFrameSeconds = 1 / 60;
@@ -37,6 +38,7 @@ export class Game {
     this.cameraPresentation = gameplay.camera;
     this.persistence = gameplay.persistence;
     this.exploration = gameplay.exploration;
+    this.playerShadow = gameplay.playerShadow;
     const cameraDetails = document.querySelector<HTMLOutputElement>("#camera-details");
     const performanceView = document.querySelector<HTMLOutputElement>("#performance-view");
     if (!cameraDetails || !performanceView) throw new Error("Debug readouts could not be found.");
@@ -73,6 +75,11 @@ export class Game {
     this.performanceView.hidden = !enabled;
   }
 
+  setShadowsEnabled(enabled: boolean): void {
+    this.playerShadow.visible = enabled;
+    this.chunks.setShadowsEnabled(enabled);
+  }
+
   setNeighborhoodOffsets(offsets: ChunkNeighborhoodOffsets): void {
     this.chunks.setNeighborhoodOffsets(offsets);
     this.exploration.setNeighborhoodOffsets(offsets);
@@ -106,7 +113,7 @@ export class Game {
     if (!this.performanceView.hidden) {
       const details = this.renderer.getPerformanceDetails();
       const frameMs = this.smoothedFrameSeconds * 1000;
-      this.performanceView.textContent = `PERFORMANCE\nFPS       ${(1 / this.smoothedFrameSeconds).toFixed(0)}\nFrame     ${frameMs.toFixed(1)} ms\nDraws     ${details.drawCalls}\nTriangles ${details.triangles.toLocaleString()}`;
+      this.performanceView.textContent = `PERFORMANCE\nFPS       ${(1 / this.smoothedFrameSeconds).toFixed(0)}\nFrame     ${frameMs.toFixed(1)} ms\nDraws     ${details.drawCalls}\nTriangles ${details.triangles.toLocaleString()}\nBlob shadows\n  +${details.shadowDrawCalls} draws\n  +${details.shadowTriangles.toLocaleString()} triangles`;
     }
   }
 }

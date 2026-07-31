@@ -124,6 +124,26 @@ describe("pine tree geometry", () => {
     factory.disposeChunk(group);
     factory.dispose();
   });
+
+  it("batches only major-tree contact shadows and supports the debug toggle", () => {
+    const factory = new ChunkMeshFactory();
+    const data = generateChunk("forest-biomes", { x: -4, z: -4 });
+    const group = factory.create(data);
+    factory.registerGroup(group);
+    const shadows = group.getObjectByName("tree-shadows") as THREE.InstancedMesh<
+      THREE.BufferGeometry,
+      THREE.MeshBasicMaterial
+    >;
+
+    expect(shadows).toBeInstanceOf(THREE.InstancedMesh);
+    expect(shadows.count).toBe(data.pines.length + data.vegetation.leafTrees.length);
+    expect(shadows.material.depthWrite).toBe(false);
+    factory.setShadowsEnabled(false);
+    expect(shadows.visible).toBe(false);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
 });
 
 describe("biome vegetation geometry", () => {
