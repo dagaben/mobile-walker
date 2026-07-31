@@ -117,8 +117,9 @@ export class Game {
     }
     if (!this.performanceView.hidden) {
       const details = this.renderer.getPerformanceDetails();
+      const streaming = this.chunks.getDiagnostics();
       const frameMs = this.smoothedFrameSeconds * 1000;
-      this.performanceView.textContent = `PERFORMANCE\nFPS       ${(1 / this.smoothedFrameSeconds).toFixed(0)}\nFrame     ${frameMs.toFixed(1)} ms\nDraws     ${details.drawCalls}\nTriangles ${details.triangles.toLocaleString()}\nBlob shadows\n  +${details.shadowDrawCalls} draws\n  +${details.shadowTriangles.toLocaleString()} triangles`;
+      this.performanceView.textContent = `PERFORMANCE\nFPS       ${(1 / this.smoothedFrameSeconds).toFixed(0)}\nFrame     ${frameMs.toFixed(1)} ms\nDraws     ${details.drawCalls}\nTriangles ${details.triangles.toLocaleString()}\nBlob shadows\n  +${details.shadowDrawCalls} draws\n  +${details.shadowTriangles.toLocaleString()} triangles\nSTREAMING\nGeneration ${streaming.generationQueued} queued / ${streaming.generationInProgress} running\nActivation ${streaming.awaitingActivation} ready / ${streaming.partiallyActivated} partial\nWorker     ${streaming.lastWorkerGenerationMs.toFixed(1)} ms (${streaming.maxWorkerGenerationMs.toFixed(1)} max)\nTransfer   ${streaming.lastTransferDelayMs.toFixed(1)} ms (${streaming.maxTransferDelayMs.toFixed(1)} max)\nThis frame ${streaming.activationMsThisFrame.toFixed(1)} ms\nLongest    ${streaming.longestActivationStage} ${streaming.longestActivationStageMs.toFixed(1)} ms\nCache      ${streaming.cacheHits} hits / ${streaming.cacheMisses} misses`;
     }
   }
 }

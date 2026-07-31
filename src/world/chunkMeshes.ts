@@ -20,6 +20,8 @@ export interface DebugViewOptions {
   readonly pois?: "off" | "accepted" | "candidates";
 }
 
+export type ChunkActivationStage = "terrain" | "hydrology" | "trees" | "vegetation" | "pois" | "details";
+
 const DEBUG_CHUNK_BOUNDARY_NAME = "debug:chunk-boundary";
 const SNOW_COLOR = new THREE.Color(0xf4f6f7);
 const PINE_FOLIAGE_COLOR = new THREE.Color(0x386f4b);
@@ -216,22 +218,31 @@ export class ChunkMeshFactory {
   create(data: GeneratedChunkData): THREE.Group {
     const group = new THREE.Group();
     group.name = `chunk:${data.id}`;
-    group.add(this.createTerrain(data));
-    group.add(this.createChunkBoundary(data));
-    if (data.river) group.add(this.createRiver(data.river.spine));
-    if (data.river) group.add(this.createRiverChannel(data.river.channelSections, data.terrainMaximumDarkening));
-    group.add(this.createLake(data));
-    group.add(this.createWetlandPools(data));
-    const poiGroup = new THREE.Group(); poiGroup.name = "pois";
-    for (const poi of data.pois) poiGroup.add(this.poiMeshes.create(poi));
-    group.add(poiGroup);
-    group.userData.poiDebugData = { pois: data.pois, candidates: data.poiCandidates };
-    const poiDebugLevel = this.debugView.pois ?? "off";
-    if (poiDebugLevel !== "off") group.add(this.poiMeshes.createDebug(data.pois, data.poiCandidates, poiDebugLevel));
-    group.add(this.createTrees(data));
-    group.add(this.createVegetation(data));
-    group.add(this.createTreeShadows(data));
+    for (const stage of ["terrain", "hydrology", "trees", "vegetation", "pois", "details"] as const) {
+      this.addActivationStage(group, data, stage);
+    }
     return group;
+  }
+
+  /** Adds one atomic, independently disposable activation layer. */
+  addActivationStage(group: THREE.Group, data: GeneratedChunkData, stage: ChunkActivationStage): void {
+    if (stage === "terrain") group.add(this.createTerrain(data));
+    else if (stage === "hydrology") {
+      if (data.river) group.add(this.createRiver(data.river.spine), this.createRiverChannel(data.river.channelSections, data.terrainMaximumDarkening));
+      group.add(this.createLake(data), this.createWetlandPools(data));
+    } else if (stage === "trees") group.add(this.createTrees(data));
+    else if (stage === "vegetation") group.add(this.createVegetation(data));
+    else if (stage === "pois") {
+      const poiGroup = new THREE.Group(); poiGroup.name = "pois";
+      for (const poi of data.pois) poiGroup.add(this.poiMeshes.create(poi));
+      group.add(poiGroup);
+      group.userData.poiDebugData = { pois: data.pois, candidates: data.poiCandidates };
+      const level = this.debugView.pois ?? "off";
+      // Candidate geometry is deliberately not constructed in the normal mode.
+      if (level !== "off") group.add(this.poiMeshes.createDebug(data.pois, data.poiCandidates, level));
+    } else {
+      group.add(this.createChunkBoundary(data), this.createTreeShadows(data));
+    }
   }
 
   setDebugView(options: DebugViewOptions): void {
@@ -320,28 +331,18 @@ export class ChunkMeshFactory {
 
   private createTerrain(data: GeneratedChunkData): THREE.Mesh {
     const side = data.terrainVerticesPerSide;
-    const positions: number[] = [];
-    const indices: number[] = [];
-    const renderedVertices = data.irregularTerrain?.vertices ?? data.terrainHeights.map((height, vertexIndex) => ({
+    const renderedVertices = data.irregularTerrain?.vertices ?? Array.from(data.terrainHeights, (height, vertexIndex) => ({
       x: data.coordinate.x * data.size + vertexIndex % side * data.size / (side - 1),
       z: data.coordinate.z * data.size + Math.floor(vertexIndex / side) * data.size / (side - 1),
       height,
       biomeWeights: data.terrainBiomeWeights[vertexIndex],
       occlusion: data.terrainOcclusion[vertexIndex] ?? 0,
     }));
-    for (const vertex of renderedVertices) {
-      positions.push(vertex.x, vertex.height, vertex.z);
-    }
-    if (data.irregularTerrain) indices.push(...data.irregularTerrain.indices);
-    else for (let z = 0; z < side - 1; z += 1) for (let x = 0; x < side - 1; x += 1) {
-        const topLeft = z * side + x;
-        indices.push(topLeft, topLeft + side, topLeft + 1, topLeft + 1, topLeft + side, topLeft + side + 1);
-      }
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("position", new THREE.BufferAttribute(data.terrainMesh.positions, 3));
+    geometry.setAttribute("normal", new THREE.BufferAttribute(data.terrainMesh.normals, 3));
     addTerrainPresentationAttributes(geometry, renderedVertices, data.terrainMaximumDarkening);
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
+    geometry.setIndex(new THREE.BufferAttribute(data.terrainMesh.indices, 1));
     const mesh = new THREE.Mesh(geometry, this.terrainMaterial);
     mesh.name = "terrain";
     mesh.userData.isTerrainSurface = true;
