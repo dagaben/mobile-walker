@@ -153,7 +153,7 @@ export class ChunkMeshFactory {
     color: 0xffffff, flatShading: true, roughness: 0.9,
   });
   private readonly chunkBoundaryMaterial = new THREE.LineBasicMaterial({ color: 0x8b0000, depthTest: false });
-  private readonly blobShadowMaterial = createBlobShadowMaterial(0.11);
+  private readonly blobShadowMaterial = createBlobShadowMaterial(0.3);
   private debugView: DebugViewOptions = { wireframe: false, biomeGuide: false };
   private shadowsEnabled = true;
 
@@ -225,9 +225,12 @@ export class ChunkMeshFactory {
     // Sunlight is at (-4, 8, 5), so the long axis points away toward (+X, -Z).
     const awayFromSun = Math.atan2(-5, 4);
     trees.forEach((tree, index) => {
-      transform.position.set(tree.x + 0.12 * tree.scale, tree.y + 0.025, tree.z - 0.15 * tree.scale);
+      const isPine = index < data.pines.length;
+      // Cover the crown as well as the trunk and project it away from the sun.
+      const crownRadius = isPine ? 0.92 : 1.02;
+      transform.position.set(tree.x + 0.38 * tree.scale, tree.y + 0.025, tree.z - 0.46 * tree.scale);
       transform.rotation.y = awayFromSun;
-      transform.scale.set(0.56 * tree.scale, 1, 0.38 * tree.scale);
+      transform.scale.set(crownRadius * 1.5 * tree.scale, 1, crownRadius * 0.9 * tree.scale);
       transform.updateMatrix();
       shadows.setMatrixAt(index, transform.matrix);
     });

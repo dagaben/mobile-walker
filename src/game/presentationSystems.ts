@@ -5,6 +5,7 @@ import type { InputController } from "../player/InputController";
 import { CHUNK_SIZE } from "../world/chunkCoordinates";
 import { interpolateTransform } from "./interpolation";
 import { sampleTerrainHeight } from "../world/terrainSampling";
+import { conformBlobShadowToTerrain } from "../rendering/blobShadows";
 
 export class TransformInterpolationSystem implements RenderSystem {
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], interpolation: number): void {
@@ -24,7 +25,11 @@ export class PlayerShadowPresentationSystem implements RenderSystem {
     const player = world.entities.find((entity) => entity.playerControl && entity.renderable);
     if (!player?.renderable) return;
     const { x, z } = player.renderable.position;
-    this.shadow.position.set(x + 0.05, sampleTerrainHeight(this.seed, x, z) + 0.03, z - 0.07);
+    this.shadow.position.set(x + 0.09, 0, z - 0.12);
+    conformBlobShadowToTerrain(
+      this.shadow,
+      (sampleX, sampleZ) => sampleTerrainHeight(this.seed, sampleX, sampleZ),
+    );
   }
 }
 

@@ -138,6 +138,13 @@ describe("pine tree geometry", () => {
     expect(shadows).toBeInstanceOf(THREE.InstancedMesh);
     expect(shadows.count).toBe(data.pines.length + data.vegetation.leafTrees.length);
     expect(shadows.material.depthWrite).toBe(false);
+    expect(shadows.material.opacity).toBeGreaterThanOrEqual(0.3);
+    const shadowTransform = new THREE.Matrix4();
+    const shadowScale = new THREE.Vector3();
+    shadows.getMatrixAt(0, shadowTransform);
+    shadowTransform.decompose(new THREE.Vector3(), new THREE.Quaternion(), shadowScale);
+    expect(shadowScale.x).toBeGreaterThan(data.pines[0]!.scale);
+    expect(shadowScale.z).toBeGreaterThan(data.pines[0]!.scale * 0.7);
     factory.setShadowsEnabled(false);
     expect(shadows.visible).toBe(false);
 
