@@ -6,6 +6,7 @@ import { CHUNK_SIZE } from "../world/chunkCoordinates";
 import { interpolateTransform } from "./interpolation";
 import { sampleTerrainHeight } from "../world/terrainSampling";
 import { conformBlobShadowToTerrain } from "../rendering/blobShadows";
+import { blobShadowProjection, type SunlightDirection } from "../rendering/sunlightDirection";
 
 export class TransformInterpolationSystem implements RenderSystem {
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], interpolation: number): void {
@@ -19,13 +20,22 @@ export class TransformInterpolationSystem implements RenderSystem {
 }
 
 export class PlayerShadowPresentationSystem implements RenderSystem {
-  constructor(private readonly seed: number | string, private readonly shadow: THREE.Mesh) {}
+  constructor(
+    private readonly seed: number | string,
+    private readonly shadow: THREE.Mesh,
+    private readonly sunlight: Pick<SunlightDirection, "direction"> =
+      { direction: new THREE.Vector3(-4, 8, 5).normalize() },
+  ) {}
 
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0]): void {
     const player = world.entities.find((entity) => entity.playerControl && entity.renderable);
     if (!player?.renderable) return;
     const { x, z } = player.renderable.position;
-    this.shadow.position.set(x + 0.09, 0, z - 0.12);
+    const projection = blobShadowProjection(this.sunlight.direction, this.shadow.rotation.y);
+    const offset = 0.15 * projection.stretch;
+    this.shadow.position.set(x + projection.directionX * offset, 0, z + projection.directionZ * offset);
+    this.shadow.rotation.y = projection.rotationY;
+    this.shadow.scale.set(0.58 * projection.stretch, 1, 0.43);
     conformBlobShadowToTerrain(
       this.shadow,
       (sampleX, sampleZ) => sampleTerrainHeight(this.seed, sampleX, sampleZ),

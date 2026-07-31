@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { createBlobShadowGeometry, createBlobShadowMaterial, markBlobShadow } from "../rendering/blobShadows";
+import { blobShadowProjection, SunlightDirection } from "../rendering/sunlightDirection";
 
 import { BIOME_DEBUG_COLORS, type BiomeId, type BiomeWeights } from "./biomes";
 import { TREE_TRUNK_RADIUS } from "./forest";
@@ -167,6 +168,8 @@ export function createRiverChannelGeometry(
 
 /** Presentation-only conversion of plain generated data into disposable Three.js objects. */
 export class ChunkMeshFactory {
+  private readonly sunlight: SunlightDirection;
+  private readonly unsubscribeSunlight: () => void;
   private readonly groups = new Set<THREE.Group>();
   private readonly terrainMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff, vertexColors: true, flatShading: true, roughness: 1,
@@ -201,6 +204,11 @@ export class ChunkMeshFactory {
     wireframe: false, biomeGuide: false, occlusionMap: false, disableTerrainOcclusion: false,
   };
   private shadowsEnabled = true;
+
+  constructor(sunlight = new SunlightDirection()) {
+    this.sunlight = sunlight;
+    this.unsubscribeSunlight = sunlight.subscribe(() => this.updateTreeShadowBatches());
+  }
 
   create(data: GeneratedChunkData): THREE.Group {
     const group = new THREE.Group();
@@ -241,6 +249,7 @@ export class ChunkMeshFactory {
   }
 
   dispose(): void {
+    this.unsubscribeSunlight();
     this.terrainMaterial.dispose();
     this.riverMaterial.dispose();
     this.wetlandWaterMaterial.dispose();
@@ -262,20 +271,36 @@ export class ChunkMeshFactory {
     shadows.name = "tree-shadows";
     shadows.visible = this.shadowsEnabled && trees.length > 0;
     shadows.renderOrder = 2;
+    shadows.userData.shadowTrees = trees;
+    shadows.userData.pineCount = data.pines.length;
+    this.updateTreeShadowBatch(shadows);
+    return shadows;
+  }
+
+  private updateTreeShadowBatches(): void {
+    for (const group of this.groups) {
+      const shadows = group.getObjectByName("tree-shadows");
+      if (shadows instanceof THREE.InstancedMesh) this.updateTreeShadowBatch(shadows);
+    }
+  }
+
+  private updateTreeShadowBatch(shadows: THREE.InstancedMesh): void {
+    const trees = shadows.userData.shadowTrees as Array<{ x: number; y: number; z: number; scale: number }>;
+    const pineCount = shadows.userData.pineCount as number;
+    const projection = blobShadowProjection(this.sunlight.direction);
     const transform = new THREE.Object3D();
-    // Sunlight is at (-4, 8, 5), so the long axis points away toward (+X, -Z).
-    const awayFromSun = Math.atan2(-5, 4);
     trees.forEach((tree, index) => {
-      const isPine = index < data.pines.length;
+      const isPine = index < pineCount;
       // Cover the crown as well as the trunk and project it away from the sun.
       const crownRadius = isPine ? 0.92 : 1.02;
-      transform.position.set(tree.x + 0.38 * tree.scale, tree.y + 0.025, tree.z - 0.46 * tree.scale);
-      transform.rotation.y = awayFromSun;
-      transform.scale.set(crownRadius * 1.5 * tree.scale, 1, crownRadius * 0.9 * tree.scale);
+      const offset = crownRadius * 0.48 * tree.scale * projection.stretch;
+      transform.position.set(tree.x + projection.directionX * offset, tree.y + 0.025, tree.z + projection.directionZ * offset);
+      transform.rotation.y = projection.rotationY;
+      transform.scale.set(crownRadius * 1.5 * tree.scale * projection.stretch, 1, crownRadius * 0.9 * tree.scale);
       transform.updateMatrix();
       shadows.setMatrixAt(index, transform.matrix);
     });
-    return shadows;
+    shadows.instanceMatrix.needsUpdate = true;
   }
 
   private createTerrain(data: GeneratedChunkData): THREE.Mesh {
@@ -537,6 +562,8 @@ export class ChunkMeshFactory {
 
   registerGroup(group: THREE.Group): void {
     this.groups.add(group);
+    const shadows = group.getObjectByName("tree-shadows");
+    if (shadows instanceof THREE.InstancedMesh) this.updateTreeShadowBatch(shadows);
     this.applyDebugVisibility(group);
   }
 
