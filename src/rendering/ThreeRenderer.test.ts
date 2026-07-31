@@ -91,4 +91,14 @@ describe("ThreeRenderer resize synchronization", () => {
     expect(ResizeObserverStub.instances[0].disconnect).toHaveBeenCalledOnce();
     expect(cancelAnimationFrame).toHaveBeenCalled();
   });
+
+  it("fades the final 20 units of the camera draw distance", () => {
+    const canvas = { clientWidth: 320, clientHeight: 180, width: 0, height: 0 } as HTMLCanvasElement;
+    const renderer = new ThreeRenderer(canvas);
+    const fog = renderer.scene.fog;
+
+    expect(fog).toMatchObject({ near: renderer.camera.far - 20, far: renderer.camera.far });
+
+    renderer.dispose();
+  });
 });

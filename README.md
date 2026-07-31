@@ -84,8 +84,8 @@ to a Three.js mesh factory. Chunk geometries are disposed when they leave the
 radius, while terrain and river materials are shared for the streamer's
 lifetime. Resident chunks render without an edge-fade shader, so outer chunk
 edges can remain sharp while streaming work stays focused on generating and
-activating the player's neighborhood. Camera-distance fog is atmospheric only,
-rather than hiding the loaded-world boundary.
+activating the player's neighborhood. Camera-distance fog covers the final 20
+units of the camera's draw distance, becoming fully opaque at the far plane.
 
 ## Controls
 
