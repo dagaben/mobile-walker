@@ -1,6 +1,8 @@
 import * as THREE from "three";
 
 const MAX_PIXEL_RATIO = 2;
+const MAX_DRAW_DISTANCE = 150;
+const FOG_DEPTH = 20;
 
 export class ThreeRenderer {
   private readonly renderer: THREE.WebGLRenderer;
@@ -9,15 +11,14 @@ export class ThreeRenderer {
   private appliedWidth = -1;
   private appliedHeight = -1;
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, 150);
+  readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, MAX_DRAW_DISTANCE);
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PIXEL_RATIO));
     this.scene.background = new THREE.Color(0xd9ead8);
-    // Fog is atmospheric only; streamed neighborhood edges may remain visible.
-    this.scene.fog = new THREE.Fog(0xd9ead8, 108, 180);
+    this.scene.fog = new THREE.Fog(0xd9ead8, MAX_DRAW_DISTANCE - FOG_DEPTH, MAX_DRAW_DISTANCE);
 
     this.camera.position.set(6, 5, 8);
     this.camera.lookAt(0, 0, 0);
