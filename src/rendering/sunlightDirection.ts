@@ -16,7 +16,11 @@ export interface BlobShadowProjection {
 
 export const BLOB_SHADOW_MIN_STRETCH = 1;
 export const BLOB_SHADOW_MAX_STRETCH = 2.4;
-export const BLOB_SHADOW_MAX_OFFSET_SCALE = 2.4;
+// The sunlight control bottoms out at 10 degrees. This limit therefore keeps
+// the physically correct cotangent projection throughout the entire UI range
+// instead of flattening every elevation at and below roughly 23 degrees to the
+// same offset.
+export const BLOB_SHADOW_MAX_OFFSET_SCALE = 5.7;
 const CHANGE_THRESHOLD = 1e-5;
 const HORIZONTAL_EPSILON = 1e-6;
 
