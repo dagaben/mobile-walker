@@ -60,6 +60,45 @@ function blendBiomeColor(weights: BiomeWeights, target: THREE.Color): THREE.Colo
   return target;
 }
 
+interface TerrainPresentationVertex {
+  readonly height: number;
+  readonly biomeWeights: BiomeWeights;
+  readonly occlusion: number;
+}
+
+/** Installs the common presentation contract consumed by every terrain surface. */
+function addTerrainPresentationAttributes(
+  geometry: THREE.BufferGeometry,
+  vertices: readonly TerrainPresentationVertex[],
+  maximumDarkening: number,
+): void {
+  const baseTerrainColors: number[] = [];
+  const terrainColors: number[] = [];
+  const debugColors: number[] = [];
+  const occlusionColors: number[] = [];
+  const color = new THREE.Color();
+  for (const vertex of vertices) {
+    blendBiomeColor(vertex.biomeWeights, color);
+    color.lerp(SNOW_COLOR, mountainSnowCoverage(vertex.height, vertex.biomeWeights));
+    baseTerrainColors.push(color.r, color.g, color.b);
+    color.multiplyScalar(1 - terrainDarkening(vertex.occlusion, maximumDarkening));
+    terrainColors.push(color.r, color.g, color.b);
+    const dominant = (Object.keys(vertex.biomeWeights) as BiomeId[])
+      .reduce((best, id) => vertex.biomeWeights[id] > vertex.biomeWeights[best] ? id : best);
+    const debugColor = DEBUG_TERRAIN_PALETTE[dominant];
+    debugColors.push(debugColor.r, debugColor.g, debugColor.b);
+    const shade = Math.min(1, vertex.occlusion * 2);
+    occlusionColors.push(shade, shade, shade);
+  }
+  const base = new THREE.Float32BufferAttribute(baseTerrainColors, 3);
+  const rendered = new THREE.Float32BufferAttribute(terrainColors, 3);
+  geometry.setAttribute("baseTerrainColor", base);
+  geometry.setAttribute("terrainColor", rendered);
+  geometry.setAttribute("color", rendered);
+  geometry.setAttribute("debugColor", new THREE.Float32BufferAttribute(debugColors, 3));
+  geometry.setAttribute("occlusionColor", new THREE.Float32BufferAttribute(occlusionColors, 3));
+}
+
 /** Builds the shared river ribbon with front faces and normals pointing upward. */
 export function createRiverRibbonGeometry(
   spine: readonly RiverPoint[],
@@ -88,8 +127,10 @@ export function createRiverRibbonGeometry(
 /** Builds the banks and bed as one deliberately faceted six-vertex strip. */
 export function createRiverChannelGeometry(
   sections: readonly RiverChannelSection[],
+  maximumDarkening = 0,
 ): THREE.BufferGeometry {
   const positions: number[] = [];
+  const presentationVertices: TerrainPresentationVertex[] = [];
   const indices: number[] = [];
   for (const section of sections) {
     const westWater = section.centerX - section.waterHalfWidth;
@@ -104,6 +145,10 @@ export function createRiverChannelGeometry(
       eastWater, lipHeight, section.z,
       eastWater + section.bankWidth, section.eastShoulderHeight, section.z,
     );
+    section.terrainVertices.forEach((vertex, index) => presentationVertices.push({
+      ...vertex,
+      height: positions[(positions.length / 3 - 6 + index) * 3 + 1]!,
+    }));
   }
   for (let section = 0; section < sections.length - 1; section += 1) {
     for (let cross = 0; cross < 5; cross += 1) {
@@ -114,6 +159,7 @@ export function createRiverChannelGeometry(
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  addTerrainPresentationAttributes(geometry, presentationVertices, maximumDarkening);
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
@@ -125,14 +171,8 @@ export class ChunkMeshFactory {
   private readonly terrainMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff, vertexColors: true, flatShading: true, roughness: 1,
   });
-  private readonly debugTerrainMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffffff, vertexColors: true, flatShading: true, roughness: 1,
-  });
   private readonly riverMaterial = new THREE.MeshStandardMaterial({
     color: 0x5da9c9, flatShading: true, roughness: 0.65,
-  });
-  private readonly riverChannelMaterial = new THREE.MeshStandardMaterial({
-    color: 0x71875c, flatShading: true, roughness: 1,
   });
   private readonly wetlandWaterMaterial = new THREE.MeshStandardMaterial({
     color: 0x6599a0, flatShading: true, roughness: 0.42, transparent: true, opacity: 0.82,
@@ -168,7 +208,7 @@ export class ChunkMeshFactory {
     group.add(this.createTerrain(data));
     group.add(this.createChunkBoundary(data));
     if (data.river) group.add(this.createRiver(data.river.spine));
-    if (data.river) group.add(this.createRiverChannel(data.river.channelSections));
+    if (data.river) group.add(this.createRiverChannel(data.river.channelSections, data.terrainMaximumDarkening));
     group.add(this.createLake(data));
     group.add(this.createWetlandPools(data));
     group.add(this.createTrees(data));
@@ -180,9 +220,7 @@ export class ChunkMeshFactory {
   setDebugView(options: DebugViewOptions): void {
     this.debugView = { ...options };
     this.terrainMaterial.wireframe = options.wireframe;
-    this.debugTerrainMaterial.wireframe = options.wireframe;
     this.terrainMaterial.needsUpdate = true;
-    this.debugTerrainMaterial.needsUpdate = true;
     // Debug objects share stable names, including chunks streamed after a toggle.
     for (const group of this.groups) this.applyDebugVisibility(group);
   }
@@ -204,9 +242,7 @@ export class ChunkMeshFactory {
 
   dispose(): void {
     this.terrainMaterial.dispose();
-    this.debugTerrainMaterial.dispose();
     this.riverMaterial.dispose();
-    this.riverChannelMaterial.dispose();
     this.wetlandWaterMaterial.dispose();
     this.trunkMaterial.dispose();
     this.foliageMaterial.dispose();
@@ -245,12 +281,7 @@ export class ChunkMeshFactory {
   private createTerrain(data: GeneratedChunkData): THREE.Mesh {
     const side = data.terrainVerticesPerSide;
     const positions: number[] = [];
-    const baseTerrainColors: number[] = [];
-    const terrainColors: number[] = [];
-    const debugColors: number[] = [];
-    const occlusionColors: number[] = [];
     const indices: number[] = [];
-    const color = new THREE.Color();
     const renderedVertices = data.irregularTerrain?.vertices ?? data.terrainHeights.map((height, vertexIndex) => ({
       x: data.coordinate.x * data.size + vertexIndex % side * data.size / (side - 1),
       z: data.coordinate.z * data.size + Math.floor(vertexIndex / side) * data.size / (side - 1),
@@ -260,20 +291,6 @@ export class ChunkMeshFactory {
     }));
     for (const vertex of renderedVertices) {
       positions.push(vertex.x, vertex.height, vertex.z);
-      blendBiomeColor(vertex.biomeWeights, color);
-      const snow = mountainSnowCoverage(vertex.height, vertex.biomeWeights);
-      color.lerp(SNOW_COLOR, snow);
-      baseTerrainColors.push(color.r, color.g, color.b);
-      color.multiplyScalar(1 - terrainDarkening(vertex.occlusion, data.terrainMaximumDarkening));
-      terrainColors.push(color.r, color.g, color.b);
-      const dominant = (Object.keys(vertex.biomeWeights) as BiomeId[])
-        .reduce((best, id) => vertex.biomeWeights[id] > vertex.biomeWeights[best] ? id : best);
-      const debugColor = DEBUG_TERRAIN_PALETTE[dominant];
-      debugColors.push(debugColor.r, debugColor.g, debugColor.b);
-      // Amplification makes the otherwise subtle baked values legible in the
-      // dedicated map without confusing unoccluded terrain with white paint.
-      const shade = Math.min(1, vertex.occlusion * 2);
-      occlusionColors.push(shade, shade, shade);
     }
     if (data.irregularTerrain) indices.push(...data.irregularTerrain.indices);
     else for (let z = 0; z < side - 1; z += 1) for (let x = 0; x < side - 1; x += 1) {
@@ -282,17 +299,12 @@ export class ChunkMeshFactory {
       }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    const baseTerrainColorAttribute = new THREE.Float32BufferAttribute(baseTerrainColors, 3);
-    const terrainColorAttribute = new THREE.Float32BufferAttribute(terrainColors, 3);
-    geometry.setAttribute("baseTerrainColor", baseTerrainColorAttribute);
-    geometry.setAttribute("terrainColor", terrainColorAttribute);
-    geometry.setAttribute("color", terrainColorAttribute);
-    geometry.setAttribute("debugColor", new THREE.Float32BufferAttribute(debugColors, 3));
-    geometry.setAttribute("occlusionColor", new THREE.Float32BufferAttribute(occlusionColors, 3));
+    addTerrainPresentationAttributes(geometry, renderedVertices, data.terrainMaximumDarkening);
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
     const mesh = new THREE.Mesh(geometry, this.terrainMaterial);
     mesh.name = "terrain";
+    mesh.userData.isTerrainSurface = true;
     mesh.receiveShadow = true;
     return mesh;
   }
@@ -328,12 +340,10 @@ export class ChunkMeshFactory {
     return mesh;
   }
 
-  private createRiverChannel(sections: readonly RiverChannelSection[]): THREE.Mesh {
-    // Channel geometry does not carry the biome vertex-color attribute used by
-    // the base terrain. A dedicated material keeps its banks naturally colored
-    // instead of allowing the missing attribute to multiply them to black.
-    const mesh = new THREE.Mesh(createRiverChannelGeometry(sections), this.riverChannelMaterial);
+  private createRiverChannel(sections: readonly RiverChannelSection[], maximumDarkening: number): THREE.Mesh {
+    const mesh = new THREE.Mesh(createRiverChannelGeometry(sections, maximumDarkening), this.terrainMaterial);
     mesh.name = "river-channel";
+    mesh.userData.isTerrainSurface = true;
     mesh.receiveShadow = true;
     return mesh;
   }
@@ -539,8 +549,9 @@ export class ChunkMeshFactory {
     if (shadows) shadows.visible = this.shadowsEnabled;
     const chunkBoundary = group.getObjectByName(DEBUG_CHUNK_BOUNDARY_NAME);
     if (chunkBoundary) chunkBoundary.visible = this.debugView.wireframe;
-    const terrain = group.getObjectByName("terrain") as THREE.Mesh | undefined;
-    if (terrain) {
+    group.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || object.userData.isTerrainSurface !== true) return;
+      const terrain = object;
       const geometry = terrain.geometry as THREE.BufferGeometry;
       // Keep precedence explicit so combinations selected through programmatic
       // debug controls always resolve predictably.
@@ -549,9 +560,7 @@ export class ChunkMeshFactory {
           : this.debugView.disableTerrainOcclusion ? "baseTerrainColor"
             : "terrainColor";
       geometry.setAttribute("color", geometry.getAttribute(colorAttribute));
-      terrain.material = this.debugView.biomeGuide || this.debugView.occlusionMap
-        ? this.debugTerrainMaterial
-        : this.terrainMaterial;
-    }
+      terrain.material = this.terrainMaterial;
+    });
   }
 }
