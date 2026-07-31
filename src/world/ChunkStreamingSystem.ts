@@ -10,6 +10,7 @@ import {
 } from "./chunkCoordinates";
 import { ChunkMeshFactory } from "./chunkMeshes";
 import { generateChunk, type GeneratedChunkData } from "./generateChunk";
+import type { SunlightDirection } from "../rendering/sunlightDirection";
 
 type ChunkGenerator = (
   seed: number | string,
@@ -29,6 +30,7 @@ export interface ChunkStreamingOptions {
   readonly generator?: ChunkGenerator;
   /** Primarily useful for observing mesh lifetimes in tests. */
   readonly meshFactory?: ChunkMeshFactory;
+  readonly sunlightDirection?: SunlightDirection;
 }
 
 interface CachedChunk {
@@ -99,7 +101,7 @@ export class ChunkStreamingSystem implements RenderSystem {
     private readonly radius = 1,
     options: ChunkStreamingOptions = {},
   ) {
-    this.meshes = options.meshFactory ?? new ChunkMeshFactory();
+    this.meshes = options.meshFactory ?? new ChunkMeshFactory(options.sunlightDirection);
     const workerGenerator = options.generator ? undefined : createWorkerGenerator();
     this.generator = options.generator ?? workerGenerator?.generate ?? generateChunk;
     this.disposeGenerator = workerGenerator?.dispose ?? (() => undefined);

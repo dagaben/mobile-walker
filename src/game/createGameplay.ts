@@ -93,14 +93,17 @@ export function createGameplay(
   // The camera remains south of the player and looks north (negative world Z),
   // so spend the additional streaming row where it expands the visible view.
   const streamingOffsets = { west: 1, east: 1, south: 1, north: 4 } as const;
-  const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1, { offsets: streamingOffsets });
+  const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1, {
+    offsets: streamingOffsets,
+    sunlightDirection: renderer.sunlightDirection,
+  });
   systems.addRenderSystem(chunks);
   const mushroomCount = document.querySelector<HTMLElement>("#mushroom-count");
   if (!mushroomCount) throw new Error("The mushroom counter could not be found.");
   const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, mushroomCount);
   systems.addRenderSystem(exploration);
   systems.addRenderSystem(new TransformInterpolationSystem());
-  systems.addRenderSystem(new PlayerShadowPresentationSystem(worldSeed, playerShadow));
+  systems.addRenderSystem(new PlayerShadowPresentationSystem(worldSeed, playerShadow, renderer.sunlightDirection));
   const camera = new CameraPresentationSystem(renderer.camera, input);
   systems.addRenderSystem(camera);
   const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");

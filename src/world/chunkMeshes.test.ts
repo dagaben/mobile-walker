@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   ChunkMeshFactory,
@@ -7,6 +7,7 @@ import {
   createRiverChannelGeometry,
 } from "./chunkMeshes";
 import { generateChunk } from "./generateChunk";
+import { SunlightDirection } from "../rendering/sunlightDirection";
 
 describe("river ribbon geometry", () => {
   it("uses a bounded shared strip and leaves the water corridor out of base terrain", () => {
@@ -159,6 +160,43 @@ describe("river ribbon geometry", () => {
 });
 
 describe("pine tree geometry", () => {
+  it("keeps resident and newly created tree-shadow batches on the current sunlight", () => {
+    const sunlight = new SunlightDirection();
+    const factory = new ChunkMeshFactory(sunlight);
+    const data = generateChunk("forest-biomes", { x: -4, z: -4 });
+    const existing = factory.create(data);
+    factory.registerGroup(existing);
+    sunlight.set(new THREE.Vector3(4, 2, -5));
+    const streamed = factory.create(data);
+    const matrixA = new THREE.Matrix4();
+    const matrixB = new THREE.Matrix4();
+    (existing.getObjectByName("tree-shadows") as THREE.InstancedMesh).getMatrixAt(0, matrixA);
+    (streamed.getObjectByName("tree-shadows") as THREE.InstancedMesh).getMatrixAt(0, matrixB);
+
+    expect(matrixA.elements).toEqual(matrixB.elements);
+    factory.disposeChunk(existing);
+    factory.disposeChunk(streamed);
+    factory.dispose();
+  });
+
+  it("does not rebuild resident instance matrices while sunlight is unchanged", () => {
+    const sunlight = new SunlightDirection();
+    const factory = new ChunkMeshFactory(sunlight);
+    const group = factory.create(generateChunk("forest-biomes", { x: -4, z: -4 }));
+    factory.registerGroup(group);
+    const shadows = group.getObjectByName("tree-shadows") as THREE.InstancedMesh;
+    const setMatrixAt = vi.spyOn(shadows, "setMatrixAt");
+
+    sunlight.set(new THREE.Vector3(-4, 8, 5));
+    sunlight.set(new THREE.Vector3(-4, 8, 5));
+    expect(setMatrixAt).not.toHaveBeenCalled();
+    sunlight.set(new THREE.Vector3(4, 8, -5));
+    expect(setMatrixAt).toHaveBeenCalledTimes(shadows.count);
+
+    factory.disposeChunk(group);
+    factory.dispose();
+  });
+
   it("renders each tree with an instanced trunk and layered crown", () => {
     const factory = new ChunkMeshFactory();
     const data = generateChunk("forest-biomes", { x: -4, z: -4 });

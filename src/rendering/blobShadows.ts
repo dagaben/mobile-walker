@@ -67,8 +67,12 @@ export function conformBlobShadowToTerrain(
 ): void {
   const positions = shadow.geometry.getAttribute("position");
   for (let index = 0; index < positions.count; index += 1) {
-    const worldX = shadow.position.x + positions.getX(index) * shadow.scale.x;
-    const worldZ = shadow.position.z + positions.getZ(index) * shadow.scale.z;
+    const localX = positions.getX(index) * shadow.scale.x;
+    const localZ = positions.getZ(index) * shadow.scale.z;
+    const cosine = Math.cos(shadow.rotation.y);
+    const sine = Math.sin(shadow.rotation.y);
+    const worldX = shadow.position.x + localX * cosine + localZ * sine;
+    const worldZ = shadow.position.z - localX * sine + localZ * cosine;
     // Divide out the mesh scale because Three.js applies it again at render time.
     positions.setY(index, (sampleHeight(worldX, worldZ) + clearance) / shadow.scale.y);
   }

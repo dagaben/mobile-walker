@@ -1,15 +1,13 @@
 import * as THREE from "three";
 import { getBlobShadowStats } from "./blobShadows";
+import { SunlightDirection, type SunlightAngles } from "./sunlightDirection";
 
 const MAX_PIXEL_RATIO = 2;
 const MAX_DRAW_DISTANCE = 150;
 const FOG_DEPTH = 20;
 const SUNLIGHT_DISTANCE = 10;
 
-export interface SunlightAngles {
-  vertical: number;
-  horizontal: number;
-}
+export type { SunlightAngles } from "./sunlightDirection";
 
 export function sunlightPosition({ vertical, horizontal }: SunlightAngles): THREE.Vector3 {
   const elevation = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(vertical, 10, 90));
@@ -31,6 +29,7 @@ export class ThreeRenderer {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, MAX_DRAW_DISTANCE);
   private readonly sunlight = new THREE.DirectionalLight(0xfff1d6, 2.2);
+  readonly sunlightDirection = new SunlightDirection();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -61,6 +60,7 @@ export class ThreeRenderer {
 
   setSunlightAngles(angles: SunlightAngles): void {
     this.sunlight.position.copy(sunlightPosition(angles));
+    this.sunlightDirection.set(this.sunlight.position);
   }
 
   getPerformanceDetails(): { drawCalls: number; triangles: number; shadowDrawCalls: number; shadowTriangles: number } {
