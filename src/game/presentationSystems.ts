@@ -9,9 +9,10 @@ import { sampleTerrainHeight } from "../world/terrainSampling";
 import { conformBlobShadowToTerrain } from "../rendering/blobShadows";
 import { blobShadowProjectionForCaster, type SunlightDirection } from "../rendering/sunlightDirection";
 import {
-  classifyFollowTurnZone, dampAngle, FOLLOW_DIRECTION_FILTER_RESPONSE,
+  dampAngle, FOLLOW_BACKPEDAL_START_RADIANS, FOLLOW_DIRECTION_FILTER_RESPONSE,
+  FOLLOW_FRONT_DEAD_ZONE_RADIANS,
   FOLLOW_MOVEMENT_DEAD_ZONE, FOLLOW_MOVEMENT_INTENT_DELAY_SECONDS, FOLLOW_RESPONSE_DAMPING,
-  followMovementStrength, followTurnZoneMultiplier,
+  followMovementStrength, shapeFollowAngularError,
   normalizeAngle, shortestAngleDifference,
   type CameraOrientationMode, type FollowResponsiveness,
 } from "./cameraOrientation";
@@ -149,16 +150,16 @@ export class CameraPresentationSystem implements RenderSystem {
     this.filteredMovement.x /= filteredLength;
     this.filteredMovement.z /= filteredLength;
     const desiredHeading = Math.atan2(this.filteredMovement.x, -this.filteredMovement.z);
-    const difference = Math.abs(shortestAngleDifference(this.followHeading, desiredHeading));
-    const turnZone = classifyFollowTurnZone(difference);
-    if (turnZone === "backpedal") {
+    const rawDifference = shortestAngleDifference(this.followHeading, desiredHeading);
+    const absoluteDifference = Math.abs(rawDifference);
+    if (absoluteDifference >= FOLLOW_BACKPEDAL_START_RADIANS) {
       // Backward input remains camera-relative, but cannot bank intent for a
       // delayed turn when the stick leaves this stable backpedal sector.
       this.directionalIntentDuration = 0;
       this.intentHeading = undefined;
       return this.followHeading;
     }
-    if (turnZone === "none") {
+    if (absoluteDifference <= FOLLOW_FRONT_DEAD_ZONE_RADIANS) {
       this.directionalIntentDuration = Math.max(0, this.directionalIntentDuration - deltaSeconds * 2);
       return this.followHeading;
     }
@@ -169,9 +170,12 @@ export class CameraPresentationSystem implements RenderSystem {
     // Start at zero beyond the movement dead zone so the first lateral input
     // does not introduce a sudden minimum camera rotation rate.
     const response = FOLLOW_RESPONSE_DAMPING[this.followResponsiveness]
-      * followTurnZoneMultiplier(turnZone)
       * followMovementStrength(magnitude);
-    this.followHeading = dampAngle(this.followHeading, desiredHeading, response, deltaSeconds);
+    const shapedError = shapeFollowAngularError(absoluteDifference);
+    const shapedTargetHeading = this.followHeading + Math.sign(rawDifference) * shapedError;
+    this.followHeading = normalizeAngle(dampAngle(
+      this.followHeading, shapedTargetHeading, response, deltaSeconds,
+    ));
     return this.followHeading;
   }
 

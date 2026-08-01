@@ -156,6 +156,41 @@ describe("CameraPresentationSystem", () => {
     expect(partial.system.getEffectiveYaw()).toBeLessThan(full.system.getEffectiveYaw());
   });
 
+  it("applies the triangular angular demand after an identical completed intent delay", () => {
+    const initialTurnFor = (degrees: number): number => {
+      const { world, system } = fixture();
+      const target = world.entities.find((entity) => entity.cameraTarget)!;
+      system.setCameraOrientationMode("follow-movement");
+      system.prepareRender(world, 0, 0); // Preserve mode-switch yaw.
+      const heading = THREE.MathUtils.degToRad(degrees);
+      target.playerControl = {
+        moveX: Math.sin(heading), moveZ: -Math.cos(heading), active: true, jump: false,
+      };
+      system.prepareRender(world, 0, 0); // Adopt the direction without advancing intent time.
+      for (let frame = 0; frame < 9; frame++) system.prepareRender(world, 0, 1 / 60);
+      const before = system.getEffectiveYaw();
+      system.prepareRender(world, 0, 1 / 60);
+      return Math.abs(shortestAngleDifference(before, system.getEffectiveYaw()));
+    };
+
+    const frontDeadZone = initialTurnFor(7);
+    const rising = initialTurnFor(45);
+    const peak = initialTurnFor(90);
+    const descending = initialTurnFor(140);
+    const nearBackpedal = initialTurnFor(150);
+    const backpedalBoundary = initialTurnFor(155);
+    const backward = initialTurnFor(180);
+
+    expect(frontDeadZone).toBeCloseTo(0);
+    expect(rising).toBeGreaterThan(0);
+    expect(rising).toBeLessThan(peak);
+    expect(descending).toBeLessThan(peak);
+    expect(nearBackpedal).toBeGreaterThan(0);
+    expect(nearBackpedal).toBeLessThan(descending);
+    expect(backpedalBoundary).toBeCloseTo(0);
+    expect(backward).toBeCloseTo(0);
+  });
+
   it.each([180, 160, -160])("keeps camera heading stable for %s-degree backpedaling", (degrees) => {
     const { world, system } = fixture();
     const target = world.entities.find((entity) => entity.cameraTarget)!;

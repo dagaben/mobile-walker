@@ -6,35 +6,10 @@ export const FOLLOW_RESPONSIVENESS_STORAGE_KEY = "mobile-walker:follow-responsiv
 export const FOLLOW_MOVEMENT_DEAD_ZONE = 0.25;
 export const FOLLOW_MOVEMENT_INTENT_DELAY_SECONDS = 0.15;
 export const FOLLOW_DIRECTION_FILTER_RESPONSE = 10;
-export const FOLLOW_NO_TURN_MAX_RADIANS = Math.PI * 8 / 180;
-export const FOLLOW_SLOW_FRONT_MAX_RADIANS = Math.PI * 45 / 180;
-export const FOLLOW_NORMAL_MAX_RADIANS = Math.PI * 100 / 180;
-export const FOLLOW_FAST_MAX_RADIANS = Math.PI * 135 / 180;
+export const FOLLOW_FRONT_DEAD_ZONE_RADIANS = Math.PI * 8 / 180;
+export const FOLLOW_PEAK_ANGLE_RADIANS = Math.PI / 2;
 export const FOLLOW_BACKPEDAL_START_RADIANS = Math.PI * 155 / 180;
-export const FOLLOW_TURN_RESPONSE_MULTIPLIERS = {
-  small: 0.65,
-  medium: 0.85,
-  large: 0.85,
-} as const;
-export type FollowTurnZone = "none" | "slow-front" | "normal" | "fast" | "slow-rear" | "backpedal";
-
-/** Classifies an absolute shortest-path heading error in the range [0, PI]. */
-export function classifyFollowTurnZone(angleRadians: number): FollowTurnZone {
-  const angle = Math.min(Math.PI, Math.max(0, Math.abs(angleRadians)));
-  if (angle < FOLLOW_NO_TURN_MAX_RADIANS) return "none";
-  if (angle < FOLLOW_SLOW_FRONT_MAX_RADIANS) return "slow-front";
-  if (angle < FOLLOW_NORMAL_MAX_RADIANS) return "normal";
-  if (angle < FOLLOW_FAST_MAX_RADIANS) return "fast";
-  if (angle < FOLLOW_BACKPEDAL_START_RADIANS) return "slow-rear";
-  return "backpedal";
-}
-
-export function followTurnZoneMultiplier(zone: FollowTurnZone): number {
-  if (zone === "slow-front" || zone === "slow-rear") return FOLLOW_TURN_RESPONSE_MULTIPLIERS.small;
-  if (zone === "normal") return FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium;
-  if (zone === "fast") return FOLLOW_TURN_RESPONSE_MULTIPLIERS.large;
-  return 0;
-}
+export const FOLLOW_PEAK_SHAPED_ERROR_RADIANS = Math.PI * 76.5 / 180;
 export const FOLLOW_RESPONSE_DAMPING: Readonly<Record<FollowResponsiveness, number>> = {
   // Keep each step modest so normal and fast retain slow's controlled feel while
   // still providing a perceptible increase in rotation speed.
@@ -58,6 +33,21 @@ export function normalizeAngle(angle: number): number {
 
 export function shortestAngleDifference(from: number, to: number): number {
   return normalizeAngle(to - from);
+}
+
+/** Shapes any heading error into the triangular follow-camera turn demand. */
+export function shapeFollowAngularError(angleRadians: number): number {
+  if (!Number.isFinite(angleRadians)) return 0;
+  const angle = Math.abs(normalizeAngle(angleRadians));
+  if (angle <= FOLLOW_FRONT_DEAD_ZONE_RADIANS || angle >= FOLLOW_BACKPEDAL_START_RADIANS) return 0;
+  if (angle <= FOLLOW_PEAK_ANGLE_RADIANS) {
+    return FOLLOW_PEAK_SHAPED_ERROR_RADIANS
+      * (angle - FOLLOW_FRONT_DEAD_ZONE_RADIANS)
+      / (FOLLOW_PEAK_ANGLE_RADIANS - FOLLOW_FRONT_DEAD_ZONE_RADIANS);
+  }
+  return FOLLOW_PEAK_SHAPED_ERROR_RADIANS
+    * (FOLLOW_BACKPEDAL_START_RADIANS - angle)
+    / (FOLLOW_BACKPEDAL_START_RADIANS - FOLLOW_PEAK_ANGLE_RADIANS);
 }
 
 /** Maps joystick travel beyond the dead zone to a smooth camera-turn strength. */
