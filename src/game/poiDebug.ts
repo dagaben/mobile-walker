@@ -1,8 +1,7 @@
 import type { RenderSystem } from "../ecs/System";
-import { chunkId } from "../world/chunkId";
-import { worldToChunk } from "../world/chunkCoordinates";
 import type { GeneratedChunkRepository } from "../world/GeneratedChunkRepository";
-import { getPoiDefinitions, type GeneratedPoi } from "../world/poi";
+import { BRIDGE_ARCHETYPES, type BridgeArchetype } from "../world/bridges";
+import { getPoiDefinitions } from "../world/poi";
 import { worldToOverlayDisplacement } from "./biomeDebug";
 
 export interface PoiDirection {
@@ -17,29 +16,70 @@ export function formatPoiDistance(distance: number): string {
   return `${Math.round(distance)} m`;
 }
 
-/** Finds the closest POI of each type in the currently generated neighborhood. */
+interface PoiGuideDefinition { readonly id: string; readonly label: string; readonly debugColor: number }
+
+const BRIDGE_GUIDE_PRESENTATION: Readonly<Record<BridgeArchetype, Omit<PoiGuideDefinition, "id">>> = {
+  "pedestrian-footbridge": { label: "Pedestrian footbridge", debugColor: 0xc58b4d },
+  "heavy-timber-bridge": { label: "Heavy timber bridge", debugColor: 0x754c2e },
+  "stone-bridge": { label: "Stone bridge", debugColor: 0x8c9291 },
+};
+
+/** All generated building and bridge types represented by the POI guide. */
+export function getPoiGuideDefinitions(): readonly PoiGuideDefinition[] {
+  return [
+    ...getPoiDefinitions(),
+    ...(Object.keys(BRIDGE_ARCHETYPES) as BridgeArchetype[]).map(id => ({ id, ...BRIDGE_GUIDE_PRESENTATION[id] })),
+  ];
+}
+
+/** Finds the closest POI of each type across all chunk data retained by streaming. */
 export function findNearestPoiTypes(
   repository: GeneratedChunkRepository,
   playerX: number,
   playerZ: number,
-  chunkRadius = 4,
 ): ReadonlyMap<string, PoiDirection> {
   const nearest = new Map<string, PoiDirection>();
-  const center = worldToChunk(playerX, playerZ);
-  for (let z = center.z - chunkRadius; z <= center.z + chunkRadius; z += 1) {
-    for (let x = center.x - chunkRadius; x <= center.x + chunkRadius; x += 1) {
-      const data = repository.get(chunkId({ x, z }));
-      if (!data) continue;
-      for (const poi of data.pois as readonly GeneratedPoi[]) {
-        const distance = Math.hypot(poi.position.x - playerX, poi.position.z - playerZ);
-        const previous = nearest.get(poi.typeId);
-        if (!previous || distance < previous.distance) {
-          nearest.set(poi.typeId, { typeId: poi.typeId, x: poi.position.x, z: poi.position.z, distance });
-        }
-      }
+  const consider = (typeId: string, x: number, z: number): void => {
+    const distance = Math.hypot(x - playerX, z - playerZ);
+    const previous = nearest.get(typeId);
+    if (!previous || distance < previous.distance) {
+      nearest.set(typeId, { typeId, x, z, distance });
+    }
+  };
+  for (const data of repository.values()) {
+    for (const poi of data.pois) consider(poi.typeId, poi.position.x, poi.position.z);
+    for (const bridge of data.bridges ?? []) {
+      consider(bridge.archetype, bridge.crossingCentre.x, bridge.crossingCentre.z);
     }
   }
   return nearest;
+}
+
+function hideIndicator(indicator: HTMLElement): void {
+  indicator.hidden = true;
+  indicator.querySelector<HTMLElement>(".biome-indicator-distance")?.replaceChildren();
+  indicator.style.removeProperty("transform");
+  indicator.removeAttribute("title");
+}
+
+function hideIndicators(indicators: Iterable<HTMLElement>): void {
+  for (const indicator of indicators) hideIndicator(indicator);
+}
+
+/** Calculates a safe edge position for a non-zero overlay and non-zero direction. */
+export function poiIndicatorTransform(width: number, height: number, dx: number, dy: number): string | undefined {
+  if (width <= 0 || height <= 0 || (!dx && !dy)) return undefined;
+  const marginX = Math.min(28, width / 2);
+  const marginY = Math.min(28, height / 2);
+  const halfWidth = Math.max(0, width / 2 - marginX);
+  const halfHeight = Math.max(0, height / 2 - marginY);
+  const xScale = dx === 0 ? Number.POSITIVE_INFINITY : halfWidth / Math.abs(dx);
+  const yScale = dy === 0 ? Number.POSITIVE_INFINITY : halfHeight / Math.abs(dy);
+  const scale = Math.min(xScale, yScale);
+  if (!Number.isFinite(scale)) return undefined;
+  const x = Math.min(width - marginX, Math.max(marginX, width / 2 + dx * scale));
+  const y = Math.min(height - marginY, Math.max(marginY, height / 2 + dy * scale));
+  return `translate(${x}px, ${y}px) translate(-50%, -50%)`;
 }
 
 export class PoiDebugPresentationSystem implements RenderSystem {
@@ -51,12 +91,13 @@ export class PoiDebugPresentationSystem implements RenderSystem {
     private readonly repository: GeneratedChunkRepository,
     private readonly overlay: HTMLElement,
   ) {
-    for (const definition of getPoiDefinitions()) {
+    for (const definition of getPoiGuideDefinitions()) {
       const indicator = document.createElement("div");
       indicator.className = "biome-indicator poi-indicator";
       indicator.dataset.poi = definition.id;
       indicator.style.setProperty("--biome-color", `#${definition.debugColor.toString(16).padStart(6, "0")}`);
       indicator.setAttribute("aria-label", `Direction to nearest ${definition.label}`);
+      indicator.hidden = true;
       const marker = document.createElement("span");
       marker.className = "biome-indicator-marker";
       marker.setAttribute("aria-hidden", "true");
@@ -72,6 +113,7 @@ export class PoiDebugPresentationSystem implements RenderSystem {
     this.enabled = enabled;
     this.overlay.hidden = !enabled;
     this.elapsed = Number.POSITIVE_INFINITY;
+    if (!enabled) hideIndicators(this.indicators.values());
   }
 
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], _interpolation: number, deltaSeconds: number): void {
@@ -80,31 +122,31 @@ export class PoiDebugPresentationSystem implements RenderSystem {
     if (this.elapsed < 0.2) return;
     this.elapsed = 0;
     const player = world.entities.find((entity) => entity.playerControl && entity.transform);
-    if (!player?.transform) return;
+    if (!player?.transform) { hideIndicators(this.indicators.values()); return; }
 
     const { x, z } = player.transform;
     const nearest = findNearestPoiTypes(this.repository, x, z);
     const width = this.overlay.clientWidth;
     const height = this.overlay.clientHeight;
-    const halfWidth = Math.max(1, width / 2 - 28);
-    const halfHeight = Math.max(1, height / 2 - 28);
-    for (const definition of getPoiDefinitions()) {
+    if (width <= 0 || height <= 0) { hideIndicators(this.indicators.values()); return; }
+    for (const definition of getPoiGuideDefinitions()) {
       const indicator = this.indicators.get(definition.id);
       const target = nearest.get(definition.id);
       if (!indicator) continue;
       if (!target || target.distance < 1) {
-        indicator.hidden = true;
+        hideIndicator(indicator);
         continue;
       }
-      indicator.hidden = false;
       const distanceLabel = formatPoiDistance(target.distance);
       const label = `${definition.label}: ${distanceLabel}`;
       indicator.querySelector<HTMLElement>(".biome-indicator-distance")!.textContent = distanceLabel;
       indicator.title = label;
       indicator.setAttribute("aria-label", `Direction to nearest ${label}`);
       const { x: dx, y: dy } = worldToOverlayDisplacement(x, z, target.x, target.z);
-      const scale = Math.min(halfWidth / Math.max(Math.abs(dx), 0.001), halfHeight / Math.max(Math.abs(dy), 0.001));
-      indicator.style.transform = `translate(${width / 2 + dx * scale}px, ${height / 2 + dy * scale}px) translate(-50%, -50%)`;
+      const transform = poiIndicatorTransform(width, height, dx, dy);
+      if (!transform) { hideIndicator(indicator); continue; }
+      indicator.style.transform = transform;
+      indicator.hidden = false;
     }
   }
 

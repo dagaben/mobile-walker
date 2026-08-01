@@ -7,6 +7,8 @@ export class GeneratedChunkRepository {
   private readonly listeners = new Set<(id: ChunkId, data: GeneratedChunkData | undefined) => void>();
 
   get(id: ChunkId): GeneratedChunkData | undefined { return this.chunks.get(id); }
+  /** Iterates retained chunk data without exposing the repository's mutable map. */
+  values(): IterableIterator<GeneratedChunkData> { return this.chunks.values(); }
   set(id: ChunkId, data: GeneratedChunkData): void {
     this.chunks.set(id, data);
     for (const listener of this.listeners) listener(id, data);
