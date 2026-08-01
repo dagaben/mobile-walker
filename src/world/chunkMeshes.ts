@@ -11,6 +11,7 @@ import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
 import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, mountainSnowCoverage, RIVER_BED_DEPTH, sampleTerrainHeight } from "./terrainSampling";
 import { terrainDarkening } from "./terrainOcclusion";
 import { PoiMeshFactory } from "./poiMeshes";
+import { BridgeMeshFactory } from "./bridgeMeshes";
 
 export interface DebugViewOptions {
   readonly wireframe: boolean;
@@ -173,6 +174,7 @@ export function createRiverChannelGeometry(
 /** Presentation-only conversion of plain generated data into disposable Three.js objects. */
 export class ChunkMeshFactory {
   private readonly poiMeshes = new PoiMeshFactory();
+  private readonly bridgeMeshes = new BridgeMeshFactory();
   private readonly sunlight: SunlightDirection;
   private readonly unsubscribeSunlight: () => void;
   private readonly groups = new Set<THREE.Group>();
@@ -236,11 +238,13 @@ export class ChunkMeshFactory {
     else if (stage === "pois") {
       const poiGroup = new THREE.Group(); poiGroup.name = "pois";
       for (const poi of data.pois) poiGroup.add(this.poiMeshes.create(poi));
+      for (const bridge of data.bridges) poiGroup.add(this.bridgeMeshes.create(bridge));
       group.add(poiGroup);
       group.userData.poiDebugData = { pois: data.pois, candidates: data.poiCandidates };
+      group.userData.bridgeDebugData = data.bridgeCandidates;
       const level = this.debugView.pois ?? "off";
       // Candidate geometry is deliberately not constructed in the normal mode.
-      if (level !== "off") group.add(this.poiMeshes.createDebug(data.pois, data.poiCandidates ?? [], level));
+      if (level !== "off") {group.add(this.poiMeshes.createDebug(data.pois, data.poiCandidates ?? [], level));group.add(this.bridgeMeshes.createDebug(data.bridgeCandidates ?? []));}
     } else {
       group.add(this.createChunkBoundary(data), this.createTreeShadows(data), this.createBuildingShadows(data));
     }
@@ -276,6 +280,7 @@ export class ChunkMeshFactory {
   dispose(): void {
     this.unsubscribeSunlight();
     this.poiMeshes.dispose();
+    this.bridgeMeshes.dispose();
     this.terrainMaterial.dispose();
     this.riverMaterial.dispose();
     this.wetlandWaterMaterial.dispose();
@@ -304,7 +309,7 @@ export class ChunkMeshFactory {
   }
 
   private createBuildingShadows(data:GeneratedChunkData):THREE.Mesh {
-    const casters=data.pois.flatMap(poi=>poi.shadowCaster?[poi.shadowCaster]:[]);
+    const casters=[...data.pois.flatMap(poi=>poi.shadowCaster?[poi.shadowCaster]:[]),...data.bridges.flatMap(bridge=>bridge.shadowCaster?[bridge.shadowCaster]:[])];
     const geometry=createBuildingShadowGeometry(casters);
     const shadows=markBlobShadow(new THREE.Mesh(geometry,this.blobShadowMaterial));
     shadows.name="building-shadows";shadows.visible=this.shadowsEnabled&&casters.length>0;
@@ -620,6 +625,7 @@ export class ChunkMeshFactory {
     if (chunkBoundary) chunkBoundary.visible = this.debugView.wireframe;
     const level = this.debugView.pois ?? "off";
     const poiDebug = group.getObjectByName("debug:pois");
+    const bridgeDebug=group.getObjectByName("debug:bridge-crossings");
     if (poiDebug && poiDebug.userData.level !== level) {
       group.remove(poiDebug);
       poiDebug.traverse(object => {
@@ -629,7 +635,9 @@ export class ChunkMeshFactory {
     if (level !== "off" && (!poiDebug || poiDebug.userData.level !== level)) {
       const data = group.userData.poiDebugData as { pois: GeneratedChunkData["pois"]; candidates: GeneratedChunkData["poiCandidates"] };
       group.add(this.poiMeshes.createDebug(data.pois, data.candidates ?? [], level));
+      group.add(this.bridgeMeshes.createDebug((group.userData.bridgeDebugData as GeneratedChunkData["bridgeCandidates"])??[]));
     }
+    if(level==="off"&&bridgeDebug)group.remove(bridgeDebug);
     group.traverse((object) => {
       if (!(object instanceof THREE.Mesh) || object.userData.isTerrainSurface !== true) return;
       const terrain = object;

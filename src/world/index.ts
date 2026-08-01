@@ -10,3 +10,5 @@ export * from "./terrainOcclusion";
 export * from "./vegetation";
 export * from "./poi";
 export * from "./poiMeshes";
+export * from "./bridges";
+export * from "./bridgeMeshes";
