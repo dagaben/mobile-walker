@@ -159,7 +159,7 @@ The registry currently provides four deliberately uncommon building discoveries:
   and excludes ordinary vegetation from a small clearing.
 - **Highland watchtower** — prefers locally prominent highland terrain, with
   suitable mountain foothills as a fallback. Multi-radius terrain-ring samples
-  drive prominence scoring; a stable compact base, very large watchtower-to-
+  drive prominence scoring; a stable compact base, dedicated watchtower-to-
   watchtower spacing, and substantial building spacing preserve its tall,
   unfenced silhouette.
 
