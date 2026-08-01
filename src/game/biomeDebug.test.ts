@@ -1,18 +1,35 @@
 import { describe, expect, it } from "vitest";
 
 import { BIOME_IDS, sampleBiome } from "../world/biomes";
-import { findNearestBiomes, formatBiomeDistance, riverIndicatorEdge, worldToOverlayDisplacement } from "./biomeDebug";
+import { directionToOverlayEdge, findNearestBiomes, formatBiomeDistance, riverIndicatorDirection, worldToOverlayDisplacement } from "./biomeDebug";
 
-describe("riverIndicatorEdge", () => {
-  it("glows on the edge facing the river column", () => {
-    expect(riverIndicatorEdge(-0.01)).toBe("right");
-    expect(riverIndicatorEdge(-16)).toBe("right");
-    expect(riverIndicatorEdge(16)).toBe("left");
+describe("riverIndicatorDirection", () => {
+  it("points toward the closest edge of the river chunk column", () => {
+    expect(riverIndicatorDirection(-16, 25)).toMatchObject({ x: 16, y: 0 });
+    expect(riverIndicatorDirection(32, 25)).toMatchObject({ x: -16, y: 0 });
+  });
+
+  it("rotates the river direction with the free-look camera", () => {
+    const facingEast = riverIndicatorDirection(-16, 25, Math.PI / 2);
+    const facingWest = riverIndicatorDirection(-16, 25, -Math.PI / 2);
+
+    expect(facingEast?.x).toBeCloseTo(0);
+    expect(facingEast?.y).toBeCloseTo(-16);
+    expect(facingWest?.x).toBeCloseTo(0);
+    expect(facingWest?.y).toBeCloseTo(16);
   });
 
   it("does not glow while the player is inside the river chunk column", () => {
-    expect(riverIndicatorEdge(0)).toBeNull();
-    expect(riverIndicatorEdge(15.999)).toBeNull();
+    expect(riverIndicatorDirection(0, 0)).toBeNull();
+    expect(riverIndicatorDirection(15.999, 0)).toBeNull();
+  });
+});
+
+describe("directionToOverlayEdge", () => {
+  it("projects cardinal and diagonal directions onto the screen perimeter", () => {
+    expect(directionToOverlayEdge(1, 0, 320, 240)).toEqual({ x: 320, y: 120 });
+    expect(directionToOverlayEdge(0, -1, 320, 240)).toEqual({ x: 160, y: 0 });
+    expect(directionToOverlayEdge(1, 1, 320, 240)).toEqual({ x: 280, y: 240 });
   });
 });
 

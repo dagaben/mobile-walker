@@ -180,18 +180,14 @@ body { overscroll-behavior: none; touch-action: none; }
 .biome-guide { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .river-indicator {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: min(4.5rem, 14vw);
+  top: var(--river-indicator-y);
+  left: var(--river-indicator-x);
+  width: min(11rem, 34vw);
+  height: min(11rem, 34vw);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(0 174 255 / 92%) 0%, rgb(0 174 255 / 62%) 25%, rgb(0 174 255 / 16%) 57%, transparent 72%);
   opacity: .88;
-}
-.river-indicator--left {
-  left: 0;
-  background: linear-gradient(to right, rgb(0 174 255 / 92%) 0%, rgb(0 174 255 / 72%) 24%, rgb(0 174 255 / 18%) 70%, transparent 100%);
-}
-.river-indicator--right {
-  right: 0;
-  background: linear-gradient(to left, rgb(0 174 255 / 92%) 0%, rgb(0 174 255 / 72%) 24%, rgb(0 174 255 / 18%) 70%, transparent 100%);
+  transform: translate(-50%, -50%);
 }
 .current-biome {
   margin-top: .3rem;

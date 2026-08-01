@@ -1,6 +1,6 @@
 import type { RenderSystem } from "../ecs/System";
 import { BIOMES, BIOME_DEBUG_COLORS, BIOME_IDS, sampleBiome, type BiomeId } from "../world/biomes";
-import { worldToChunk } from "../world/chunkCoordinates";
+import { CHUNK_SIZE, worldToChunk } from "../world/chunkCoordinates";
 import { isRiverColumn } from "../world/river";
 import { collapseDirectionIndicator, makeDirectionIndicatorExpandable } from "./directionIndicator";
 
@@ -11,13 +11,34 @@ export interface BiomeDirection {
   readonly distance: number;
 }
 
-export type RiverIndicatorEdge = "left" | "right" | null;
+export interface RiverIndicatorPosition {
+  /** CSS pixel position on the overlay perimeter. */
+  readonly x: number;
+  readonly y: number;
+}
 
-/** Returns the screen edge pointing horizontally toward the river's chunk column. */
-export function riverIndicatorEdge(playerX: number): RiverIndicatorEdge {
+/** Returns the overlay direction toward the closest point of the river chunk column. */
+export function riverIndicatorDirection(playerX: number, playerZ: number, cameraYaw = 0): { readonly x: number; readonly y: number } | null {
   const coordinate = worldToChunk(playerX, 0);
   if (isRiverColumn(coordinate)) return null;
-  return coordinate.x < 0 ? "right" : "left";
+  const targetX = coordinate.x < 0 ? 0 : CHUNK_SIZE;
+  return worldToOverlayDisplacement(playerX, playerZ, targetX, playerZ, cameraYaw);
+}
+
+/** Projects a direction from the center to the rectangular overlay perimeter. */
+export function directionToOverlayEdge(
+  dx: number,
+  dy: number,
+  width: number,
+  height: number,
+): RiverIndicatorPosition {
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  const scale = Math.min(
+    halfWidth / Math.max(Math.abs(dx), 0.001),
+    halfHeight / Math.max(Math.abs(dy), 0.001),
+  );
+  return { x: halfWidth + dx * scale, y: halfHeight + dy * scale };
 }
 
 /** Formats world-space distance for the compact biome direction markers. */
@@ -120,18 +141,28 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
 
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], _interpolation: number, deltaSeconds: number): void {
     if (!this.enabled) return;
-    this.elapsed += deltaSeconds;
-    if (this.elapsed < 0.2) return;
-    this.elapsed = 0;
     const player = world.entities.find((entity) => entity.playerControl && entity.transform);
     if (!player?.transform) return;
 
     const { x, z } = player.transform;
-    const riverEdge = riverIndicatorEdge(x);
-    this.riverIndicator.hidden = riverEdge === null;
-    this.riverIndicator.className = riverEdge === null
-      ? "river-indicator"
-      : `river-indicator river-indicator--${riverEdge}`;
+    const riverDirection = riverIndicatorDirection(x, z, this.getCameraYaw());
+    this.riverIndicator.hidden = riverDirection === null;
+    if (riverDirection) {
+      const edge = directionToOverlayEdge(
+        riverDirection.x,
+        riverDirection.y,
+        this.overlay.clientWidth,
+        this.overlay.clientHeight,
+      );
+      this.riverIndicator.style.setProperty("--river-indicator-x", `${edge.x}px`);
+      this.riverIndicator.style.setProperty("--river-indicator-y", `${edge.y}px`);
+    }
+
+    // Keep the river cue attached to the rotating view every frame, while the
+    // more expensive biome search remains throttled.
+    this.elapsed += deltaSeconds;
+    if (this.elapsed < 0.2) return;
+    this.elapsed = 0;
 
     const current = sampleBiome(this.seed, x, z).dominant;
     if (current !== this.currentBiome) {
