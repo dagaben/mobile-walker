@@ -31,8 +31,16 @@ export function worldToOverlayDisplacement(
   originZ: number,
   targetX: number,
   targetZ: number,
+  cameraYaw = 0,
 ): { readonly x: number; readonly y: number } {
-  return { x: targetX - originX, y: targetZ - originZ };
+  const dx = targetX - originX;
+  const dz = targetZ - originZ;
+  const sin = Math.sin(cameraYaw);
+  const cos = Math.cos(cameraYaw);
+  return {
+    x: dx * cos + dz * sin,
+    y: -dx * sin + dz * cos,
+  };
 }
 
 /** Finds representative points in the nearest sampled region of every biome. */
@@ -71,6 +79,7 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
     private readonly seed: number | string,
     private readonly overlay: HTMLElement,
     private readonly currentLabel: HTMLElement,
+    private readonly getCameraYaw: () => number = () => 0,
   ) {
     this.riverIndicator = document.createElement("div");
     this.riverIndicator.className = "river-indicator";
@@ -153,7 +162,7 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
       if (distance) distance.textContent = distanceLabel;
       indicator.title = label;
       indicator.setAttribute("aria-label", `Direction to nearest ${label}`);
-      const { x: dx, y: dy } = worldToOverlayDisplacement(x, z, target.x, target.z);
+      const { x: dx, y: dy } = worldToOverlayDisplacement(x, z, target.x, target.z, this.getCameraYaw());
       const scale = Math.min(halfWidth / Math.max(Math.abs(dx), 0.001), halfHeight / Math.max(Math.abs(dy), 0.001));
       const screenX = width / 2 + dx * scale;
       const horizontalAlignment = screenX < width / 2 ? "0%" : "-100%";

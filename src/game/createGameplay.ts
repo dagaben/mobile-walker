@@ -111,11 +111,11 @@ export function createGameplay(
   const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");
   const biomeLabel = document.querySelector<HTMLElement>("#current-biome-name");
   if (!biomeOverlay || !biomeLabel) throw new Error("Biome guide elements could not be found.");
-  const biomeDebug = new BiomeDebugPresentationSystem(worldSeed, biomeOverlay, biomeLabel);
+  const biomeDebug = new BiomeDebugPresentationSystem(worldSeed, biomeOverlay, biomeLabel, () => camera.getFacingYaw());
   systems.addRenderSystem(biomeDebug);
   const poiOverlay = document.querySelector<HTMLElement>("#poi-guide");
   if (!poiOverlay) throw new Error("The POI guide element could not be found.");
-  const poiDebug = new PoiDebugPresentationSystem(chunks.repository, poiOverlay);
+  const poiDebug = new PoiDebugPresentationSystem(chunks.repository, poiOverlay, () => camera.getFacingYaw());
   systems.addRenderSystem(poiDebug);
   return { chunks, biomeDebug, poiDebug, camera, persistence, exploration, playerShadow };
 }

@@ -40,6 +40,17 @@ describe("worldToOverlayDisplacement", () => {
     expect(overlayCenter.x + positiveX.x).toBeGreaterThan(overlayCenter.x);
     expect(overlayCenter.x + negativeX.x).toBeLessThan(overlayCenter.x);
   });
+
+  it("rotates world directions relative to the camera facing angle", () => {
+    const cameraFacingEast = Math.PI / 2;
+    const east = worldToOverlayDisplacement(0, 0, 10, 0, cameraFacingEast);
+    const north = worldToOverlayDisplacement(0, 0, 0, -10, cameraFacingEast);
+
+    expect(east.x).toBeCloseTo(0);
+    expect(east.y).toBeCloseTo(-10);
+    expect(north.x).toBeCloseTo(-10);
+    expect(north.y).toBeCloseTo(0);
+  });
 });
 
 describe("findNearestBiomes", () => {

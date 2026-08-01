@@ -45,13 +45,13 @@ class FakeElement {
   }
 }
 
-function presentationFixture(repository = new GeneratedChunkRepository(), width = 320, height = 240) {
+function presentationFixture(repository = new GeneratedChunkRepository(), width = 320, height = 240, cameraYaw = 0) {
   const previousDocument = globalThis.document;
   globalThis.document = { createElement: () => new FakeElement() } as unknown as Document;
   const overlay = new FakeElement();
   overlay.clientWidth = width;
   overlay.clientHeight = height;
-  const system = new PoiDebugPresentationSystem(repository, overlay as unknown as HTMLElement);
+  const system = new PoiDebugPresentationSystem(repository, overlay as unknown as HTMLElement, () => cameraYaw);
   const world = createEcsWorld();
   world.add({ playerControl: { moveX: 0, moveZ: 0, active: false, jump: false }, transform: { x: 0, y: 0, z: 0, yaw: 0 } });
   const restore = () => { globalThis.document = previousDocument; };
@@ -175,6 +175,18 @@ describe("POI guide presentation", () => {
       expect(indicator.children[1]!.textContent).toBe("42 m");
       expect(indicator.style.transform).toBeTruthy();
       expect(indicator.style.transform).not.toContain("translate(0px, 0px)");
+    } finally { fixture.restore(); }
+  });
+
+  it("positions targets relative to the camera facing angle", () => {
+    const repository = new GeneratedChunkRepository();
+    repository.set("9,0", chunk([poi("plains-farmhouse", 42, 0)]));
+    const fixture = presentationFixture(repository, 320, 240, Math.PI / 2);
+    try {
+      fixture.system.setEnabled(true);
+      fixture.system.prepareRender(fixture.world, 0, 0);
+      const indicator = fixture.overlay.children.find(child => child.dataset.poi === "plains-farmhouse")!;
+      expect(indicator.style.transform).toContain("translate(160px, 28px)");
     } finally { fixture.restore(); }
   });
 

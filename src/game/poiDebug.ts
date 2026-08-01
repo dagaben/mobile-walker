@@ -96,6 +96,7 @@ export class PoiDebugPresentationSystem implements RenderSystem {
   constructor(
     private readonly repository: GeneratedChunkRepository,
     private readonly overlay: HTMLElement,
+    private readonly getCameraYaw: () => number = () => 0,
   ) {
     for (const definition of getPoiGuideDefinitions()) {
       const indicator = document.createElement("button");
@@ -153,7 +154,7 @@ export class PoiDebugPresentationSystem implements RenderSystem {
       indicator.querySelector<HTMLElement>(".biome-indicator-distance")!.textContent = distanceLabel;
       indicator.title = label;
       indicator.setAttribute("aria-label", `Direction to nearest ${label}`);
-      const { x: dx, y: dy } = worldToOverlayDisplacement(x, z, target.x, target.z);
+      const { x: dx, y: dy } = worldToOverlayDisplacement(x, z, target.x, target.z, this.getCameraYaw());
       const transform = poiIndicatorTransform(width, height, dx, dy);
       if (!transform) { hideIndicator(indicator); continue; }
       indicator.style.transform = transform;
