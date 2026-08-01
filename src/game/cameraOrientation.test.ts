@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  FOLLOW_RESPONSE_DAMPING, FOLLOW_TURN_RESPONSE_MULTIPLIERS,
-  classifyFollowTurnZone, followMovementStrength, followTurnZoneMultiplier,
+  FOLLOW_BACKPEDAL_START_RADIANS, FOLLOW_FRONT_DEAD_ZONE_RADIANS,
+  FOLLOW_PEAK_ANGLE_RADIANS, FOLLOW_PEAK_SHAPED_ERROR_RADIANS,
+  FOLLOW_RESPONSE_DAMPING, followMovementStrength, shapeFollowAngularError,
   isCameraOrientationMode, isFollowResponsiveness, dampAngle,
 } from "./cameraOrientation";
 
@@ -35,14 +36,6 @@ describe("camera orientation settings", () => {
     expect(fastStep / slowStep).toBeLessThan(1.5);
   });
 
-  it("uses reduced response multipliers for wider turns", () => {
-    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.small).toBe(0.65);
-    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium).toBe(0.85);
-    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.large).toBe(0.85);
-    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.small).toBeLessThan(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium);
-    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium).toBe(FOLLOW_TURN_RESPONSE_MULTIPLIERS.large);
-  });
-
   it("ramps follow strength smoothly from the movement dead zone", () => {
     expect(followMovementStrength(0.2)).toBe(0);
     expect(followMovementStrength(0.25)).toBe(0);
@@ -51,16 +44,49 @@ describe("camera orientation settings", () => {
     expect(followMovementStrength(2)).toBe(1);
   });
 
-  it.each([
-    [0, "none", 0], [7.999, "none", 0],
-    [8, "slow-front", 0.65], [44.999, "slow-front", 0.65],
-    [45, "normal", 0.85], [99.999, "normal", 0.85],
-    [100, "fast", 0.85], [134.999, "fast", 0.85],
-    [135, "slow-rear", 0.65], [154.999, "slow-rear", 0.65],
-    [155, "backpedal", 0], [180, "backpedal", 0],
-  ] as const)("classifies %s degrees as %s with multiplier %s", (degrees, zone, multiplier) => {
-    const classified = classifyFollowTurnZone(degrees * Math.PI / 180);
-    expect(classified).toBe(zone);
-    expect(followTurnZoneMultiplier(classified)).toBe(multiplier);
+});
+
+describe("follow angular-error curve", () => {
+  const radians = (degrees: number): number => degrees * Math.PI / 180;
+  const expectedRise = (degrees: number): number => FOLLOW_PEAK_SHAPED_ERROR_RADIANS
+    * (degrees - 8) / (90 - 8);
+  const expectedFall = (degrees: number): number => FOLLOW_PEAK_SHAPED_ERROR_RADIANS
+    * (155 - degrees) / (155 - 90);
+
+  it.each([[0, 0], [7.999, 0], [8, 0], [49, expectedRise(49)],
+    [90, FOLLOW_PEAK_SHAPED_ERROR_RADIANS], [122.5, expectedFall(122.5)],
+    [155, 0], [180, 0]] as const)("shapes %s degrees to its interpolated value", (degrees, expected) => {
+    expect(shapeFollowAngularError(radians(degrees))).toBeCloseTo(expected, 12);
   });
+
+  it("is continuous immediately around every control point", () => {
+    const epsilon = 1e-9;
+    for (const point of [FOLLOW_FRONT_DEAD_ZONE_RADIANS, FOLLOW_PEAK_ANGLE_RADIANS,
+      FOLLOW_BACKPEDAL_START_RADIANS]) {
+      const atPoint = shapeFollowAngularError(point);
+      expect(Math.abs(shapeFollowAngularError(point - epsilon) - atPoint)).toBeLessThan(2e-9);
+      expect(Math.abs(shapeFollowAngularError(point + epsilon) - atPoint)).toBeLessThan(2e-9);
+    }
+  });
+
+  it("is bounded over normalized and out-of-range finite inputs", () => {
+    for (let degrees = -720; degrees <= 720; degrees += 0.25) {
+      const shaped = shapeFollowAngularError(radians(degrees));
+      expect(shaped).toBeGreaterThanOrEqual(0);
+      expect(shaped).toBeLessThanOrEqual(FOLLOW_PEAK_SHAPED_ERROR_RADIANS);
+    }
+  });
+
+  it("has equal magnitude for left and right errors", () => {
+    for (const degrees of [10, 45, 90, 120, 150, 170]) {
+      expect(shapeFollowAngularError(radians(degrees)))
+        .toBeCloseTo(shapeFollowAngularError(radians(-degrees)), 12);
+    }
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "returns zero safely for non-finite input %s", (angle) => {
+      expect(shapeFollowAngularError(angle)).toBe(0);
+    },
+  );
 });

@@ -155,12 +155,19 @@ has turned during a long press. Its separate **Slow / Normal / Fast** segmented
 control selects the persisted Follow responsiveness. Only the setting relevant
 to the active mode is shown.
 
-Movement mode uses a deliberate rear response curve: strong rear-side input
-turns the camera quickly, near-backward input slows the camera, and nearly
-straight backward input becomes stable backpedaling. In that backpedal sector,
+Movement mode uses a continuous triangular angular-error curve: it does not
+rotate within 8 degrees of forward, increases turn demand linearly to its peak
+at a side-facing 90-degree input, then decreases linearly toward backward.
+From 155 through 180 degrees, input becomes stable backpedaling. In that sector,
 the player can move backward-left or backward-right relative to the current
 view without rotating the camera; moving outside it naturally starts a fresh,
 delayed turn.
+
+The curve's configurable control points are its 8-degree front dead-zone angle,
+90-degree peak angle, 76.5-degree peak shaped-error value, and 155-degree
+backpedal-start angle. There is intentionally no 45-degree shoulder point in
+this initial curve. Responsiveness and joystick-distance strength scale the
+shaped turn demand independently.
 
 Both orientation mode and follow responsiveness are restored from browser
 storage when their saved values are valid; unavailable or malformed storage
