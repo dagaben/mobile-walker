@@ -2,7 +2,12 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
 import type { GeneratedPoi } from "./poi";
-import { createRoofGeometry, PoiMeshFactory } from "./poiMeshes";
+import { createRoofGeometry, foundationDepth, PoiMeshFactory } from "./poiMeshes";
+
+function poiOnSlope(typeId:string,biome="forest"):GeneratedPoi{return {
+  id:"slope-test",typeId,position:{x:0,y:4.92,z:0},rotation:0,
+  metadata:{biome,terrain:{minimumHeight:4.35,maximumHeight:5,averageHeight:4.7,heightVariation:.65,approximateSlope:.1,suggestedPlacementHeight:4.92}},
+} as unknown as GeneratedPoi;}
 
 describe("building roof geometry", () => {
   it("winds every visible face outward and leaves the underside open", () => {
@@ -56,6 +61,26 @@ describe("building roof geometry", () => {
     expect(tower.getObjectByName("enclosed-tower-mass")).toBeDefined();
     expect(tower.getObjectByName("fence-rail")).toBeUndefined();
     expect([...cabin.children, ...tower.children].some(object => object.name === "poi-owned-tree")).toBe(false);
+    factory.dispose();
+  });
+
+  it("derives foundation reach from the terrain analysis already stored on a POI", () => {
+    expect(foundationDepth(poiOnSlope("plains-farmhouse"))).toBeCloseTo(.69);
+  });
+
+  it.each([
+    ["plains-farmhouse","foundation","forest"],
+    ["forest-cabin","low-foundation","forest"],
+    ["forest-cabin","short-stilt","wetland"],
+    ["highland-watchtower","tower-leg","highlands"],
+  ])("extends %s supports below the lowest sampled ground",(typeId,supportName,biome)=>{
+    const factory=new PoiMeshFactory();
+    const poi=poiOnSlope(typeId,biome);
+    const building=factory.create(poi);
+    const support=building.getObjectByName(supportName)!;
+    const bounds=new THREE.Box3().setFromObject(support);
+
+    expect(bounds.min.y).toBeLessThan(poi.metadata.terrain.minimumHeight);
     factory.dispose();
   });
 });
