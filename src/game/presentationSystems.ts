@@ -11,7 +11,7 @@ import { blobShadowProjectionForCaster, type SunlightDirection } from "../render
 import {
   dampAngle, FOLLOW_DIRECTION_FILTER_RESPONSE, FOLLOW_MEANINGFUL_HEADING_RADIANS,
   FOLLOW_MOVEMENT_DEAD_ZONE, FOLLOW_MOVEMENT_INTENT_DELAY_SECONDS, FOLLOW_RESPONSE_DAMPING,
-  FOLLOW_REVERSAL_RADIANS, normalizeAngle, shortestAngleDifference,
+  FOLLOW_REVERSAL_RADIANS, FOLLOW_TURN_RESPONSE_MULTIPLIERS, normalizeAngle, shortestAngleDifference,
   type CameraOrientationMode, type FollowResponsiveness,
 } from "./cameraOrientation";
 export const PLAYER_SHADOW_EFFECTIVE_CASTER_HEIGHT = 0.82;
@@ -155,9 +155,13 @@ export class CameraPresentationSystem implements RenderSystem {
     }
     this.directionalIntentDuration += Math.max(0, deltaSeconds);
     if (this.directionalIntentDuration < FOLLOW_MOVEMENT_INTENT_DELAY_SECONDS) return this.followHeading;
-    let response = FOLLOW_RESPONSE_DAMPING[this.followResponsiveness];
-    if (difference > FOLLOW_REVERSAL_RADIANS) response *= 1.45;
-    else if (difference < Math.PI / 4) response *= 0.65;
+    // Player movement preserves analog input magnitude, so use that same drag
+    // distance to make a short joystick drag turn the camera more gradually.
+    let response = FOLLOW_RESPONSE_DAMPING[this.followResponsiveness]
+      * THREE.MathUtils.clamp(magnitude, 0, 1);
+    if (difference > FOLLOW_REVERSAL_RADIANS) response *= FOLLOW_TURN_RESPONSE_MULTIPLIERS.large;
+    else if (difference < Math.PI / 4) response *= FOLLOW_TURN_RESPONSE_MULTIPLIERS.small;
+    else response *= FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium;
     this.followHeading = dampAngle(this.followHeading, desiredHeading, response, deltaSeconds);
     return this.followHeading;
   }

@@ -8,6 +8,11 @@ export const FOLLOW_MOVEMENT_INTENT_DELAY_SECONDS = 0.15;
 export const FOLLOW_DIRECTION_FILTER_RESPONSE = 10;
 export const FOLLOW_MEANINGFUL_HEADING_RADIANS = Math.PI / 22.5; // 8 degrees
 export const FOLLOW_REVERSAL_RADIANS = Math.PI * 100 / 180;
+export const FOLLOW_TURN_RESPONSE_MULTIPLIERS = {
+  small: 0.65,
+  medium: 0.85,
+  large: 1.15,
+} as const;
 export const FOLLOW_RESPONSE_DAMPING: Readonly<Record<FollowResponsiveness, number>> = {
   // Keep the slow preset deliberately distinct from normal: it should feel like
   // a gradual camera pan rather than merely a softened version of the same turn.

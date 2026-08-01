@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  FOLLOW_RESPONSE_DAMPING, isCameraOrientationMode, isFollowResponsiveness,
+  FOLLOW_RESPONSE_DAMPING, FOLLOW_TURN_RESPONSE_MULTIPLIERS,
+  isCameraOrientationMode, isFollowResponsiveness,
   shortestAngleDifference, dampAngle,
 } from "./cameraOrientation";
 
@@ -30,10 +31,18 @@ describe("camera orientation settings", () => {
     expect(slowStep).toBeLessThan(normalStep * 0.3);
   });
 
+  it("uses progressively stronger but reduced response multipliers for wider turns", () => {
+    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.small).toBe(0.65);
+    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium).toBe(0.85);
+    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.large).toBe(1.15);
+    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.small).toBeLessThan(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium);
+    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium).toBeLessThan(FOLLOW_TURN_RESPONSE_MULTIPLIERS.large);
+  });
+
   it("gives a large reversal a stronger bounded step than a small correction", () => {
     const dt = 1 / 60;
-    const small = Math.abs(shortestAngleDifference(0, dampAngle(0, Math.PI / 6, FOLLOW_RESPONSE_DAMPING.normal * 0.65, dt)));
-    const reversal = Math.abs(shortestAngleDifference(0, dampAngle(0, Math.PI, FOLLOW_RESPONSE_DAMPING.normal * 1.45, dt)));
+    const small = Math.abs(shortestAngleDifference(0, dampAngle(0, Math.PI / 6, FOLLOW_RESPONSE_DAMPING.normal * FOLLOW_TURN_RESPONSE_MULTIPLIERS.small, dt)));
+    const reversal = Math.abs(shortestAngleDifference(0, dampAngle(0, Math.PI, FOLLOW_RESPONSE_DAMPING.normal * FOLLOW_TURN_RESPONSE_MULTIPLIERS.large, dt)));
     expect(reversal / Math.PI).toBeGreaterThan(small / (Math.PI / 6));
     expect(reversal).toBeLessThan(Math.PI);
   });

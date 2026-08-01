@@ -137,6 +137,25 @@ describe("CameraPresentationSystem", () => {
     expect(system.getEffectiveYaw()).toBeCloseTo(stopped);
   });
 
+  it("scales follow yaw speed with analog input distance", () => {
+    const partial = fixture();
+    const full = fixture();
+    partial.system.setCameraOrientationMode("follow-movement");
+    full.system.setCameraOrientationMode("follow-movement");
+    const partialTarget = partial.world.entities.find((entity) => entity.cameraTarget)!;
+    const fullTarget = full.world.entities.find((entity) => entity.cameraTarget)!;
+    partialTarget.playerControl = { moveX: 0.5, moveZ: 0, active: true, jump: false };
+    fullTarget.playerControl = { moveX: 1, moveZ: 0, active: true, jump: false };
+
+    for (let i = 0; i < 30; i++) {
+      partial.system.prepareRender(partial.world, 0, 1 / 60);
+      full.system.prepareRender(full.world, 0, 1 / 60);
+    }
+
+    expect(partial.system.getEffectiveYaw()).toBeGreaterThan(0);
+    expect(partial.system.getEffectiveYaw()).toBeLessThan(full.system.getEffectiveYaw());
+  });
+
   it("preserves heading on mode changes, then smoothly returns north", () => {
     const { world, system } = fixture();
     const target = world.entities.find((entity) => entity.cameraTarget)!;
