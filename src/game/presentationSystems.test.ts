@@ -156,6 +156,48 @@ describe("CameraPresentationSystem", () => {
     expect(partial.system.getEffectiveYaw()).toBeLessThan(full.system.getEffectiveYaw());
   });
 
+  it.each([180, 160, -160])("keeps camera heading stable for %s-degree backpedaling", (degrees) => {
+    const { world, system } = fixture();
+    const target = world.entities.find((entity) => entity.cameraTarget)!;
+    system.setCameraOrientationMode("follow-movement");
+    system.prepareRender(world, 0, 0);
+    const heading = THREE.MathUtils.degToRad(degrees);
+    target.playerControl = {
+      moveX: Math.sin(heading), moveZ: -Math.cos(heading), active: true, jump: false,
+    };
+    system.prepareRender(world, 0, 0);
+    for (let i = 0; i < 30; i++) system.prepareRender(world, 0, 1 / 60);
+    expect(system.getEffectiveYaw()).toBeCloseTo(0);
+    expect(system.getMovementReferenceYaw()).toBeCloseTo(0);
+    expect(target.playerControl.moveZ).toBeGreaterThan(0);
+  });
+
+  it("clears backpedal intent and applies a fresh delay before a slow rear turn", () => {
+    const { world, system } = fixture();
+    const target = world.entities.find((entity) => entity.cameraTarget)!;
+    system.setCameraOrientationMode("follow-movement");
+    system.prepareRender(world, 0, 0);
+    const moveAt = (degrees: number) => {
+      const heading = THREE.MathUtils.degToRad(degrees);
+      target.playerControl = { moveX: Math.sin(heading), moveZ: -Math.cos(heading), active: true, jump: false };
+    };
+
+    moveAt(120);
+    for (let i = 0; i < 8; i++) system.prepareRender(world, 0, 1 / 60);
+    moveAt(180);
+    system.prepareRender(world, 0, 0);
+    for (let i = 0; i < 3; i++) system.prepareRender(world, 0, 1 / 60);
+    const backpedalHeading = system.getEffectiveYaw();
+    expect(backpedalHeading).toBeCloseTo(0);
+
+    moveAt(150);
+    system.prepareRender(world, 0, 0);
+    for (let i = 0; i < 8; i++) system.prepareRender(world, 0, 1 / 60);
+    expect(system.getEffectiveYaw()).toBeCloseTo(backpedalHeading);
+    for (let i = 0; i < 2; i++) system.prepareRender(world, 0, 1 / 60);
+    expect(system.getEffectiveYaw()).toBeGreaterThan(backpedalHeading);
+  });
+
   it("preserves heading on mode changes, then smoothly returns north", () => {
     const { world, system } = fixture();
     const target = world.entities.find((entity) => entity.cameraTarget)!;

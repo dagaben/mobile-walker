@@ -155,6 +155,13 @@ has turned during a long press. Its separate **Slow / Normal / Fast** segmented
 control selects the persisted Follow responsiveness. Only the setting relevant
 to the active mode is shown.
 
+Movement mode uses a deliberate rear response curve: strong rear-side input
+turns the camera quickly, near-backward input slows the camera, and nearly
+straight backward input becomes stable backpedaling. In that backpedal sector,
+the player can move backward-left or backward-right relative to the current
+view without rotating the camera; moving outside it naturally starts a fresh,
+delayed turn.
+
 Both orientation mode and follow responsiveness are restored from browser
 storage when their saved values are valid; unavailable or malformed storage
 falls back to North and Normal. In Movement mode, raw stick, drag, and keyboard
