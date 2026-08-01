@@ -35,7 +35,6 @@ describe("building roof geometry", () => {
       typeId: "plains-farmhouse",
       position: { x: 0, y: 0, z: 0 },
       rotation: 0,
-      decorativeTrees: [],
     } as unknown as GeneratedPoi);
     const walls = house.getObjectByName("walls")!;
     const roof = house.getObjectByName("pitched-roof")!;
@@ -43,6 +42,20 @@ describe("building roof geometry", () => {
     const roofBounds = new THREE.Box3().setFromObject(roof);
 
     expect(roofBounds.min.y).toBeGreaterThanOrEqual(wallBounds.max.y);
+    factory.dispose();
+  });
+
+  it("renders cabin and watchtower silhouettes without fences or POI-owned trees", () => {
+    const factory = new PoiMeshFactory();
+    const base = { id: "new-poi", position: { x: 0, y: 0, z: 0 }, rotation: 0, metadata: { biome: "forest" } } as unknown as GeneratedPoi;
+    const cabin = factory.create({ ...base, typeId: "forest-cabin" });
+    const tower = factory.create({ ...base, typeId: "highland-watchtower" });
+
+    expect(cabin.getObjectByName("low-foundation")).toBeDefined();
+    expect(cabin.getObjectByName("fence-rail")).toBeUndefined();
+    expect(tower.getObjectByName("enclosed-tower-mass")).toBeDefined();
+    expect(tower.getObjectByName("fence-rail")).toBeUndefined();
+    expect([...cabin.children, ...tower.children].some(object => object.name === "poi-owned-tree")).toBe(false);
     factory.dispose();
   });
 });

@@ -5,12 +5,31 @@ import {
   footprintIntersectsRiver,
   footprintsOverlap,
   generatePois,
+  getPoiDefinitions,
   isVegetationExcluded,
   pointInFootprint,
+  sampleLocalProminence,
   type PoiFootprint,
 } from "./poi";
 
 describe("deterministic POI generation", () => {
+  it("registers cabins and watchtowers as data-driven POI definitions", () => {
+    const definitions = getPoiDefinitions();
+    const cabin = definitions.find(definition => definition.id === "forest-cabin")!;
+    const tower = definitions.find(definition => definition.id === "highland-watchtower")!;
+    expect(cabin.biomes.allowed).toEqual(["forest", "wetland"]);
+    expect(cabin.clearanceRadius).toBeLessThan(6);
+    expect(tower.biomes.preferred).toEqual(["highlands"]);
+    expect(tower.spacingByType?.[tower.id]).toBeGreaterThan(tower.minimumSpacing);
+    expect(cabin.shadowCaster?.width).toBeLessThan(cabin.footprint.kind === "rectangle" ? cabin.footprint.width : Infinity);
+  });
+
+  it("samples local terrain prominence deterministically at configurable radii", () => {
+    const sample = sampleLocalProminence("prominent-ground", 24, -18, [8, 20], 16);
+    expect(sample).toEqual(sampleLocalProminence("prominent-ground", 24, -18, [8, 20], 16));
+    expect(sample.byRadius.map(ring => ring.radius)).toEqual([8, 20]);
+    expect(sample.prominence).toBeCloseTo(sample.byRadius.reduce((sum, ring) => sum + ring.prominence, 0) / 2);
+  });
   it("returns identical plain data for the same seed and coordinate", () => {
     expect(generatePois("poi-world", { x: -3, z: 7 })).toEqual(generatePois("poi-world", { x: -3, z: 7 }));
   });
