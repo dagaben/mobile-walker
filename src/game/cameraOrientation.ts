@@ -14,11 +14,11 @@ export const FOLLOW_TURN_RESPONSE_MULTIPLIERS = {
   large: 1.15,
 } as const;
 export const FOLLOW_RESPONSE_DAMPING: Readonly<Record<FollowResponsiveness, number>> = {
-  // Keep the slow preset deliberately distinct from normal: it should feel like
-  // a gradual camera pan rather than merely a softened version of the same turn.
+  // Keep each step modest so normal and fast retain slow's controlled feel while
+  // still providing a perceptible increase in rotation speed.
   slow: 1.25,
-  normal: 5.5,
-  fast: 8.5,
+  normal: 1.5,
+  fast: 1.8,
 };
 
 export function isCameraOrientationMode(value: unknown): value is CameraOrientationMode {
