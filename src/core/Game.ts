@@ -12,6 +12,7 @@ import type { ExplorationPresentationSystem } from "../game/exploration";
 import type { ChunkNeighborhoodOffsets } from "../world/chunkCoordinates";
 import type { SunlightAngles } from "../rendering/ThreeRenderer";
 import type { PoiDebugPresentationSystem } from "../game/poiDebug";
+import type { CameraOrientationMode, FollowResponsiveness } from "../game/cameraOrientation";
 
 export class Game {
   private readonly renderer: ThreeRenderer;
@@ -100,6 +101,14 @@ export class Game {
 
   setMovementYawStrength(degrees: number): void {
     this.cameraPresentation.setMovementYawStrength(degrees);
+  }
+
+  setCameraOrientationMode(mode: CameraOrientationMode): void {
+    this.cameraPresentation.setCameraOrientationMode(mode);
+  }
+
+  setFollowResponsiveness(responsiveness: FollowResponsiveness): void {
+    this.cameraPresentation.setFollowResponsiveness(responsiveness);
   }
 
   dispose(): void {

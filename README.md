@@ -141,6 +141,27 @@ plain debug data, with accepted-only and full-candidate visualization levels.
 - **Camera gestures:** pinch with two fingers to zoom, and drag two fingers
   vertically to tilt between the standard view and a directly overhead view.
 
+### Camera orientation
+
+The Camera settings offer a touch-friendly **North / Movement** segmented
+control. **North** (the default) keeps north as the reference frame: east/west
+motion temporarily applies the persisted Movement yaw strength, then the view
+smoothly returns north. **Movement** follows sustained world-space desired
+player motion after filtering and a short intent delay, and preserves its last
+heading when the player stops. Its separate **Slow / Normal / Fast** segmented
+control selects the persisted Follow responsiveness. Only the setting relevant
+to the active mode is shown.
+
+Both orientation mode and follow responsiveness are restored from browser
+storage when their saved values are valid; unavailable or malformed storage
+falls back to North and Normal. The camera reads the same presentation-neutral,
+world-space `playerControl.moveX` / `moveZ` signal that player movement consumes,
+so camera rotation cannot feed back into movement-coordinate conversion. Camera
+orientation changes yaw only: zoom, elevation, smoothing, interpolation, and
+chunk-boundary continuity are retained. Streaming-neighborhood offsets remain
+independently user-configurable and are never rotated or rewritten by the
+camera mode.
+
 #### Available POI types
 
 The registry currently provides four deliberately uncommon building discoveries:

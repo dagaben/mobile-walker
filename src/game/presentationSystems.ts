@@ -1,12 +1,19 @@
 import * as THREE from "three";
 
 import type { RenderSystem } from "../ecs/System";
+import type { Entity } from "../ecs/Entity";
 import type { InputController } from "../player/InputController";
 import { CHUNK_SIZE } from "../world/chunkCoordinates";
 import { interpolateTransform } from "./interpolation";
 import { sampleTerrainHeight } from "../world/terrainSampling";
 import { conformBlobShadowToTerrain } from "../rendering/blobShadows";
 import { blobShadowProjectionForCaster, type SunlightDirection } from "../rendering/sunlightDirection";
+import {
+  dampAngle, FOLLOW_DIRECTION_FILTER_RESPONSE, FOLLOW_MEANINGFUL_HEADING_RADIANS,
+  FOLLOW_MOVEMENT_DEAD_ZONE, FOLLOW_MOVEMENT_INTENT_DELAY_SECONDS, FOLLOW_RESPONSE_DAMPING,
+  FOLLOW_REVERSAL_RADIANS, normalizeAngle, shortestAngleDifference,
+  type CameraOrientationMode, type FollowResponsiveness,
+} from "./cameraOrientation";
 export const PLAYER_SHADOW_EFFECTIVE_CASTER_HEIGHT = 0.82;
 
 export class TransformInterpolationSystem implements RenderSystem {
@@ -54,6 +61,13 @@ export class CameraPresentationSystem implements RenderSystem {
   private zoom = 0.05;
   private tilt: number | undefined;
   private movementYaw = 0;
+  private followHeading = 0;
+  private filteredMovement = { x: 0, z: -1 };
+  private directionalIntentDuration = 0;
+  private intentHeading: number | undefined;
+  private orientationMode: CameraOrientationMode = "north-locked";
+  private followResponsiveness: FollowResponsiveness = "normal";
+  private preserveYawForNextFrame = false;
   private movementYawStrength = THREE.MathUtils.degToRad(CameraPresentationSystem.defaultMovementYawDegrees);
 
   constructor(
@@ -72,6 +86,71 @@ export class CameraPresentationSystem implements RenderSystem {
 
   setMovementYawStrength(degrees: number): void {
     this.movementYawStrength = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(degrees, 0, 90));
+  }
+
+  setCameraOrientationMode(mode: CameraOrientationMode): void {
+    if (mode === this.orientationMode) return;
+    const effectiveYaw = this.orientationMode === "north-locked" ? this.movementYaw : this.followHeading;
+    this.orientationMode = mode;
+    this.movementYaw = effectiveYaw;
+    this.followHeading = effectiveYaw;
+    this.filteredMovement = { x: Math.sin(effectiveYaw), z: -Math.cos(effectiveYaw) };
+    this.directionalIntentDuration = 0;
+    this.intentHeading = undefined;
+    this.preserveYawForNextFrame = true;
+  }
+
+  setFollowResponsiveness(responsiveness: FollowResponsiveness): void {
+    this.followResponsiveness = responsiveness;
+  }
+
+  getEffectiveYaw(): number { return this.orientationMode === "north-locked" ? this.movementYaw : this.followHeading; }
+
+  private updateYaw(target: Entity, deltaSeconds: number): number {
+    if (this.preserveYawForNextFrame) {
+      this.preserveYawForNextFrame = false;
+      return this.orientationMode === "north-locked" ? this.movementYaw : this.followHeading;
+    }
+    const movement = target.playerControl;
+    if (this.orientationMode === "north-locked") {
+      const targetYaw = (movement?.active ? movement.moveX : 0) * this.movementYawStrength;
+      this.movementYaw = dampAngle(this.movementYaw, targetYaw, 8, deltaSeconds);
+      return this.movementYaw;
+    }
+    const x = movement?.moveX ?? 0, z = movement?.moveZ ?? 0;
+    const magnitude = Math.hypot(x, z);
+    if (magnitude < FOLLOW_MOVEMENT_DEAD_ZONE) {
+      this.directionalIntentDuration = 0;
+      this.intentHeading = undefined;
+      return this.followHeading;
+    }
+    const nx = x / magnitude, nz = z / magnitude;
+    const observedHeading = Math.atan2(nx, -nz);
+    if (this.intentHeading !== undefined
+      && Math.abs(shortestAngleDifference(this.intentHeading, observedHeading)) > Math.PI / 4) {
+      this.directionalIntentDuration = 0;
+    }
+    this.intentHeading = observedHeading;
+    const filterAmount = deltaSeconds <= 0 ? 1 : 1 - Math.exp(-FOLLOW_DIRECTION_FILTER_RESPONSE * deltaSeconds);
+    this.filteredMovement.x += (nx - this.filteredMovement.x) * filterAmount;
+    this.filteredMovement.z += (nz - this.filteredMovement.z) * filterAmount;
+    const filteredLength = Math.hypot(this.filteredMovement.x, this.filteredMovement.z);
+    if (filteredLength < 1e-6) return this.followHeading;
+    this.filteredMovement.x /= filteredLength;
+    this.filteredMovement.z /= filteredLength;
+    const desiredHeading = Math.atan2(this.filteredMovement.x, -this.filteredMovement.z);
+    const difference = Math.abs(shortestAngleDifference(this.followHeading, desiredHeading));
+    if (difference < FOLLOW_MEANINGFUL_HEADING_RADIANS) {
+      this.directionalIntentDuration = Math.max(0, this.directionalIntentDuration - deltaSeconds * 2);
+      return this.followHeading;
+    }
+    this.directionalIntentDuration += Math.max(0, deltaSeconds);
+    if (this.directionalIntentDuration < FOLLOW_MOVEMENT_INTENT_DELAY_SECONDS) return this.followHeading;
+    let response = FOLLOW_RESPONSE_DAMPING[this.followResponsiveness];
+    if (difference > FOLLOW_REVERSAL_RADIANS) response *= 1.45;
+    else if (difference < Math.PI / 4) response *= 0.65;
+    this.followHeading = dampAngle(this.followHeading, desiredHeading, response, deltaSeconds);
+    return this.followHeading;
   }
 
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], _interpolation: number, deltaSeconds: number): void {
@@ -101,19 +180,16 @@ export class CameraPresentationSystem implements RenderSystem {
     const elevation = this.tilt < 0
       ? THREE.MathUtils.lerp(baseElevation, CameraPresentationSystem.minimumElevation, -this.tilt)
       : THREE.MathUtils.lerp(baseElevation, Math.PI / 2, this.tilt);
-    const targetYaw = (target.playerControl?.active ? target.playerControl.moveX : 0)
-      * this.movementYawStrength;
-    const yawSmoothing = deltaSeconds === 0 ? 1 : 1 - Math.exp(-8 * deltaSeconds);
-    this.movementYaw = THREE.MathUtils.lerp(this.movementYaw, targetYaw, yawSmoothing);
+    const cameraYaw = normalizeAngle(this.updateYaw(target, deltaSeconds));
     const horizontalDistance = Math.cos(elevation) * distance;
     // The interpolated render position is continuous across chunk boundaries. In
     // particular, do not use the streaming neighborhood's quantized midpoint as
     // a look target: switching resident neighborhoods would make the view snap.
     this.lookAt.set(position.x, baseLookY, position.z);
     this.desired.set(
-      this.lookAt.x - Math.sin(this.movementYaw) * horizontalDistance,
+      this.lookAt.x - Math.sin(cameraYaw) * horizontalDistance,
       this.lookAt.y + Math.sin(elevation) * distance,
-      this.lookAt.z + Math.cos(this.movementYaw) * horizontalDistance,
+      this.lookAt.z + Math.cos(cameraYaw) * horizontalDistance,
     );
     const smoothing = 1 - Math.exp(-8 * deltaSeconds);
     this.camera.position.lerp(this.desired, deltaSeconds === 0 ? 1 : smoothing);

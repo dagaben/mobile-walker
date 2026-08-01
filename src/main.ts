@@ -8,6 +8,11 @@ import {
   MIN_NEIGHBORHOOD_OFFSET,
   type ChunkNeighborhoodOffsets,
 } from "./world/chunkCoordinates";
+import {
+  CAMERA_ORIENTATION_STORAGE_KEY, FOLLOW_RESPONSIVENESS_STORAGE_KEY,
+  isCameraOrientationMode, isFollowResponsiveness,
+  type CameraOrientationMode, type FollowResponsiveness,
+} from "./game/cameraOrientation";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas");
 const restartButton = document.querySelector<HTMLButtonElement>("#restart-button");
@@ -27,6 +32,10 @@ const performanceInput = document.querySelector<HTMLInputElement>("#debug-perfor
 const shadowsInput = document.querySelector<HTMLInputElement>("#debug-shadows");
 const movementYawInput = document.querySelector<HTMLInputElement>("#movement-yaw");
 const movementYawValue = document.querySelector<HTMLOutputElement>("#movement-yaw-value");
+const orientationControl = document.querySelector<HTMLElement>("#camera-orientation");
+const responsivenessControl = document.querySelector<HTMLElement>("#follow-responsiveness");
+const movementYawSettings = document.querySelector<HTMLElement>("#movement-yaw-settings");
+const responsivenessSettings = document.querySelector<HTMLElement>("#follow-responsiveness-settings");
 const sunlightVerticalInput = document.querySelector<HTMLInputElement>("#sunlight-vertical");
 const sunlightHorizontalInput = document.querySelector<HTMLInputElement>("#sunlight-horizontal");
 const sunlightVerticalValue = document.querySelector<HTMLOutputElement>("#sunlight-vertical-value");
@@ -36,7 +45,7 @@ const offsetOutputs = Object.fromEntries(["west", "east", "north", "south"].map(
 ])) as Record<keyof ChunkNeighborhoodOffsets, HTMLOutputElement | null>;
 const offsetButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-offset-direction][data-offset-change]")];
 
-if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !poiDirectionsInput || !terrainOcclusionInput || !occlusionMapInput || !poisInput || !cameraInput || !performanceInput || !shadowsInput || !movementYawInput || !movementYawValue || !sunlightVerticalInput || !sunlightHorizontalInput || !sunlightVerticalValue || !sunlightHorizontalValue || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
+if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !poiDirectionsInput || !terrainOcclusionInput || !occlusionMapInput || !poisInput || !cameraInput || !performanceInput || !shadowsInput || !movementYawInput || !movementYawValue || !orientationControl || !responsivenessControl || !movementYawSettings || !responsivenessSettings || !sunlightVerticalInput || !sunlightHorizontalInput || !sunlightVerticalValue || !sunlightHorizontalValue || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
   throw new Error("The game interface could not be found.");
 }
 
@@ -44,6 +53,14 @@ const NEIGHBORHOOD_STORAGE_KEY = "mobile-walker:neighborhood-offsets";
 const SUNLIGHT_STORAGE_KEY = "mobile-walker:sunlight-angles";
 const MOVEMENT_YAW_STORAGE_KEY = "mobile-walker:movement-yaw";
 const storage = getBrowserStorage();
+let orientationMode: CameraOrientationMode = "north-locked";
+let followResponsiveness: FollowResponsiveness = "normal";
+try {
+  const saved = storage.getItem(CAMERA_ORIENTATION_STORAGE_KEY);
+  if (isCameraOrientationMode(saved)) orientationMode = saved;
+  const savedResponse = storage.getItem(FOLLOW_RESPONSIVENESS_STORAGE_KEY);
+  if (isFollowResponsiveness(savedResponse)) followResponsiveness = savedResponse;
+} catch { /* Invalid or unavailable settings retain safe defaults. */ }
 try {
   const savedMovementYawSetting = storage.getItem(MOVEMENT_YAW_STORAGE_KEY);
   if (savedMovementYawSetting !== null) {
@@ -67,6 +84,44 @@ try {
 } catch { /* Invalid or unavailable settings fall back to the values in the interface. */ }
 
 const game = new Game(canvas);
+const selectSegment = (control: HTMLElement, value: string): void => {
+  for (const button of control.querySelectorAll<HTMLButtonElement>("button[role=radio]")) {
+    const selected = button.dataset.value === value;
+    button.setAttribute("aria-checked", String(selected));
+    button.tabIndex = selected ? 0 : -1;
+  }
+};
+const updateOrientation = (mode: CameraOrientationMode): void => {
+  orientationMode = mode;
+  selectSegment(orientationControl, mode);
+  movementYawSettings.hidden = mode !== "north-locked";
+  responsivenessSettings.hidden = mode !== "follow-movement";
+  game.setCameraOrientationMode(mode);
+  try { storage.setItem(CAMERA_ORIENTATION_STORAGE_KEY, mode); } catch { /* Gameplay remains live without storage. */ }
+};
+const updateResponsiveness = (value: FollowResponsiveness): void => {
+  followResponsiveness = value;
+  selectSegment(responsivenessControl, value);
+  game.setFollowResponsiveness(value);
+  try { storage.setItem(FOLLOW_RESPONSIVENESS_STORAGE_KEY, value); } catch { /* Gameplay remains live without storage. */ }
+};
+const activateSegment = (event: Event): void => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-value]");
+  if (!button) return;
+  if (button.parentElement === orientationControl && isCameraOrientationMode(button.dataset.value)) updateOrientation(button.dataset.value);
+  if (button.parentElement === responsivenessControl && isFollowResponsiveness(button.dataset.value)) updateResponsiveness(button.dataset.value);
+  button.focus();
+};
+const navigateSegment = (event: KeyboardEvent): void => {
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+  const control = event.currentTarget as HTMLElement;
+  const buttons = [...control.querySelectorAll<HTMLButtonElement>("button[data-value]")];
+  const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+  let next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : current + (["ArrowRight", "ArrowDown"].includes(event.key) ? 1 : -1);
+  next = (next + buttons.length) % buttons.length;
+  event.preventDefault();
+  buttons[next].click();
+};
 const restartGame = (): void => window.location.reload();
 const resetProgress = (): void => { resetGameState(getBrowserStorage()); window.location.reload(); };
 const toggleSettingsPanel = (): void => {
@@ -145,10 +200,16 @@ cameraInput.addEventListener("change", updateCameraDetails);
 performanceInput.addEventListener("change", updatePerformanceView);
 shadowsInput.addEventListener("change", updateShadows);
 movementYawInput.addEventListener("input", updateMovementYaw);
+orientationControl.addEventListener("click", activateSegment);
+orientationControl.addEventListener("keydown", navigateSegment);
+responsivenessControl.addEventListener("click", activateSegment);
+responsivenessControl.addEventListener("keydown", navigateSegment);
 sunlightVerticalInput.addEventListener("input", updateSunlight);
 sunlightHorizontalInput.addEventListener("input", updateSunlight);
 for (const button of offsetButtons) button.addEventListener("click", changeNeighborhoodOffset);
 updateNeighborhood();
+updateResponsiveness(followResponsiveness);
+updateOrientation(orientationMode);
 game.start();
 updateShadows();
 updateMovementYaw();
@@ -166,6 +227,10 @@ if (import.meta.hot) {
     performanceInput.removeEventListener("change", updatePerformanceView);
     shadowsInput.removeEventListener("change", updateShadows);
     movementYawInput.removeEventListener("input", updateMovementYaw);
+    orientationControl.removeEventListener("click", activateSegment);
+    orientationControl.removeEventListener("keydown", navigateSegment);
+    responsivenessControl.removeEventListener("click", activateSegment);
+    responsivenessControl.removeEventListener("keydown", navigateSegment);
     sunlightVerticalInput.removeEventListener("input", updateSunlight);
     sunlightHorizontalInput.removeEventListener("input", updateSunlight);
     for (const button of offsetButtons) button.removeEventListener("click", changeNeighborhoodOffset);

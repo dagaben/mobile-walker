@@ -91,11 +91,32 @@
         </fieldset>
         <fieldset>
           <legend>Camera</legend>
-          <p>Turn the view toward sideways movement</p>
-          <label class="range-setting" for="movement-yaw">
-            <span>Movement yaw <output id="movement-yaw-value" for="movement-yaw">10°</output></span>
-            <input id="movement-yaw" type="range" min="0" max="90" value="10" step="1" />
-          </label>
+          <p>Choose the camera's orientation reference</p>
+          <div class="setting-block">
+            <span class="setting-label" id="camera-orientation-label">Camera orientation</span>
+            <div class="segmented-control" id="camera-orientation" role="radiogroup" aria-labelledby="camera-orientation-label">
+              <button type="button" role="radio" aria-checked="true" data-value="north-locked">North</button>
+              <button type="button" role="radio" aria-checked="false" data-value="follow-movement">Movement</button>
+            </div>
+          </div>
+          <div id="movement-yaw-settings">
+            <p>Turn the view temporarily toward sideways movement</p>
+            <label class="range-setting" for="movement-yaw">
+              <span>Movement yaw <output id="movement-yaw-value" for="movement-yaw">10°</output></span>
+              <input id="movement-yaw" type="range" min="0" max="90" value="10" step="1" />
+            </label>
+          </div>
+          <div id="follow-responsiveness-settings" hidden>
+            <p>Choose how quickly the view adopts sustained movement</p>
+            <div class="setting-block">
+              <span class="setting-label" id="follow-responsiveness-label">Follow responsiveness</span>
+              <div class="segmented-control three-options" id="follow-responsiveness" role="radiogroup" aria-labelledby="follow-responsiveness-label">
+                <button type="button" role="radio" aria-checked="false" data-value="slow">Slow</button>
+                <button type="button" role="radio" aria-checked="true" data-value="normal">Normal</button>
+                <button type="button" role="radio" aria-checked="false" data-value="fast">Fast</button>
+              </div>
+            </div>
+          </div>
         </fieldset>
         <fieldset>
           <legend>Sunlight</legend>

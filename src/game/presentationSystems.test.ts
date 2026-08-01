@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createEcsWorld } from "../ecs/createEcsWorld";
 import { CHUNK_SIZE } from "../world/chunkCoordinates";
 import { CameraPresentationSystem } from "./presentationSystems";
+import { dampAngle, normalizeAngle, shortestAngleDifference } from "./cameraOrientation";
 
 function fixture(aspect = 16 / 9) {
   const camera = new THREE.PerspectiveCamera(60, aspect);
@@ -102,5 +103,77 @@ describe("CameraPresentationSystem", () => {
     system.prepareRender(world, 0, 0);
     expect(camera.getWorldDirection(direction).x).toBeCloseTo(0);
     expect(direction.z).toBeCloseTo(-Math.cos(THREE.MathUtils.degToRad(22)));
+  });
+
+  it("returns smoothly to north after north-locked lateral movement stops", () => {
+    const { world, system } = fixture();
+    const target = world.entities.find((entity) => entity.cameraTarget)!;
+    target.playerControl = { moveX: 1, moveZ: 0, active: true, jump: false };
+    system.prepareRender(world, 0, 0);
+    const turned = system.getEffectiveYaw();
+    target.playerControl.active = false;
+    system.prepareRender(world, 0, 1 / 60);
+    expect(system.getEffectiveYaw()).toBeGreaterThan(0);
+    expect(system.getEffectiveYaw()).toBeLessThan(turned);
+  });
+
+  it("follows sustained world-space movement but ignores short, weak, and stopped input", () => {
+    const { world, system } = fixture();
+    const target = world.entities.find((entity) => entity.cameraTarget)!;
+    system.setCameraOrientationMode("follow-movement");
+    system.prepareRender(world, 0, 1 / 60);
+    target.playerControl = { moveX: 0.2, moveZ: 0, active: true, jump: false };
+    for (let i = 0; i < 20; i++) system.prepareRender(world, 0, 1 / 60);
+    expect(system.getEffectiveYaw()).toBeCloseTo(0);
+    target.playerControl.moveX = 1;
+    for (let i = 0; i < 7; i++) system.prepareRender(world, 0, 1 / 60);
+    expect(Math.abs(system.getEffectiveYaw())).toBeLessThan(0.05);
+    for (let i = 0; i < 40; i++) system.prepareRender(world, 0, 1 / 60);
+    expect(system.getEffectiveYaw()).toBeGreaterThan(0.8);
+    const stopped = system.getEffectiveYaw();
+    target.playerControl.active = false;
+    target.playerControl.moveX = target.playerControl.moveZ = 0;
+    for (let i = 0; i < 30; i++) system.prepareRender(world, 0, 1 / 60);
+    expect(system.getEffectiveYaw()).toBeCloseTo(stopped);
+  });
+
+  it("preserves heading on mode changes, then smoothly returns north", () => {
+    const { world, system } = fixture();
+    const target = world.entities.find((entity) => entity.cameraTarget)!;
+    target.playerControl = { moveX: 1, moveZ: 0, active: true, jump: false };
+    system.prepareRender(world, 0, 0);
+    const before = system.getEffectiveYaw();
+    system.setCameraOrientationMode("follow-movement");
+    system.prepareRender(world, 0, 1 / 60);
+    expect(system.getEffectiveYaw()).toBeCloseTo(before);
+    system.setCameraOrientationMode("north-locked");
+    target.playerControl.active = false;
+    system.prepareRender(world, 0, 1 / 60);
+    expect(system.getEffectiveYaw()).toBeCloseTo(before);
+    system.prepareRender(world, 0, 1 / 60);
+    expect(Math.abs(system.getEffectiveYaw())).toBeLessThan(Math.abs(before));
+  });
+
+  it("handles zero vectors and chunk crossings in follow mode without discontinuity or NaN", () => {
+    const { camera, world, system } = fixture();
+    const target = world.entities.find((entity) => entity.cameraTarget && entity.renderable)!;
+    system.setCameraOrientationMode("follow-movement");
+    target.playerControl = { moveX: Number.EPSILON, moveZ: 0, active: true, jump: false };
+    target.renderable!.position.x = CHUNK_SIZE - 0.001;
+    system.prepareRender(world, 0, 0);
+    const before = camera.position.clone();
+    target.renderable!.position.x = CHUNK_SIZE + 0.001;
+    system.prepareRender(world, 0, 1 / 60);
+    expect(camera.position.distanceTo(before)).toBeLessThan(1);
+    expect(camera.position.toArray().every(Number.isFinite)).toBe(true);
+  });
+});
+
+describe("camera angle helpers", () => {
+  it("interpolates across the angle boundary on the shortest path", () => {
+    const from = Math.PI - 0.1, to = -Math.PI + 0.1;
+    expect(shortestAngleDifference(from, to)).toBeCloseTo(0.2);
+    expect(Math.abs(shortestAngleDifference(dampAngle(from, to, 5, 0.1), to))).toBeLessThan(0.2);
+    expect(normalizeAngle(Number.NaN)).toBe(0);
   });
 });
