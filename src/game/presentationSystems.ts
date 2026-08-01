@@ -9,9 +9,9 @@ import { sampleTerrainHeight } from "../world/terrainSampling";
 import { conformBlobShadowToTerrain } from "../rendering/blobShadows";
 import { blobShadowProjectionForCaster, type SunlightDirection } from "../rendering/sunlightDirection";
 import {
-  dampAngle, FOLLOW_DIRECTION_FILTER_RESPONSE, FOLLOW_MEANINGFUL_HEADING_RADIANS,
+  classifyFollowTurnZone, dampAngle, FOLLOW_DIRECTION_FILTER_RESPONSE,
   FOLLOW_MOVEMENT_DEAD_ZONE, FOLLOW_MOVEMENT_INTENT_DELAY_SECONDS, FOLLOW_RESPONSE_DAMPING,
-  FOLLOW_REVERSAL_RADIANS, FOLLOW_TURN_RESPONSE_MULTIPLIERS, followMovementStrength,
+  followMovementStrength, followTurnZoneMultiplier,
   normalizeAngle, shortestAngleDifference,
   type CameraOrientationMode, type FollowResponsiveness,
 } from "./cameraOrientation";
@@ -150,7 +150,15 @@ export class CameraPresentationSystem implements RenderSystem {
     this.filteredMovement.z /= filteredLength;
     const desiredHeading = Math.atan2(this.filteredMovement.x, -this.filteredMovement.z);
     const difference = Math.abs(shortestAngleDifference(this.followHeading, desiredHeading));
-    if (difference < FOLLOW_MEANINGFUL_HEADING_RADIANS) {
+    const turnZone = classifyFollowTurnZone(difference);
+    if (turnZone === "backpedal") {
+      // Backward input remains camera-relative, but cannot bank intent for a
+      // delayed turn when the stick leaves this stable backpedal sector.
+      this.directionalIntentDuration = 0;
+      this.intentHeading = undefined;
+      return this.followHeading;
+    }
+    if (turnZone === "none") {
       this.directionalIntentDuration = Math.max(0, this.directionalIntentDuration - deltaSeconds * 2);
       return this.followHeading;
     }
@@ -160,11 +168,9 @@ export class CameraPresentationSystem implements RenderSystem {
     // distance to make a short joystick drag turn the camera more gradually.
     // Start at zero beyond the movement dead zone so the first lateral input
     // does not introduce a sudden minimum camera rotation rate.
-    let response = FOLLOW_RESPONSE_DAMPING[this.followResponsiveness]
+    const response = FOLLOW_RESPONSE_DAMPING[this.followResponsiveness]
+      * followTurnZoneMultiplier(turnZone)
       * followMovementStrength(magnitude);
-    if (difference > FOLLOW_REVERSAL_RADIANS) response *= FOLLOW_TURN_RESPONSE_MULTIPLIERS.large;
-    else if (difference < Math.PI / 4) response *= FOLLOW_TURN_RESPONSE_MULTIPLIERS.small;
-    else response *= FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium;
     this.followHeading = dampAngle(this.followHeading, desiredHeading, response, deltaSeconds);
     return this.followHeading;
   }

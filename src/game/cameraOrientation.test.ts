@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   FOLLOW_RESPONSE_DAMPING, FOLLOW_TURN_RESPONSE_MULTIPLIERS,
-  followMovementStrength, isCameraOrientationMode, isFollowResponsiveness,
-  shortestAngleDifference, dampAngle,
+  classifyFollowTurnZone, followMovementStrength, followTurnZoneMultiplier,
+  isCameraOrientationMode, isFollowResponsiveness, dampAngle,
 } from "./cameraOrientation";
 
 describe("camera orientation settings", () => {
@@ -51,11 +51,16 @@ describe("camera orientation settings", () => {
     expect(followMovementStrength(2)).toBe(1);
   });
 
-  it("gives a large reversal a stronger bounded step than a small correction", () => {
-    const dt = 1 / 60;
-    const small = Math.abs(shortestAngleDifference(0, dampAngle(0, Math.PI / 6, FOLLOW_RESPONSE_DAMPING.normal * FOLLOW_TURN_RESPONSE_MULTIPLIERS.small, dt)));
-    const reversal = Math.abs(shortestAngleDifference(0, dampAngle(0, Math.PI, FOLLOW_RESPONSE_DAMPING.normal * FOLLOW_TURN_RESPONSE_MULTIPLIERS.large, dt)));
-    expect(reversal / Math.PI).toBeGreaterThan(small / (Math.PI / 6));
-    expect(reversal).toBeLessThan(Math.PI);
+  it.each([
+    [0, "none", 0], [7.999, "none", 0],
+    [8, "slow-front", 0.65], [44.999, "slow-front", 0.65],
+    [45, "normal", 0.85], [99.999, "normal", 0.85],
+    [100, "fast", 1.15], [134.999, "fast", 1.15],
+    [135, "slow-rear", 0.65], [154.999, "slow-rear", 0.65],
+    [155, "backpedal", 0], [180, "backpedal", 0],
+  ] as const)("classifies %s degrees as %s with multiplier %s", (degrees, zone, multiplier) => {
+    const classified = classifyFollowTurnZone(degrees * Math.PI / 180);
+    expect(classified).toBe(zone);
+    expect(followTurnZoneMultiplier(classified)).toBe(multiplier);
   });
 });
