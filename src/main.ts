@@ -2,6 +2,7 @@ import "./style.css";
 
 import { Game } from "./core/Game";
 import { getBrowserStorage, resetGameState } from "./game/persistence";
+import { installGameGestureProtection } from "./game/gameGestureProtection";
 import {
   clampNeighborhoodOffset,
   MAX_NEIGHBORHOOD_OFFSET,
@@ -84,6 +85,7 @@ try {
 } catch { /* Invalid or unavailable settings fall back to the values in the interface. */ }
 
 const game = new Game(canvas);
+const removeGameGestureProtection = installGameGestureProtection(canvas);
 const selectSegment = (control: HTMLElement, value: string): void => {
   for (const button of control.querySelectorAll<HTMLButtonElement>("button[role=radio]")) {
     const selected = button.dataset.value === value;
@@ -234,6 +236,7 @@ if (import.meta.hot) {
     sunlightVerticalInput.removeEventListener("input", updateSunlight);
     sunlightHorizontalInput.removeEventListener("input", updateSunlight);
     for (const button of offsetButtons) button.removeEventListener("click", changeNeighborhoodOffset);
+    removeGameGestureProtection();
     game.dispose();
   });
 }
