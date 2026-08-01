@@ -155,7 +155,9 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
       indicator.setAttribute("aria-label", `Direction to nearest ${label}`);
       const { x: dx, y: dy } = worldToOverlayDisplacement(x, z, target.x, target.z);
       const scale = Math.min(halfWidth / Math.max(Math.abs(dx), 0.001), halfHeight / Math.max(Math.abs(dy), 0.001));
-      indicator.style.transform = `translate(${width / 2 + dx * scale}px, ${height / 2 + dy * scale}px) translate(-50%, -50%)`;
+      const screenX = width / 2 + dx * scale;
+      const horizontalAlignment = screenX < width / 2 ? "0%" : "-100%";
+      indicator.style.transform = `translate(${screenX}px, ${height / 2 + dy * scale}px) translate(${horizontalAlignment}, -50%)`;
     }
   }
 

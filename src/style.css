@@ -223,8 +223,30 @@ body { overscroll-behavior: none; touch-action: none; }
   order: 2;
 }
 .biome-indicator-distance { order: 3; }
-.biome-indicator[data-expanded="true"] { padding-right: .5rem; }
-.biome-indicator[data-expanded="true"] .biome-indicator-name { display: inline; }
+.biome-indicator[data-expanded="true"] {
+  display: grid;
+  grid-template-columns: auto auto;
+  max-width: calc(50% - .5rem);
+  padding-right: .5rem;
+  border-radius: .8rem;
+}
+.biome-indicator[data-expanded="true"] .biome-indicator-marker {
+  grid-row: 1;
+  grid-column: 1;
+}
+.biome-indicator[data-expanded="true"] .biome-indicator-distance {
+  grid-row: 1;
+  grid-column: 2;
+}
+.biome-indicator[data-expanded="true"] .biome-indicator-name {
+  display: block;
+  grid-row: 2;
+  grid-column: 1 / -1;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: normal;
+}
 /* Author-level display declarations must also honor hidden explicitly. */
 .biome-indicator[hidden] { display: none; }
 .biome-indicator-marker {
