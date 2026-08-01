@@ -6,6 +6,7 @@ import {
   BLOB_SHADOW_MAX_OFFSET_SCALE,
   BLOB_SHADOW_MIN_STRETCH,
   blobShadowProjection,
+  blobShadowProjectionForCaster,
   SunlightDirection,
 } from "./sunlightDirection";
 
@@ -74,5 +75,20 @@ describe("directional blob-shadow projection", () => {
     expect(changed).not.toHaveBeenCalled();
     sunlight.set(new THREE.Vector3(4, 8, -5));
     expect(changed).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("caster blob projection",()=>{
+  it("uses caster height and stays bounded from overhead to horizon",()=>{
+    const high=blobShadowProjectionForCaster(new THREE.Vector3(1,20,0),.82,{maximumOffset:3.5});
+    const low=blobShadowProjectionForCaster(new THREE.Vector3(20,1,0),.82,{maximumOffset:3.5});
+    expect(low.offsetDistance).toBeGreaterThan(high.offsetDistance);
+    expect(low.offsetDistance).toBeLessThanOrEqual(3.5);
+    expect(blobShadowProjectionForCaster(new THREE.Vector3(0,1,0),.82).offsetDistance).toBe(0);
+    expect(blobShadowProjectionForCaster(new THREE.Vector3(1,1,0),1.64).offsetDistance)
+      .toBeCloseTo(blobShadowProjectionForCaster(new THREE.Vector3(1,1,0),.82).offsetDistance*2);
+    const reverse=blobShadowProjectionForCaster(new THREE.Vector3(-20,1,0),.82);
+    expect(reverse.directionX).toBe(-low.directionX);
+    expect(Number.isFinite(low.offsetDistance)).toBe(true);
   });
 });

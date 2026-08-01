@@ -46,6 +46,7 @@ export interface IrregularTerrainVertex {
 }
 
 export interface GeneratedChunkData {
+  readonly seed: number;
   readonly id: ChunkId;
   readonly coordinate: ChunkCoordinate;
   readonly size: number;
@@ -233,6 +234,7 @@ export function generateChunk(
   }
   for(let i=0;i<normals.length;i+=3){const length=Math.hypot(normals[i]!,normals[i+1]!,normals[i+2]!)||1;normals[i]!/=length;normals[i+1]!/=length;normals[i+2]!/=length;}
   return {
+    seed,
     id: chunkId(coordinate),
     coordinate: { ...coordinate },
     size: CHUNK_SIZE,
