@@ -3,13 +3,18 @@ import { chunkId } from "../world/chunkId";
 import { worldToChunk } from "../world/chunkCoordinates";
 import type { GeneratedChunkRepository } from "../world/GeneratedChunkRepository";
 import { getPoiDefinitions, type GeneratedPoi } from "../world/poi";
-import { formatBiomeDistance, worldToOverlayDisplacement } from "./biomeDebug";
+import { worldToOverlayDisplacement } from "./biomeDebug";
 
 export interface PoiDirection {
   readonly typeId: string;
   readonly x: number;
   readonly z: number;
   readonly distance: number;
+}
+
+/** Formats the horizontal world-space distance to a POI in metres. */
+export function formatPoiDistance(distance: number): string {
+  return `${Math.round(distance)} m`;
 }
 
 /** Finds the closest POI of each type in the currently generated neighborhood. */
@@ -92,7 +97,7 @@ export class PoiDebugPresentationSystem implements RenderSystem {
         continue;
       }
       indicator.hidden = false;
-      const distanceLabel = formatBiomeDistance(target.distance);
+      const distanceLabel = formatPoiDistance(target.distance);
       const label = `${definition.label}: ${distanceLabel}`;
       indicator.querySelector<HTMLElement>(".biome-indicator-distance")!.textContent = distanceLabel;
       indicator.title = label;
