@@ -35,6 +35,7 @@
         <h2>Debug view</h2>
         <label><input id="debug-wireframe" type="checkbox" /> Terrain wireframe</label>
         <label><input id="debug-biomes" type="checkbox" /> Biome guide</label>
+        <label><input id="debug-poi-directions" type="checkbox" /> POI guide</label>
         <label><input id="debug-terrain-occlusion" type="checkbox" /> Disable terrain occlusion</label>
         <label title="Shows amplified baked terrain occlusion values"><input id="debug-occlusion-map" type="checkbox" /> Occlusion map</label>
         <label for="debug-pois">POI layers
@@ -115,6 +116,7 @@
       <output class="debug-readout" id="camera-details" aria-label="Camera details" hidden></output>
       <output class="debug-readout performance-view" id="performance-view" aria-label="Performance view" hidden></output>
       <section class="biome-guide" id="biome-guide" aria-label="Biome directions" hidden></section>
+      <section class="biome-guide" id="poi-guide" aria-label="POI directions" hidden></section>
       <section class="biome-status">
         <div class="current-biome" hidden>Biome · <strong id="current-biome-name">Unknown</strong></div>
       </section>

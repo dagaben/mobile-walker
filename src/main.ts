@@ -18,6 +18,7 @@ const debugButton = document.querySelector<HTMLButtonElement>("#debug-button");
 const debugPanel = document.querySelector<HTMLElement>("#debug-panel");
 const wireframeInput = document.querySelector<HTMLInputElement>("#debug-wireframe");
 const biomesInput = document.querySelector<HTMLInputElement>("#debug-biomes");
+const poiDirectionsInput = document.querySelector<HTMLInputElement>("#debug-poi-directions");
 const terrainOcclusionInput = document.querySelector<HTMLInputElement>("#debug-terrain-occlusion");
 const occlusionMapInput = document.querySelector<HTMLInputElement>("#debug-occlusion-map");
 const poisInput = document.querySelector<HTMLSelectElement>("#debug-pois");
@@ -35,7 +36,7 @@ const offsetOutputs = Object.fromEntries(["west", "east", "north", "south"].map(
 ])) as Record<keyof ChunkNeighborhoodOffsets, HTMLOutputElement | null>;
 const offsetButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-offset-direction][data-offset-change]")];
 
-if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !terrainOcclusionInput || !occlusionMapInput || !poisInput || !cameraInput || !performanceInput || !shadowsInput || !movementYawInput || !movementYawValue || !sunlightVerticalInput || !sunlightHorizontalInput || !sunlightVerticalValue || !sunlightHorizontalValue || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
+if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !poiDirectionsInput || !terrainOcclusionInput || !occlusionMapInput || !poisInput || !cameraInput || !performanceInput || !shadowsInput || !movementYawInput || !movementYawValue || !sunlightVerticalInput || !sunlightHorizontalInput || !sunlightVerticalValue || !sunlightHorizontalValue || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
   throw new Error("The game interface could not be found.");
 }
 
@@ -94,6 +95,7 @@ const updateDebugView = (): void => game.setDebugView({
   pois: poisInput.value as "off" | "accepted" | "candidates",
 });
 const updateCameraDetails = (): void => game.setCameraDetailsEnabled(cameraInput.checked);
+const updatePoiDirections = (): void => game.setPoiDirectionsEnabled(poiDirectionsInput.checked);
 const updatePerformanceView = (): void => game.setPerformanceViewEnabled(performanceInput.checked);
 const updateShadows = (): void => game.setShadowsEnabled(shadowsInput.checked);
 const updateMovementYaw = (): void => {
@@ -138,6 +140,7 @@ resetProgressButton.addEventListener("click", resetProgress);
 settingsButton.addEventListener("click", toggleSettingsPanel);
 debugButton.addEventListener("click", toggleDebugPanel);
 for (const input of [wireframeInput, biomesInput, terrainOcclusionInput, occlusionMapInput, poisInput]) input.addEventListener("change", updateDebugView);
+poiDirectionsInput.addEventListener("change", updatePoiDirections);
 cameraInput.addEventListener("change", updateCameraDetails);
 performanceInput.addEventListener("change", updatePerformanceView);
 shadowsInput.addEventListener("change", updateShadows);
@@ -158,6 +161,7 @@ if (import.meta.hot) {
     settingsButton.removeEventListener("click", toggleSettingsPanel);
     debugButton.removeEventListener("click", toggleDebugPanel);
     for (const input of [wireframeInput, biomesInput, terrainOcclusionInput, occlusionMapInput, poisInput]) input.removeEventListener("change", updateDebugView);
+    poiDirectionsInput.removeEventListener("change", updatePoiDirections);
     cameraInput.removeEventListener("change", updateCameraDetails);
     performanceInput.removeEventListener("change", updatePerformanceView);
     shadowsInput.removeEventListener("change", updateShadows);

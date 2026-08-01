@@ -11,6 +11,7 @@ import type { PersistenceSystem } from "../game/persistence";
 import type { ExplorationPresentationSystem } from "../game/exploration";
 import type { ChunkNeighborhoodOffsets } from "../world/chunkCoordinates";
 import type { SunlightAngles } from "../rendering/ThreeRenderer";
+import type { PoiDebugPresentationSystem } from "../game/poiDebug";
 
 export class Game {
   private readonly renderer: ThreeRenderer;
@@ -19,6 +20,7 @@ export class Game {
   private running = false;
   private readonly chunks: ChunkStreamingSystem;
   private readonly biomeDebug: BiomeDebugPresentationSystem;
+  private readonly poiDebug: PoiDebugPresentationSystem;
   private readonly cameraPresentation: CameraPresentationSystem;
   private readonly persistence: PersistenceSystem;
   private readonly exploration: ExplorationPresentationSystem;
@@ -37,6 +39,7 @@ export class Game {
     const gameplay = createGameplay(world, this.systems, this.renderer, canvas, dragOrigin);
     this.chunks = gameplay.chunks;
     this.biomeDebug = gameplay.biomeDebug;
+    this.poiDebug = gameplay.poiDebug;
     this.cameraPresentation = gameplay.camera;
     this.persistence = gameplay.persistence;
     this.exploration = gameplay.exploration;
@@ -67,6 +70,10 @@ export class Game {
   setDebugView(options: DebugViewOptions): void {
     this.chunks.setDebugView(options);
     this.biomeDebug.setEnabled(options.biomeGuide);
+  }
+
+  setPoiDirectionsEnabled(enabled: boolean): void {
+    this.poiDebug.setEnabled(enabled);
   }
 
   setCameraDetailsEnabled(enabled: boolean): void {
