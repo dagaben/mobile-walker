@@ -10,7 +10,7 @@ function fixture(aspect = 16 / 9) {
   const world = createEcsWorld();
   const renderable = new THREE.Group();
   renderable.position.set(2, 3, 4);
-  world.add({ renderable, cameraTarget: { height: 4.5, distance: 6.5 } });
+  world.add({ renderable, cameraTarget: { height: 4.5, distance: 6.5 }, playerControl: { moveX: 0, moveZ: 0, active: false, jump: false } });
   let input = { zoomDelta: 0, tiltDelta: 0 };
   const system = new CameraPresentationSystem(camera, {
     sampleCamera: () => { const value = input; input = { zoomDelta: 0, tiltDelta: 0 }; return value; },
@@ -85,5 +85,22 @@ describe("CameraPresentationSystem", () => {
     expect(centerAfter.x - centerBefore.x).toBe(CHUNK_SIZE);
     expect(positionChange).toBeLessThan(CHUNK_SIZE / 4);
     expect(directionChange).toBeLessThan(0.1);
+  });
+
+  it("yaws toward sideways movement by the configured strength", () => {
+    const { camera, world, system } = fixture();
+    const target = world.entities.find((entity) => entity.cameraTarget)!;
+    target.playerControl = { moveX: 1, moveZ: 0, active: true, jump: false };
+    system.setMovementYawStrength(90);
+    system.prepareRender(world, 0, 0);
+
+    const direction = camera.getWorldDirection(new THREE.Vector3());
+    expect(new THREE.Vector2(direction.x, direction.z).normalize().x).toBeCloseTo(1);
+    expect(direction.z).toBeCloseTo(0);
+
+    system.setMovementYawStrength(0);
+    system.prepareRender(world, 0, 0);
+    expect(camera.getWorldDirection(direction).x).toBeCloseTo(0);
+    expect(direction.z).toBeCloseTo(-Math.cos(THREE.MathUtils.degToRad(22)));
   });
 });

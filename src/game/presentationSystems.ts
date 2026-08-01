@@ -45,6 +45,7 @@ export class PlayerShadowPresentationSystem implements RenderSystem {
 }
 
 export class CameraPresentationSystem implements RenderSystem {
+  static readonly defaultMovementYawDegrees = 30;
   private static readonly minimumElevation = THREE.MathUtils.degToRad(5);
   private static readonly defaultElevation = THREE.MathUtils.degToRad(22);
   private readonly desired = new THREE.Vector3();
@@ -52,6 +53,8 @@ export class CameraPresentationSystem implements RenderSystem {
   private readonly debugDirection = new THREE.Vector3();
   private zoom = 0.05;
   private tilt: number | undefined;
+  private movementYaw = 0;
+  private movementYawStrength = THREE.MathUtils.degToRad(CameraPresentationSystem.defaultMovementYawDegrees);
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -65,6 +68,10 @@ export class CameraPresentationSystem implements RenderSystem {
       zoomLevel: this.zoom,
       height: this.camera.position.y,
     };
+  }
+
+  setMovementYawStrength(degrees: number): void {
+    this.movementYawStrength = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(degrees, 0, 90));
   }
 
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], _interpolation: number, deltaSeconds: number): void {
@@ -94,14 +101,19 @@ export class CameraPresentationSystem implements RenderSystem {
     const elevation = this.tilt < 0
       ? THREE.MathUtils.lerp(baseElevation, CameraPresentationSystem.minimumElevation, -this.tilt)
       : THREE.MathUtils.lerp(baseElevation, Math.PI / 2, this.tilt);
+    const targetYaw = (target.playerControl?.active ? target.playerControl.moveX : 0)
+      * this.movementYawStrength;
+    const yawSmoothing = deltaSeconds === 0 ? 1 : 1 - Math.exp(-8 * deltaSeconds);
+    this.movementYaw = THREE.MathUtils.lerp(this.movementYaw, targetYaw, yawSmoothing);
+    const horizontalDistance = Math.cos(elevation) * distance;
     // The interpolated render position is continuous across chunk boundaries. In
     // particular, do not use the streaming neighborhood's quantized midpoint as
     // a look target: switching resident neighborhoods would make the view snap.
     this.lookAt.set(position.x, baseLookY, position.z);
     this.desired.set(
-      this.lookAt.x,
+      this.lookAt.x - Math.sin(this.movementYaw) * horizontalDistance,
       this.lookAt.y + Math.sin(elevation) * distance,
-      this.lookAt.z + Math.cos(elevation) * distance,
+      this.lookAt.z + Math.cos(this.movementYaw) * horizontalDistance,
     );
     const smoothing = 1 - Math.exp(-8 * deltaSeconds);
     this.camera.position.lerp(this.desired, deltaSeconds === 0 ? 1 : smoothing);

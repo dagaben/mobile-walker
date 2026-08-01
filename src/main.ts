@@ -24,6 +24,8 @@ const poisInput = document.querySelector<HTMLSelectElement>("#debug-pois");
 const cameraInput = document.querySelector<HTMLInputElement>("#debug-camera");
 const performanceInput = document.querySelector<HTMLInputElement>("#debug-performance");
 const shadowsInput = document.querySelector<HTMLInputElement>("#debug-shadows");
+const movementYawInput = document.querySelector<HTMLInputElement>("#movement-yaw");
+const movementYawValue = document.querySelector<HTMLOutputElement>("#movement-yaw-value");
 const sunlightVerticalInput = document.querySelector<HTMLInputElement>("#sunlight-vertical");
 const sunlightHorizontalInput = document.querySelector<HTMLInputElement>("#sunlight-horizontal");
 const sunlightVerticalValue = document.querySelector<HTMLOutputElement>("#sunlight-vertical-value");
@@ -33,13 +35,23 @@ const offsetOutputs = Object.fromEntries(["west", "east", "north", "south"].map(
 ])) as Record<keyof ChunkNeighborhoodOffsets, HTMLOutputElement | null>;
 const offsetButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-offset-direction][data-offset-change]")];
 
-if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !terrainOcclusionInput || !occlusionMapInput || !poisInput || !cameraInput || !performanceInput || !shadowsInput || !sunlightVerticalInput || !sunlightHorizontalInput || !sunlightVerticalValue || !sunlightHorizontalValue || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
+if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel || !wireframeInput || !biomesInput || !terrainOcclusionInput || !occlusionMapInput || !poisInput || !cameraInput || !performanceInput || !shadowsInput || !movementYawInput || !movementYawValue || !sunlightVerticalInput || !sunlightHorizontalInput || !sunlightVerticalValue || !sunlightHorizontalValue || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8) {
   throw new Error("The game interface could not be found.");
 }
 
 const NEIGHBORHOOD_STORAGE_KEY = "mobile-walker:neighborhood-offsets";
 const SUNLIGHT_STORAGE_KEY = "mobile-walker:sunlight-angles";
+const MOVEMENT_YAW_STORAGE_KEY = "mobile-walker:movement-yaw";
 const storage = getBrowserStorage();
+try {
+  const savedMovementYawSetting = storage.getItem(MOVEMENT_YAW_STORAGE_KEY);
+  if (savedMovementYawSetting !== null) {
+    const savedMovementYaw = Number(savedMovementYawSetting);
+    if (Number.isFinite(savedMovementYaw) && savedMovementYaw >= 0 && savedMovementYaw <= 90) {
+      movementYawInput.value = String(savedMovementYaw);
+    }
+  }
+} catch { /* Invalid or unavailable settings fall back to the value in the interface. */ }
 try {
   const savedOffsets = JSON.parse(storage.getItem(NEIGHBORHOOD_STORAGE_KEY) ?? "null") as Partial<ChunkNeighborhoodOffsets> | null;
   if (savedOffsets) for (const [direction, output] of Object.entries(offsetOutputs)) {
@@ -84,6 +96,13 @@ const updateDebugView = (): void => game.setDebugView({
 const updateCameraDetails = (): void => game.setCameraDetailsEnabled(cameraInput.checked);
 const updatePerformanceView = (): void => game.setPerformanceViewEnabled(performanceInput.checked);
 const updateShadows = (): void => game.setShadowsEnabled(shadowsInput.checked);
+const updateMovementYaw = (): void => {
+  const degrees = Math.min(90, Math.max(0, Number(movementYawInput.value)));
+  movementYawInput.value = String(degrees);
+  movementYawValue.value = `${degrees}°`;
+  game.setMovementYawStrength(degrees);
+  try { storage.setItem(MOVEMENT_YAW_STORAGE_KEY, String(degrees)); } catch { /* Gameplay remains live without storage. */ }
+};
 const updateSunlight = (): void => {
   const angles = { vertical: Number(sunlightVerticalInput.value), horizontal: Number(sunlightHorizontalInput.value) };
   sunlightVerticalValue.value = `${angles.vertical}°`;
@@ -122,12 +141,14 @@ for (const input of [wireframeInput, biomesInput, terrainOcclusionInput, occlusi
 cameraInput.addEventListener("change", updateCameraDetails);
 performanceInput.addEventListener("change", updatePerformanceView);
 shadowsInput.addEventListener("change", updateShadows);
+movementYawInput.addEventListener("input", updateMovementYaw);
 sunlightVerticalInput.addEventListener("input", updateSunlight);
 sunlightHorizontalInput.addEventListener("input", updateSunlight);
 for (const button of offsetButtons) button.addEventListener("click", changeNeighborhoodOffset);
 updateNeighborhood();
 game.start();
 updateShadows();
+updateMovementYaw();
 updateSunlight();
 
 if (import.meta.hot) {
@@ -140,6 +161,7 @@ if (import.meta.hot) {
     cameraInput.removeEventListener("change", updateCameraDetails);
     performanceInput.removeEventListener("change", updatePerformanceView);
     shadowsInput.removeEventListener("change", updateShadows);
+    movementYawInput.removeEventListener("input", updateMovementYaw);
     sunlightVerticalInput.removeEventListener("input", updateSunlight);
     sunlightHorizontalInput.removeEventListener("input", updateSunlight);
     for (const button of offsetButtons) button.removeEventListener("click", changeNeighborhoodOffset);
