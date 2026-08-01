@@ -9,7 +9,9 @@ export const FOLLOW_DIRECTION_FILTER_RESPONSE = 10;
 export const FOLLOW_MEANINGFUL_HEADING_RADIANS = Math.PI / 22.5; // 8 degrees
 export const FOLLOW_REVERSAL_RADIANS = Math.PI * 100 / 180;
 export const FOLLOW_RESPONSE_DAMPING: Readonly<Record<FollowResponsiveness, number>> = {
-  slow: 3.5,
+  // Keep the slow preset deliberately distinct from normal: it should feel like
+  // a gradual camera pan rather than merely a softened version of the same turn.
+  slow: 1.25,
   normal: 5.5,
   fast: 8.5,
 };

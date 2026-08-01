@@ -22,6 +22,14 @@ describe("camera orientation settings", () => {
     expect(FOLLOW_RESPONSE_DAMPING.normal).toBeLessThan(FOLLOW_RESPONSE_DAMPING.fast);
   });
 
+  it("makes slow turning substantially gentler than normal turning", () => {
+    const dt = 1 / 60;
+    const target = Math.PI / 2;
+    const slowStep = dampAngle(0, target, FOLLOW_RESPONSE_DAMPING.slow, dt);
+    const normalStep = dampAngle(0, target, FOLLOW_RESPONSE_DAMPING.normal, dt);
+    expect(slowStep).toBeLessThan(normalStep * 0.3);
+  });
+
   it("gives a large reversal a stronger bounded step than a small correction", () => {
     const dt = 1 / 60;
     const small = Math.abs(shortestAngleDifference(0, dampAngle(0, Math.PI / 6, FOLLOW_RESPONSE_DAMPING.normal * 0.65, dt)));
