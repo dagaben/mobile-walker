@@ -14,7 +14,7 @@ export const FOLLOW_BACKPEDAL_START_RADIANS = Math.PI * 155 / 180;
 export const FOLLOW_TURN_RESPONSE_MULTIPLIERS = {
   small: 0.65,
   medium: 0.85,
-  large: 1.15,
+  large: 0.85,
 } as const;
 export type FollowTurnZone = "none" | "slow-front" | "normal" | "fast" | "slow-rear" | "backpedal";
 

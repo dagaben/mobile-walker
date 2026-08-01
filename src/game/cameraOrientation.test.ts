@@ -35,12 +35,12 @@ describe("camera orientation settings", () => {
     expect(fastStep / slowStep).toBeLessThan(1.5);
   });
 
-  it("uses progressively stronger but reduced response multipliers for wider turns", () => {
+  it("uses reduced response multipliers for wider turns", () => {
     expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.small).toBe(0.65);
     expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium).toBe(0.85);
-    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.large).toBe(1.15);
+    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.large).toBe(0.85);
     expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.small).toBeLessThan(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium);
-    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium).toBeLessThan(FOLLOW_TURN_RESPONSE_MULTIPLIERS.large);
+    expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium).toBe(FOLLOW_TURN_RESPONSE_MULTIPLIERS.large);
   });
 
   it("ramps follow strength smoothly from the movement dead zone", () => {
@@ -55,7 +55,7 @@ describe("camera orientation settings", () => {
     [0, "none", 0], [7.999, "none", 0],
     [8, "slow-front", 0.65], [44.999, "slow-front", 0.65],
     [45, "normal", 0.85], [99.999, "normal", 0.85],
-    [100, "fast", 1.15], [134.999, "fast", 1.15],
+    [100, "fast", 0.85], [134.999, "fast", 0.85],
     [135, "slow-rear", 0.65], [154.999, "slow-rear", 0.65],
     [155, "backpedal", 0], [180, "backpedal", 0],
   ] as const)("classifies %s degrees as %s with multiplier %s", (degrees, zone, multiplier) => {
