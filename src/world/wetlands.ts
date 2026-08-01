@@ -28,12 +28,19 @@ export function sampleWetlandSpeedMultiplier(
   return 1 - wetlandWeight * (1 - WETLAND_SPEED_MULTIPLIER);
 }
 
-/** Generates many small, deterministic pools only where the wetland blend is strong. */
+const wetlandPoolCache = new Map<string, readonly WetlandPoolPlacement[]>();
+/** Lightweight cache diagnostic used by deterministic-generation regression tests. */
+export function getWetlandPoolCacheSize(): number { return wetlandPoolCache.size; }
+
+/** Generates many small, deterministic pools only where the wetland blend is strong. Results are shared by dry-footprint and chunk generation queries. */
 export function generateWetlandPools(
   seedInput: number | string,
   coordinate: ChunkCoordinate,
 ): readonly WetlandPoolPlacement[] {
   const seed = normalizeSeed(seedInput);
+  const cacheKey = `${seed}:${coordinate.x}:${coordinate.z}`;
+  const cached = wetlandPoolCache.get(cacheKey);
+  if (cached) return cached;
   const pools: WetlandPoolPlacement[] = [];
   const candidates = 36;
   const originX = coordinate.x * CHUNK_SIZE;
@@ -57,5 +64,7 @@ export function generateWetlandPools(
       rotation: hashFloat(seed, coordinate.x, coordinate.z, 8190 + index) * Math.PI,
     });
   }
+  wetlandPoolCache.set(cacheKey, pools);
+  while (wetlandPoolCache.size > 512) wetlandPoolCache.delete(wetlandPoolCache.keys().next().value!);
   return pools;
 }

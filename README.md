@@ -120,17 +120,25 @@ plain debug data, with accepted-only and full-candidate visualization levels.
 
 #### Available POI types
 
-The registry currently provides two deliberately uncommon building discoveries:
+The registry currently provides four deliberately uncommon building discoveries:
 
 - **Plains farmhouse** — requires a predominantly plains footprint, gentle and
   even dry terrain, and generous separation from every other POI. Its stable
-  seeded rotation, fenced clearing, explicit approach, and POI-owned decorative
-  tree are generated data rather than incidental vegetation.
+  seeded rotation, fenced clearing, and explicit approach are generated data.
 - **Lake house with dock** — uses global biome/lake sampling to find a dry
   shoreline, turns its entrance and view toward the water, and extends its dock
   to the fixed lake surface. River channels and submerged or steep house
   foundations are rejected; lake water continues to be rendered by the normal
   hydrology layer.
+- **Small forest cabin** — prefers forest, but may occupy wetland only when its
+  complete compact clearing is free of rivers, lakes, and ordinary wetland
+  pools. It has no fence, uses a low forest foundation or short wetland stilts,
+  and excludes ordinary vegetation from a small clearing.
+- **Highland watchtower** — prefers locally prominent highland terrain, with
+  suitable mountain foothills as a fallback. Multi-radius terrain-ring samples
+  drive prominence scoring; a stable compact base, very large watchtower-to-
+  watchtower spacing, and substantial building spacing preserve its tall,
+  unfenced silhouette.
 
 Future types are registered with `registerPoiDefinition` in the plain-data POI
 registry. A definition supplies a unique type ID and label, clearly named rarity
@@ -143,8 +151,8 @@ Every generated POI exposes named solid, clearing, entrance-approach, and (when
 applicable) dock zones. Solid and vegetation-exclusion zones are collected from
 neighboring chunks before trees, bushes, flowers, mushrooms/collectibles, and
 pools are placed, so an exclusion remains continuous across a chunk boundary.
-Decorations intentionally owned by a POI live in that POI's generated record
-and presentation group instead.
+POIs may exclude or influence ordinary vegetation through these zones, but POI
+records and renderers never generate or own tree meshes.
 
 Stable IDs combine the world seed, registered type, and global candidate-cell
 address. They do not depend on streaming or generation order, allowing later
