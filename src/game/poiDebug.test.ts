@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { GeneratedChunkData } from "../world/generateChunk";
 import { GeneratedChunkRepository } from "../world/GeneratedChunkRepository";
 import type { GeneratedPoi } from "../world/poi";
-import { findNearestPoiTypes } from "./poiDebug";
+import { findNearestPoiTypes, formatPoiDistance } from "./poiDebug";
 
 function poi(typeId: string, x: number, z: number): GeneratedPoi {
   return { typeId, position: { x, y: 0, z } } as GeneratedPoi;
@@ -34,5 +34,12 @@ describe("findNearestPoiTypes", () => {
 
     expect(findNearestPoiTypes(repository, 0, 0, 2).size).toBe(0);
     expect(findNearestPoiTypes(repository, 0, 0, 3).get("forest-cabin")?.distance).toBe(100);
+  });
+});
+
+describe("formatPoiDistance", () => {
+  it("rounds the distance and labels it in metres", () => {
+    expect(formatPoiDistance(42.49)).toBe("42 m");
+    expect(formatPoiDistance(42.5)).toBe("43 m");
   });
 });
