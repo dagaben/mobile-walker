@@ -154,6 +154,16 @@ describe("CameraPresentationSystem", () => {
     expect(Math.abs(system.getEffectiveYaw())).toBeLessThan(Math.abs(before));
   });
 
+  it("exposes camera-relative input yaw only in movement mode", () => {
+    const { world, system } = fixture();
+    const target = world.entities.find((entity) => entity.cameraTarget)!;
+    target.playerControl = { moveX: 1, moveZ: 0, active: true, jump: false };
+    expect(system.getMovementReferenceYaw()).toBe(0);
+    system.setCameraOrientationMode("follow-movement");
+    for (let i = 0; i < 60; i++) system.prepareRender(world, 0, 1 / 60);
+    expect(system.getMovementReferenceYaw()).toBeGreaterThan(0.8);
+  });
+
   it("handles zero vectors and chunk crossings in follow mode without discontinuity or NaN", () => {
     const { camera, world, system } = fixture();
     const target = world.entities.find((entity) => entity.cameraTarget && entity.renderable)!;
