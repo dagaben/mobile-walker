@@ -13,10 +13,12 @@ import { BiomeDebugPresentationSystem } from "./biomeDebug";
 import { getBrowserStorage, loadGameState, PersistenceSystem } from "./persistence";
 import { findSafeRestoredTransform } from "../world/safePlayerPosition";
 import { PLAYER_COLLISION_RADIUS } from "../world/treeCollision";
+import { PoiDebugPresentationSystem } from "./poiDebug";
 
 export interface GameplayControllers {
   readonly chunks: ChunkStreamingSystem;
   readonly biomeDebug: BiomeDebugPresentationSystem;
+  readonly poiDebug: PoiDebugPresentationSystem;
   readonly camera: CameraPresentationSystem;
   readonly persistence: PersistenceSystem;
   readonly exploration: ExplorationPresentationSystem;
@@ -111,5 +113,9 @@ export function createGameplay(
   if (!biomeOverlay || !biomeLabel) throw new Error("Biome guide elements could not be found.");
   const biomeDebug = new BiomeDebugPresentationSystem(worldSeed, biomeOverlay, biomeLabel);
   systems.addRenderSystem(biomeDebug);
-  return { chunks, biomeDebug, camera, persistence, exploration, playerShadow };
+  const poiOverlay = document.querySelector<HTMLElement>("#poi-guide");
+  if (!poiOverlay) throw new Error("The POI guide element could not be found.");
+  const poiDebug = new PoiDebugPresentationSystem(chunks.repository, poiOverlay);
+  systems.addRenderSystem(poiDebug);
+  return { chunks, biomeDebug, poiDebug, camera, persistence, exploration, playerShadow };
 }
