@@ -127,7 +127,6 @@ body { overscroll-behavior: none; touch-action: none; }
 .settings-panel h2 { margin: 0 0 .8rem; font-size: 1rem; }
 .settings-panel fieldset { margin: 0 0 .65rem; padding: .75rem; border: 1px solid rgb(49 71 58 / 16%); border-radius: .75rem; }
 .settings-panel legend { padding: 0 .25rem; font-size: .85rem; font-weight: 750; }
-.settings-panel p { margin: -.15rem 0 .65rem; color: #587064; font-size: .72rem; }
 .offset-grid { display: grid; gap: .55rem; }
 .offset-setting { display: flex; align-items: center; justify-content: space-between; gap: .75rem; font-size: .78rem; }
 .offset-stepper { display: grid; grid-template-columns: 2rem 2.25rem 2rem; align-items: stretch; overflow: hidden; border: 1px solid rgb(49 71 58 / 25%); border-radius: .55rem; background: rgb(255 255 255 / 70%); }
