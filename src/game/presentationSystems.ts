@@ -106,6 +106,12 @@ export class CameraPresentationSystem implements RenderSystem {
 
   getEffectiveYaw(): number { return this.orientationMode === "north-locked" ? this.movementYaw : this.followHeading; }
 
+  /** Current horizontal angle of the rendered camera view, including camera smoothing. */
+  getFacingYaw(): number {
+    const direction = this.camera.getWorldDirection(this.debugDirection);
+    return normalizeAngle(Math.atan2(direction.x, -direction.z));
+  }
+
   /** Yaw used to keep directional controls aligned with the current view. */
   getMovementReferenceYaw(): number { return this.orientationMode === "follow-movement" ? this.followHeading : 0; }
 
