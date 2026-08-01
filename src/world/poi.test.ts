@@ -22,7 +22,7 @@ describe("deterministic POI generation", () => {
     expect(cabin.biomes.allowed).toEqual(["forest", "wetland"]);
     expect(cabin.clearanceRadius).toBeLessThan(6);
     expect(tower.biomes.preferred).toEqual(["highlands"]);
-    expect(tower.spacingByType?.[tower.id]).toBeGreaterThan(tower.minimumSpacing);
+    expect(tower.spacingByType?.[tower.id]).toBe(100);
     expect(cabin.shadowCaster?.width).toBeLessThan(cabin.footprint.kind === "rectangle" ? cabin.footprint.width : Infinity);
   });
 
