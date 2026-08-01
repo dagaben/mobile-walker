@@ -91,6 +91,10 @@ export class Game {
     this.renderer.setSunlightAngles(angles);
   }
 
+  setMovementYawStrength(degrees: number): void {
+    this.cameraPresentation.setMovementYawStrength(degrees);
+  }
+
   dispose(): void {
     this.running = false;
     this.loop.stop();
