@@ -83,7 +83,8 @@ export function createGameplay(
   world.add({ collectionState: createCollectionState(savedState?.collectedIds) });
   // Fixed order: snapshot event state, then integrate.
   const input = new InputController(inputElement, dragIndicator);
-  systems.addFixedSystem(new InputSnapshotSystem(input));
+  const camera = new CameraPresentationSystem(renderer.camera, input);
+  systems.addFixedSystem(new InputSnapshotSystem(input, () => camera.getMovementReferenceYaw()));
   systems.addFixedSystem(new PlayerMovementSystem(worldSeed));
   systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
   systems.addFixedSystem(new ProximityDetectionSystem());
@@ -106,7 +107,6 @@ export function createGameplay(
   systems.addRenderSystem(exploration);
   systems.addRenderSystem(new TransformInterpolationSystem());
   systems.addRenderSystem(new PlayerShadowPresentationSystem(worldSeed, playerShadow, renderer.sunlightDirection));
-  const camera = new CameraPresentationSystem(renderer.camera, input);
   systems.addRenderSystem(camera);
   const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");
   const biomeLabel = document.querySelector<HTMLElement>("#current-biome-name");

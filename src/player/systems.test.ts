@@ -2,7 +2,36 @@ import { describe, expect, it } from "vitest";
 
 import { createEcsWorld } from "../ecs/createEcsWorld";
 import { sampleTerrain } from "../world/terrainSampling";
-import { TerrainSamplingSystem } from "./systems";
+import { InputSnapshotSystem, rotateInputByCameraYaw, TerrainSamplingSystem } from "./systems";
+
+describe("camera-relative input", () => {
+  it("rotates screen directions into the camera's world-space frame", () => {
+    expect(rotateInputByCameraYaw(0, -1, Math.PI / 2).x).toBeCloseTo(1);
+    expect(rotateInputByCameraYaw(0, -1, Math.PI / 2).z).toBeCloseTo(0);
+    expect(rotateInputByCameraYaw(1, 0, Math.PI / 2).x).toBeCloseTo(0);
+    expect(rotateInputByCameraYaw(1, 0, Math.PI / 2).z).toBeCloseTo(1);
+  });
+
+  it("samples the latest camera yaw on every fixed update", () => {
+    const world = createEcsWorld();
+    const player = world.add({
+      playerControl: { moveX: 0, moveZ: 0, active: false, jump: false },
+    });
+    const input = {
+      sample: () => ({ x: 0, z: -1, jump: false }),
+      dispose: () => undefined,
+    };
+    let yaw = 0;
+    const system = new InputSnapshotSystem(input, () => yaw);
+
+    system.fixedUpdate(world);
+    expect(player.playerControl).toMatchObject({ moveX: 0, moveZ: -1, active: true });
+    yaw = Math.PI / 2;
+    system.fixedUpdate(world);
+    expect(player.playerControl.moveX).toBeCloseTo(1);
+    expect(player.playerControl.moveZ).toBeCloseTo(0);
+  });
+});
 
 describe("TerrainSamplingSystem", () => {
   it("allows a terrain follower to move through a river", () => {

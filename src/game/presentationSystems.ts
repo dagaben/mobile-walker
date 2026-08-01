@@ -106,6 +106,9 @@ export class CameraPresentationSystem implements RenderSystem {
 
   getEffectiveYaw(): number { return this.orientationMode === "north-locked" ? this.movementYaw : this.followHeading; }
 
+  /** Yaw used to keep directional controls aligned with the current view. */
+  getMovementReferenceYaw(): number { return this.orientationMode === "follow-movement" ? this.followHeading : 0; }
+
   private updateYaw(target: Entity, deltaSeconds: number): number {
     if (this.preserveYawForNextFrame) {
       this.preserveYawForNextFrame = false;

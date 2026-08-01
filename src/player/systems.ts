@@ -6,11 +6,25 @@ import type { InputController } from "./InputController";
 import type { GeneratedChunkRepository } from "../world/GeneratedChunkRepository";
 import { integrateMovement, normalizeInput } from "./movement";
 
+/** Converts screen-aligned input into world-space movement for a camera yaw. */
+export function rotateInputByCameraYaw(x: number, z: number, yaw: number): { x: number; z: number } {
+  const cosine = Math.cos(yaw);
+  const sine = Math.sin(yaw);
+  return {
+    x: x * cosine - z * sine,
+    z: x * sine + z * cosine,
+  };
+}
+
 export class InputSnapshotSystem implements FixedSystem {
-  constructor(private readonly input: InputController) {}
+  constructor(
+    private readonly input: Pick<InputController, "sample" | "dispose">,
+    private readonly movementReferenceYaw: () => number = () => 0,
+  ) {}
   fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0]): void {
     const raw = this.input.sample();
-    const movement = normalizeInput(raw.x, raw.z);
+    const normalized = normalizeInput(raw.x, raw.z);
+    const movement = rotateInputByCameraYaw(normalized.x, normalized.z, this.movementReferenceYaw());
     for (const entity of world.entities) if (entity.playerControl) {
       entity.playerControl.moveX = movement.x;
       entity.playerControl.moveZ = movement.z;
