@@ -114,6 +114,11 @@ describe("poiIndicatorTransform", () => {
     expect(transform).not.toBe("translate(0px, 0px) translate(-50%, -50%)");
   });
 
+  it("aligns edge labels inward so expanded content remains on screen", () => {
+    expect(poiIndicatorTransform(320, 240, -42, 0)).toContain("translate(0%, -50%)");
+    expect(poiIndicatorTransform(320, 240, 42, 0)).toContain("translate(-100%, -50%)");
+  });
+
   it("does not position an indicator in a zero-sized overlay", () => {
     expect(poiIndicatorTransform(0, 240, 10, 0)).toBeUndefined();
     expect(poiIndicatorTransform(320, 0, 0, 10)).toBeUndefined();
@@ -132,6 +137,11 @@ describe("POI guide presentation", () => {
     expect(stylesheet).toMatch(/\.biome-indicator\s*\{[^}]*display:\s*flex[^}]*\}/s);
     expect(stylesheet).toMatch(/\.biome-indicator\[hidden\]\s*\{\s*display:\s*none;?\s*\}/);
     expect(stylesheet.indexOf(".biome-indicator[hidden]")).toBeGreaterThan(stylesheet.indexOf(".biome-indicator {"));
+  });
+
+  it("stacks expanded names below the marker and distance within half the screen", () => {
+    expect(stylesheet).toMatch(/\.biome-indicator\[data-expanded="true"\]\s*\{[^}]*display:\s*grid[^}]*max-width:\s*calc\(50% - \.5rem\)[^}]*\}/s);
+    expect(stylesheet).toMatch(/\.biome-indicator\[data-expanded="true"\] \.biome-indicator-name\s*\{[^}]*grid-column:\s*1 \/ -1[^}]*white-space:\s*normal[^}]*\}/s);
   });
 
   it("keeps targetless indicators hidden and clears stale presentation", () => {

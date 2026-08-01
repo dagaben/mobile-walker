@@ -81,7 +81,10 @@ export function poiIndicatorTransform(width: number, height: number, dx: number,
   if (!Number.isFinite(scale)) return undefined;
   const x = Math.min(width - marginX, Math.max(marginX, width / 2 + dx * scale));
   const y = Math.min(height - marginY, Math.max(marginY, height / 2 + dy * scale));
-  return `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+  // Grow expanded labels toward the middle of the screen instead of centring
+  // them over an edge point, where half of a long name would be clipped.
+  const horizontalAlignment = x < width / 2 ? "0%" : "-100%";
+  return `translate(${x}px, ${y}px) translate(${horizontalAlignment}, -50%)`;
 }
 
 export class PoiDebugPresentationSystem implements RenderSystem {
