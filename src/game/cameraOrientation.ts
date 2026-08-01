@@ -38,6 +38,13 @@ export function shortestAngleDifference(from: number, to: number): number {
   return normalizeAngle(to - from);
 }
 
+/** Maps joystick travel beyond the dead zone to a smooth camera-turn strength. */
+export function followMovementStrength(magnitude: number): number {
+  return Math.min(1, Math.max(0,
+    (magnitude - FOLLOW_MOVEMENT_DEAD_ZONE) / (1 - FOLLOW_MOVEMENT_DEAD_ZONE),
+  ));
+}
+
 export function dampAngle(from: number, to: number, response: number, deltaSeconds: number): number {
   if (deltaSeconds <= 0) return normalizeAngle(to);
   const amount = 1 - Math.exp(-Math.max(0, response) * deltaSeconds);

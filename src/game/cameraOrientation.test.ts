@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FOLLOW_RESPONSE_DAMPING, FOLLOW_TURN_RESPONSE_MULTIPLIERS,
-  isCameraOrientationMode, isFollowResponsiveness,
+  followMovementStrength, isCameraOrientationMode, isFollowResponsiveness,
   shortestAngleDifference, dampAngle,
 } from "./cameraOrientation";
 
@@ -37,6 +37,14 @@ describe("camera orientation settings", () => {
     expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.large).toBe(1.15);
     expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.small).toBeLessThan(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium);
     expect(FOLLOW_TURN_RESPONSE_MULTIPLIERS.medium).toBeLessThan(FOLLOW_TURN_RESPONSE_MULTIPLIERS.large);
+  });
+
+  it("ramps follow strength smoothly from the movement dead zone", () => {
+    expect(followMovementStrength(0.2)).toBe(0);
+    expect(followMovementStrength(0.25)).toBe(0);
+    expect(followMovementStrength(0.5)).toBeCloseTo(1 / 3);
+    expect(followMovementStrength(1)).toBe(1);
+    expect(followMovementStrength(2)).toBe(1);
   });
 
   it("gives a large reversal a stronger bounded step than a small correction", () => {
