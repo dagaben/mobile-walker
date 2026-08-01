@@ -207,9 +207,24 @@ body { overscroll-behavior: none; touch-action: none; }
   box-shadow: 0 .15rem .55rem rgb(25 38 30 / 38%);
   font-size: .66rem;
   font-weight: 700;
+  font-family: inherit;
   white-space: nowrap;
+  pointer-events: auto;
+  cursor: pointer;
+  appearance: none;
+  transition: padding .15s ease, box-shadow .15s ease;
   backdrop-filter: blur(.35rem);
 }
+.biome-indicator:hover,
+.biome-indicator:focus-visible { box-shadow: 0 .2rem .7rem rgb(25 38 30 / 52%); }
+.biome-indicator-marker { order: 1; }
+.biome-indicator-name {
+  display: none;
+  order: 2;
+}
+.biome-indicator-distance { order: 3; }
+.biome-indicator[data-expanded="true"] { padding-right: .5rem; }
+.biome-indicator[data-expanded="true"] .biome-indicator-name { display: inline; }
 /* Author-level display declarations must also honor hidden explicitly. */
 .biome-indicator[hidden] { display: none; }
 .biome-indicator-marker {

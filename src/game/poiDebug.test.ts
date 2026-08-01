@@ -26,11 +26,19 @@ class FakeElement {
   readonly attributes = new Map<string, string>();
   clientWidth = 0;
   clientHeight = 0;
+  private readonly listeners = new Map<string, Set<() => void>>();
   append(...children: FakeElement[]): void { this.children.push(...children); }
   remove(): void { /* The fixture does not require parent bookkeeping. */ }
   replaceChildren(): void { this.children.length = 0; this.textContent = ""; }
   setAttribute(name: string, value: string): void { this.attributes.set(name, value); }
   removeAttribute(name: string): void { this.attributes.delete(name); if (name === "title") this.title = ""; }
+  addEventListener(name: string, listener: () => void): void {
+    const listeners = this.listeners.get(name) ?? new Set();
+    listeners.add(listener);
+    this.listeners.set(name, listeners);
+  }
+  removeEventListener(name: string, listener: () => void): void { this.listeners.get(name)?.delete(listener); }
+  click(): void { for (const listener of this.listeners.get("click") ?? []) listener(); }
   querySelector<T>(selector: string): T | null {
     const className = selector.startsWith(".") ? selector.slice(1) : selector;
     return (this.children.find(child => child.className === className) as T | undefined) ?? null;
@@ -158,6 +166,30 @@ describe("POI guide presentation", () => {
       expect(indicator.style.transform).toBeTruthy();
       expect(indicator.style.transform).not.toContain("translate(0px, 0px)");
     } finally { fixture.restore(); }
+  });
+
+  it("expands one indicator name at a time and toggles it closed", () => {
+    const repository = new GeneratedChunkRepository();
+    repository.set("0,0", chunk([
+      poi("plains-farmhouse", 42, 0),
+      poi("forest-cabin", 0, 42),
+    ]));
+    const fixture = presentationFixture(repository);
+    try {
+      fixture.system.setEnabled(true);
+      fixture.system.prepareRender(fixture.world, 0, 0);
+      const farmhouse = fixture.overlay.children.find(child => child.dataset.poi === "plains-farmhouse")!;
+      const cabin = fixture.overlay.children.find(child => child.dataset.poi === "forest-cabin")!;
+
+      expect(farmhouse.children[2]!.textContent).toBe("Plains farmhouse");
+      farmhouse.click();
+      expect(farmhouse.dataset.expanded).toBe("true");
+      cabin.click();
+      expect(farmhouse.dataset.expanded).toBe("false");
+      expect(cabin.dataset.expanded).toBe("true");
+      cabin.click();
+      expect(cabin.dataset.expanded).toBe("false");
+    } finally { fixture.system.dispose(); fixture.restore(); }
   });
 
   it("hides every indicator when the overlay has zero size", () => {

@@ -17,8 +17,8 @@ describe("riverIndicatorEdge", () => {
 });
 
 describe("formatBiomeDistance", () => {
-  it("reports rounded distances in world units", () => {
-    expect(formatBiomeDistance(47.6)).toBe("48 wu");
+  it("reports rounded distances in metres", () => {
+    expect(formatBiomeDistance(47.6)).toBe("48 m");
   });
 });
 

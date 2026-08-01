@@ -3,6 +3,7 @@ import type { GeneratedChunkRepository } from "../world/GeneratedChunkRepository
 import { BRIDGE_ARCHETYPES, type BridgeArchetype } from "../world/bridges";
 import { getPoiDefinitions } from "../world/poi";
 import { worldToOverlayDisplacement } from "./biomeDebug";
+import { collapseDirectionIndicator, makeDirectionIndicatorExpandable } from "./directionIndicator";
 
 export interface PoiDirection {
   readonly typeId: string;
@@ -56,6 +57,7 @@ export function findNearestPoiTypes(
 }
 
 function hideIndicator(indicator: HTMLElement): void {
+  collapseDirectionIndicator(indicator);
   indicator.hidden = true;
   indicator.querySelector<HTMLElement>(".biome-indicator-distance")?.replaceChildren();
   indicator.style.removeProperty("transform");
@@ -86,14 +88,16 @@ export class PoiDebugPresentationSystem implements RenderSystem {
   private enabled = false;
   private elapsed = Number.POSITIVE_INFINITY;
   private readonly indicators = new Map<string, HTMLElement>();
+  private readonly removeIndicatorListeners: (() => void)[] = [];
 
   constructor(
     private readonly repository: GeneratedChunkRepository,
     private readonly overlay: HTMLElement,
   ) {
     for (const definition of getPoiGuideDefinitions()) {
-      const indicator = document.createElement("div");
+      const indicator = document.createElement("button");
       indicator.className = "biome-indicator poi-indicator";
+      indicator.setAttribute("type", "button");
       indicator.dataset.poi = definition.id;
       indicator.style.setProperty("--biome-color", `#${definition.debugColor.toString(16).padStart(6, "0")}`);
       indicator.setAttribute("aria-label", `Direction to nearest ${definition.label}`);
@@ -103,7 +107,11 @@ export class PoiDebugPresentationSystem implements RenderSystem {
       marker.setAttribute("aria-hidden", "true");
       const distance = document.createElement("span");
       distance.className = "biome-indicator-distance";
-      indicator.append(marker, distance);
+      const name = document.createElement("span");
+      name.className = "biome-indicator-name";
+      name.textContent = definition.label;
+      indicator.append(marker, distance, name);
+      this.removeIndicatorListeners.push(makeDirectionIndicatorExpandable(indicator));
       this.overlay.append(indicator);
       this.indicators.set(definition.id, indicator);
     }
@@ -151,6 +159,7 @@ export class PoiDebugPresentationSystem implements RenderSystem {
   }
 
   dispose(): void {
+    for (const removeListener of this.removeIndicatorListeners) removeListener();
     for (const indicator of this.indicators.values()) indicator.remove();
     this.indicators.clear();
   }
