@@ -31,9 +31,9 @@ describe("static terrain sunlight occlusion", () => {
     expect(occlusion).toBe(1);
   });
 
-  it("caps fully occluded darkening at the configurable 50% default", () => {
-    expect(terrainDarkening(1)).toBe(0.5);
-    expect(terrainDarkening(2)).toBe(0.5);
+  it("caps fully occluded darkening at the configurable 70% default", () => {
+    expect(terrainDarkening(1)).toBe(0.7);
+    expect(terrainDarkening(2)).toBe(0.7);
   });
 
   it("uses a smooth transition for partial obstruction", () => {
