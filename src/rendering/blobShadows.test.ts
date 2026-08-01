@@ -8,6 +8,8 @@ import {
   createBlobShadowGeometry,
   createBlobShadowMaterial,
   createPlayerShadowGeometry,
+  createBuildingShadowGeometry,
+  updateBuildingShadowGeometry,
   getBlobShadowStats,
   markBlobShadow,
 } from "./blobShadows";
@@ -58,5 +60,21 @@ describe("blob shadows", () => {
     });
     shadows.visible = false;
     expect(getBlobShadowStats(scene)).toEqual({ drawCalls: 0, triangles: 0 });
+  });
+
+  it("rebuilds a subdivided oriented building footprint from immutable source data",()=>{
+    const caster={x:3,z:-2,width:6,depth:4,rotation:Math.PI/4,height:2.5};
+    const geometry=createBuildingShadowGeometry([caster]);
+    const sunlight=new THREE.Vector3(4,2,-1);
+    updateBuildingShadowGeometry(geometry,sunlight,(x,z)=>x*.1+z*.2);
+    const first=Array.from((geometry.getAttribute("position") as THREE.BufferAttribute).array as ArrayLike<number>);
+    expect(geometry.getAttribute("position").count).toBe(49);
+    expect(new Set(Array.from({length:49},(_,i)=>geometry.getAttribute("position").getY(i).toFixed(3))).size).toBeGreaterThan(2);
+    updateBuildingShadowGeometry(geometry,sunlight,(x,z)=>x*.1+z*.2);
+    expect(Array.from((geometry.getAttribute("position") as THREE.BufferAttribute).array as ArrayLike<number>)).toEqual(first);
+    for(let i=0;i<49;i++){
+      const p=geometry.getAttribute("position");
+      expect(p.getY(i)).toBeCloseTo(p.getX(i)*.1+p.getZ(i)*.2+.035,4);
+    }
   });
 });

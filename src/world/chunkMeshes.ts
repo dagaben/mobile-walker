@@ -1,14 +1,14 @@
 import * as THREE from "three";
 
-import { createBlobShadowGeometry, createBlobShadowMaterial, markBlobShadow } from "../rendering/blobShadows";
-import { blobShadowProjection, SunlightDirection } from "../rendering/sunlightDirection";
+import { createBlobShadowGeometry, createBlobShadowMaterial, createBuildingShadowGeometry, markBlobShadow, updateBuildingShadowGeometry } from "../rendering/blobShadows";
+import { blobShadowProjectionForCaster, SunlightDirection } from "../rendering/sunlightDirection";
 
 import { BIOME_DEBUG_COLORS, type BiomeId, type BiomeWeights } from "./biomes";
 import { TREE_TRUNK_RADIUS } from "./forest";
 import type { GeneratedChunkData, RiverChannelSection } from "./generateChunk";
 import type { RiverPoint } from "./river";
 import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
-import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, mountainSnowCoverage, RIVER_BED_DEPTH } from "./terrainSampling";
+import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, mountainSnowCoverage, RIVER_BED_DEPTH, sampleTerrainHeight } from "./terrainSampling";
 import { terrainDarkening } from "./terrainOcclusion";
 import { PoiMeshFactory } from "./poiMeshes";
 
@@ -213,7 +213,7 @@ export class ChunkMeshFactory {
 
   constructor(sunlight = new SunlightDirection()) {
     this.sunlight = sunlight;
-    this.unsubscribeSunlight = sunlight.subscribe(() => this.updateTreeShadowBatches());
+    this.unsubscribeSunlight = sunlight.subscribe(() => this.updateShadowBatches());
   }
 
   create(data: GeneratedChunkData): THREE.Group {
@@ -242,7 +242,7 @@ export class ChunkMeshFactory {
       // Candidate geometry is deliberately not constructed in the normal mode.
       if (level !== "off") group.add(this.poiMeshes.createDebug(data.pois, data.poiCandidates ?? [], level));
     } else {
-      group.add(this.createChunkBoundary(data), this.createTreeShadows(data));
+      group.add(this.createChunkBoundary(data), this.createTreeShadows(data), this.createBuildingShadows(data));
     }
   }
 
@@ -257,8 +257,7 @@ export class ChunkMeshFactory {
   setShadowsEnabled(enabled: boolean): void {
     this.shadowsEnabled = enabled;
     for (const group of this.groups) {
-      const shadows = group.getObjectByName("tree-shadows");
-      if (shadows) shadows.visible = enabled;
+      group.traverse(object=>{if(object.userData.isBlobShadow)object.visible=enabled;});
     }
   }
 
@@ -304,6 +303,26 @@ export class ChunkMeshFactory {
     return shadows;
   }
 
+  private createBuildingShadows(data:GeneratedChunkData):THREE.Mesh {
+    const casters=data.pois.flatMap(poi=>poi.shadowCaster?[poi.shadowCaster]:[]);
+    const geometry=createBuildingShadowGeometry(casters);
+    const shadows=markBlobShadow(new THREE.Mesh(geometry,this.blobShadowMaterial));
+    shadows.name="building-shadows";shadows.visible=this.shadowsEnabled&&casters.length>0;
+    shadows.userData.terrainSeed=data.seed;
+    this.updateBuildingShadowMesh(shadows);
+    return shadows;
+  }
+
+  private updateBuildingShadowMesh(shadows:THREE.Mesh):void {
+    const seed=shadows.userData.terrainSeed as number;
+    updateBuildingShadowGeometry(shadows.geometry,this.sunlight.direction,(x,z)=>sampleTerrainHeight(seed,x,z));
+  }
+
+  private updateShadowBatches():void {
+    this.updateTreeShadowBatches();
+    for(const group of this.groups){const shadows=group.getObjectByName("building-shadows");if(shadows instanceof THREE.Mesh)this.updateBuildingShadowMesh(shadows);}
+  }
+
   private updateTreeShadowBatches(): void {
     for (const group of this.groups) {
       const shadows = group.getObjectByName("tree-shadows");
@@ -314,7 +333,7 @@ export class ChunkMeshFactory {
   private updateTreeShadowBatch(shadows: THREE.InstancedMesh): void {
     const trees = shadows.userData.shadowTrees as Array<{ x: number; y: number; z: number; scale: number }>;
     const pineCount = shadows.userData.pineCount as number;
-    const projection = blobShadowProjection(this.sunlight.direction);
+    const projection = blobShadowProjectionForCaster(this.sunlight.direction,1);
     const transform = new THREE.Object3D();
     trees.forEach((tree, index) => {
       const isPine = index < pineCount;
@@ -324,8 +343,9 @@ export class ChunkMeshFactory {
       // Using caster height here makes low-elevation shadows travel the same
       // distance a real ray from the crown would travel across the ground.
       const projectionHeight = isPine ? 1.8 : 1.65;
-      const offset = projectionHeight * tree.scale * projection.offsetScale;
-      transform.position.set(tree.x + projection.directionX * offset, tree.y + 0.025, tree.z + projection.directionZ * offset);
+      const treeProjection=blobShadowProjectionForCaster(this.sunlight.direction,projectionHeight*tree.scale,{maximumOffset:12});
+      const offset = treeProjection.offsetDistance;
+      transform.position.set(tree.x + treeProjection.directionX * offset, tree.y + 0.025, tree.z + treeProjection.directionZ * offset);
       transform.rotation.y = projection.rotationY;
       transform.scale.set(crownRadius * 1.5 * tree.scale * projection.stretch, 1, crownRadius * 0.9 * tree.scale);
       transform.updateMatrix();
@@ -585,6 +605,8 @@ export class ChunkMeshFactory {
     this.groups.add(group);
     const shadows = group.getObjectByName("tree-shadows");
     if (shadows instanceof THREE.InstancedMesh) this.updateTreeShadowBatch(shadows);
+    const buildings=group.getObjectByName("building-shadows");
+    if(buildings instanceof THREE.Mesh)this.updateBuildingShadowMesh(buildings);
     this.applyDebugVisibility(group);
   }
 
@@ -593,8 +615,7 @@ export class ChunkMeshFactory {
   }
 
   private applyDebugVisibility(group: THREE.Group): void {
-    const shadows = group.getObjectByName("tree-shadows");
-    if (shadows) shadows.visible = this.shadowsEnabled;
+    group.traverse(object=>{if(object.userData.isBlobShadow)object.visible=this.shadowsEnabled;});
     const chunkBoundary = group.getObjectByName(DEBUG_CHUNK_BOUNDARY_NAME);
     if (chunkBoundary) chunkBoundary.visible = this.debugView.wireframe;
     const level = this.debugView.pois ?? "off";

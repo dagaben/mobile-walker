@@ -13,6 +13,8 @@ export interface BlobShadowProjection {
   /** Horizontal displacement per unit of the shadow caster's visual height. */
   readonly offsetScale: number;
 }
+export interface CasterBlobShadowProjection extends BlobShadowProjection { readonly offsetDistance: number }
+export interface BlobShadowCasterOptions { readonly minimumStretch?:number;readonly maximumStretch?:number;readonly maximumOffset?:number;readonly fallbackAzimuth?:number }
 
 export const BLOB_SHADOW_MIN_STRETCH = 1;
 export const BLOB_SHADOW_MAX_STRETCH = 2.4;
@@ -71,4 +73,12 @@ export function blobShadowProjection(
     BLOB_SHADOW_MAX_OFFSET_SCALE,
   );
   return { directionX, directionZ, rotationY, stretch, offsetScale };
+}
+
+/** Converts the shared per-unit-height projection into a bounded caster projection. */
+export function blobShadowProjectionForCaster(sunlight:THREE.Vector3,casterHeight:number,options:BlobShadowCasterOptions={}):CasterBlobShadowProjection {
+  const projection=blobShadowProjection(sunlight,options.fallbackAzimuth,options.minimumStretch,options.maximumStretch);
+  const height=Number.isFinite(casterHeight)?Math.max(0,casterHeight):0;
+  const limit=options.maximumOffset===undefined?Infinity:Math.max(0,options.maximumOffset);
+  return {...projection,offsetDistance:Math.min(limit,height*projection.offsetScale)};
 }

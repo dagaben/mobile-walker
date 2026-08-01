@@ -6,7 +6,8 @@ import { CHUNK_SIZE } from "../world/chunkCoordinates";
 import { interpolateTransform } from "./interpolation";
 import { sampleTerrainHeight } from "../world/terrainSampling";
 import { conformBlobShadowToTerrain } from "../rendering/blobShadows";
-import { blobShadowProjection, type SunlightDirection } from "../rendering/sunlightDirection";
+import { blobShadowProjectionForCaster, type SunlightDirection } from "../rendering/sunlightDirection";
+export const PLAYER_SHADOW_EFFECTIVE_CASTER_HEIGHT = 0.82;
 
 export class TransformInterpolationSystem implements RenderSystem {
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], interpolation: number): void {
@@ -31,8 +32,8 @@ export class PlayerShadowPresentationSystem implements RenderSystem {
     const player = world.entities.find((entity) => entity.playerControl && entity.renderable);
     if (!player?.renderable) return;
     const { x, z } = player.renderable.position;
-    const projection = blobShadowProjection(this.sunlight.direction, this.shadow.rotation.y);
-    const offset = 0.15 * projection.offsetScale;
+    const projection = blobShadowProjectionForCaster(this.sunlight.direction,PLAYER_SHADOW_EFFECTIVE_CASTER_HEIGHT,{fallbackAzimuth:this.shadow.rotation.y,maximumOffset:3.5});
+    const offset = projection.offsetDistance;
     this.shadow.position.set(x + projection.directionX * offset, 0, z + projection.directionZ * offset);
     this.shadow.rotation.y = projection.rotationY;
     this.shadow.scale.set(0.58 * projection.stretch, 1, 0.43);
