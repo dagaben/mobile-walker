@@ -2,6 +2,7 @@ import type { RenderSystem } from "../ecs/System";
 import { BIOMES, BIOME_DEBUG_COLORS, BIOME_IDS, sampleBiome, type BiomeId } from "../world/biomes";
 import { worldToChunk } from "../world/chunkCoordinates";
 import { isRiverColumn } from "../world/river";
+import { collapseDirectionIndicator, makeDirectionIndicatorExpandable } from "./directionIndicator";
 
 export interface BiomeDirection {
   readonly id: BiomeId;
@@ -21,7 +22,7 @@ export function riverIndicatorEdge(playerX: number): RiverIndicatorEdge {
 
 /** Formats world-space distance for the compact biome direction markers. */
 export function formatBiomeDistance(distance: number): string {
-  return `${Math.round(distance)} wu`;
+  return `${Math.round(distance)} m`;
 }
 
 /** Converts a world-space X/Z delta to its CSS overlay X/Y displacement. */
@@ -63,6 +64,7 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
   private elapsed = Number.POSITIVE_INFINITY;
   private currentBiome?: BiomeId;
   private readonly indicators = new Map<BiomeId, HTMLElement>();
+  private readonly removeIndicatorListeners: (() => void)[] = [];
   private readonly riverIndicator: HTMLElement;
 
   constructor(
@@ -77,8 +79,9 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
     this.overlay.append(this.riverIndicator);
 
     for (const id of BIOME_IDS) {
-      const indicator = document.createElement("div");
+      const indicator = document.createElement("button");
       indicator.className = "biome-indicator";
+      indicator.setAttribute("type", "button");
       indicator.dataset.biome = id;
       indicator.style.setProperty("--biome-color", BIOME_DEBUG_COLORS[id]);
       indicator.title = BIOMES[id].label;
@@ -88,7 +91,11 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
       marker.setAttribute("aria-hidden", "true");
       const distance = document.createElement("span");
       distance.className = "biome-indicator-distance";
-      indicator.append(marker, distance);
+      const name = document.createElement("span");
+      name.className = "biome-indicator-name";
+      name.textContent = BIOMES[id].label;
+      indicator.append(marker, distance, name);
+      this.removeIndicatorListeners.push(makeDirectionIndicatorExpandable(indicator));
       this.overlay.append(indicator);
       this.indicators.set(id, indicator);
     }
@@ -99,6 +106,7 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
     this.overlay.hidden = !enabled;
     this.currentLabel.parentElement!.hidden = !enabled;
     this.elapsed = Number.POSITIVE_INFINITY;
+    if (!enabled) for (const indicator of this.indicators.values()) collapseDirectionIndicator(indicator);
   }
 
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], _interpolation: number, deltaSeconds: number): void {
@@ -134,6 +142,7 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
       if (!indicator) continue;
       // The current biome is already identified by the badge and has no useful direction.
       if (!target || id === current || target.distance < 1) {
+        collapseDirectionIndicator(indicator);
         indicator.hidden = true;
         continue;
       }
@@ -152,6 +161,7 @@ export class BiomeDebugPresentationSystem implements RenderSystem {
 
   dispose(): void {
     this.riverIndicator.remove();
+    for (const removeListener of this.removeIndicatorListeners) removeListener();
     for (const indicator of this.indicators.values()) indicator.remove();
     this.indicators.clear();
   }
