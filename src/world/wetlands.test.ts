@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { sampleBiome } from "./biomes";
-import { generateWetlandPools, sampleWetlandSpeedMultiplier, WETLAND_SPEED_MULTIPLIER } from "./wetlands";
+import { generateWetlandPools, getWetlandPoolCacheSize, sampleWetlandSpeedMultiplier, WETLAND_SPEED_MULTIPLIER } from "./wetlands";
 
 function findWetlandPosition(seed: string): { x: number; z: number } {
   for (let z = -640; z <= 640; z += 8) for (let x = -640; x <= 640; x += 8) {
@@ -11,6 +11,13 @@ function findWetlandPosition(seed: string): { x: number; z: number } {
 }
 
 describe("wetlands", () => {
+  it("reuses bounded chunk-level pool data for repeated dry-footprint queries", () => {
+    const first = generateWetlandPools("pool-cache", { x: 3, z: -2 });
+    const size = getWetlandPoolCacheSize();
+    expect(generateWetlandPools("pool-cache", { x: 3, z: -2 })).toBe(first);
+    expect(getWetlandPoolCacheSize()).toBe(size);
+    expect(size).toBeLessThanOrEqual(512);
+  });
   it("slows movement continuously according to wetland biome weight", () => {
     const seed = "mud-speed";
     const position = findWetlandPosition(seed);

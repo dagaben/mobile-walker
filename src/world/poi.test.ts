@@ -6,6 +6,8 @@ import {
   footprintsOverlap,
   generatePois,
   getPoiDefinitions,
+  getPoiCacheSizes,
+  getPoiCandidateSearchMargins,
   isVegetationExcluded,
   pointInFootprint,
   sampleLocalProminence,
@@ -29,6 +31,21 @@ describe("deterministic POI generation", () => {
     expect(sample).toEqual(sampleLocalProminence("prominent-ground", 24, -18, [8, 20], 16));
     expect(sample.byRadius.map(ring => ring.radius)).toEqual([8, 20]);
     expect(sample.prominence).toBeCloseTo(sample.byRadius.reduce((sum, ring) => sum + ring.prominence, 0) / 2);
+  });
+  it("does not apply the watchtower conflict radius to unrelated definitions", () => {
+    const margins = getPoiCandidateSearchMargins();
+    expect(margins["highland-watchtower"]).toBeGreaterThan(margins["forest-cabin"]!);
+    expect(margins["plains-farmhouse"]).toBe(margins["forest-cabin"]);
+    expect(margins["lake-house"]).toBe(margins["forest-cabin"]);
+  });
+
+  it("bounds subquery caches while repeated generation stays identical", () => {
+    const first = generatePois("poi-cache-regression", { x: 2, z: -4 });
+    expect(generatePois("poi-cache-regression", { x: 2, z: -4 })).toEqual(first);
+    const sizes = getPoiCacheSizes();
+    expect(sizes.generation).toBeLessThanOrEqual(256);
+    expect(sizes.candidates).toBeLessThanOrEqual(4096);
+    expect(sizes.prominence).toBeLessThanOrEqual(1024);
   });
   it("returns identical plain data for the same seed and coordinate", () => {
     expect(generatePois("poi-world", { x: -3, z: 7 })).toEqual(generatePois("poi-world", { x: -3, z: 7 }));
