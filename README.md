@@ -98,6 +98,29 @@ policy, so adding a landmark does not require changes to biome, hydrology,
 vegetation, or chunk rendering code. Candidate randomness is hash-addressed by
 seed and cell rather than consumed from mutable random state.
 
+Bridges use a reusable **span-POI** model rather than masquerading as ordinary
+point landmarks. Worker-side generation samples the river spine and channel
+cross-section, derives a tangent and perpendicular crossing axis, places bank
+anchors beyond the water and channel shoulders, samples bank and approach
+terrain, and resolves rarity, spacing, stability, and building conflicts with a
+stable global candidate identity. The crossing centre owns the bridge exactly
+once, even when its deck, approaches, exclusion zones, or shadow cross a chunk
+boundary. Optional connection slots preserve both approach anchors for future
+paths and roads.
+
+Bridge **archetype**, **span**, and **scale** are independent. River geometry
+sets the anchor-to-anchor span; the pedestrian footbridge, heavy timber bridge,
+or stone bridge definition sets materials, deck width, profile, variants,
+clearance, rarity, and biome preferences; the generated scale records span,
+width, and profile separately. Current variants are bare-plank, rope-railed and
+low-railed footbridges; simple-beam, trestle and reinforced timber bridges; and
+shallow-span, single-arch and hump-backed stone bridges. Every archetype's soft
+span rules include the current channel, so forest, wetland, plains, and highland
+context—not a width class—can produce different structures over the same river.
+Future variable-width cross-sections can feed those existing soft suitability
+rules and structural scale/support choices without changing ownership,
+selection, approach, exclusion, or rendering contracts.
+
 Generated POIs contain no Three.js state. `PoiMeshFactory` is a separate
 presentation registry that converts those records into named disposable object
 groups; `ChunkMeshFactory` only composes them into the owning chunk. A POI origin

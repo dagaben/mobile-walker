@@ -17,6 +17,7 @@ import { generateVegetation, type GeneratedVegetation } from "./vegetation";
 import { generatePois, isVegetationExcluded, type GeneratedPoi, type PoiDebugCandidate } from "./poi";
 import { generateWetlandPools, type WetlandPoolPlacement } from "./wetlands";
 import { placeCollectibles, type CollectiblePlacement } from "./collectibles";
+import { generateBridges, type BridgeCrossingCandidate, type GeneratedBridge } from "./bridges";
 import {
   DEFAULT_TERRAIN_OCCLUSION_OPTIONS,
   sampleTerrainOcclusion,
@@ -66,7 +67,10 @@ export interface GeneratedChunkData {
   };
   readonly pines: readonly TreePlacement[];
   readonly pois: readonly GeneratedPoi[];
+  /** Span POIs have their own crossing-oriented contract rather than pretending to be point POIs. */
+  readonly bridges: readonly GeneratedBridge[];
   readonly poiCandidates?: readonly PoiDebugCandidate[];
+  readonly bridgeCandidates?: readonly BridgeCrossingCandidate[];
   readonly collectibles: readonly CollectiblePlacement[];
   readonly vegetation: GeneratedVegetation;
   readonly wetlandPools: readonly WetlandPoolPlacement[];
@@ -209,7 +213,11 @@ export function generateChunk(
     if (dx === 0 && dz === 0) ownedCandidates = generated.candidates;
   }
   const pois = poiNeighborhood.filter(poi => poi.ownerChunk.x === coordinate.x && poi.ownerChunk.z === coordinate.z);
-  const exclusionZones = poiNeighborhood.flatMap(poi => poi.zones);
+  const bridgeNeighborhood:GeneratedBridge[]=[];
+  let ownedBridgeCandidates:readonly BridgeCrossingCandidate[]=[];
+  for(let dz=-1;dz<=1;dz++){const generated=generateBridges(seed,{x:coordinate.x,z:coordinate.z+dz},poiNeighborhood);bridgeNeighborhood.push(...generated.bridges);if(dz===0)ownedBridgeCandidates=generated.candidates;}
+  const bridges=bridgeNeighborhood.filter(bridge=>bridge.ownerChunk.x===coordinate.x&&bridge.ownerChunk.z===coordinate.z);
+  const exclusionZones = [...poiNeighborhood.flatMap(poi => poi.zones),...bridgeNeighborhood.flatMap(bridge=>bridge.zones)];
   const irregularTerrain = channel ? generateIrregularTerrain(seed, coordinate, channel.sections, occlusionOptions) : undefined;
   const meshVertices = irregularTerrain?.vertices ?? terrainHeights.map((height, vertexIndex) => ({
     x: coordinate.x * CHUNK_SIZE + vertexIndex % verticesPerSide * CHUNK_SIZE / terrainSegments,
@@ -247,7 +255,9 @@ export function generateChunk(
     irregularTerrain,
     pines: generateTrees(seed, coordinate).filter(tree => !isVegetationExcluded(tree.x, tree.z, exclusionZones)),
     pois,
+    bridges,
     poiCandidates: includeDebugData ? ownedCandidates : undefined,
+    bridgeCandidates:includeDebugData?ownedBridgeCandidates:undefined,
     collectibles: placeCollectibles(seed, coordinate, exclusionZones),
     vegetation: generateVegetation(seed, coordinate, exclusionZones),
     wetlandPools: generateWetlandPools(seed, coordinate).filter(pool => !isVegetationExcluded(pool.x, pool.z, exclusionZones)),
