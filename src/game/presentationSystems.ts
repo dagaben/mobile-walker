@@ -45,7 +45,7 @@ export class PlayerShadowPresentationSystem implements RenderSystem {
 }
 
 export class CameraPresentationSystem implements RenderSystem {
-  static readonly defaultMovementYawDegrees = 30;
+  static readonly defaultMovementYawDegrees = 10;
   private static readonly minimumElevation = THREE.MathUtils.degToRad(5);
   private static readonly defaultElevation = THREE.MathUtils.degToRad(22);
   private readonly desired = new THREE.Vector3();

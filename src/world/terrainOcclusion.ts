@@ -18,11 +18,11 @@ export interface TerrainOcclusionOptions {
 }
 
 export const DEFAULT_TERRAIN_OCCLUSION_OPTIONS: Readonly<TerrainOcclusionOptions> = Object.freeze({
-  sampleCount: 8,
+  sampleCount: 12,
   sampleDistance: 32,
-  heightThreshold: 1.5,
-  softness: 3,
-  maximumDarkening: 0.5,
+  heightThreshold: -2,
+  softness: 4,
+  maximumDarkening: 0.7,
 });
 
 export type TerrainHeightSampler = (worldX: number, worldZ: number) => number;
