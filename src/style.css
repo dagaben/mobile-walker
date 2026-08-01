@@ -210,6 +210,8 @@ body { overscroll-behavior: none; touch-action: none; }
   white-space: nowrap;
   backdrop-filter: blur(.35rem);
 }
+/* Author-level display declarations must also honor hidden explicitly. */
+.biome-indicator[hidden] { display: none; }
 .biome-indicator-marker {
   width: .72rem;
   height: .72rem;
