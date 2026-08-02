@@ -2,14 +2,14 @@ import type * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
 import { BridgeMeshFactory } from "./bridgeMeshes";
-import type { BridgeArchetype, GeneratedBridge } from "./bridges";
+import { createBridgeCollision, type BridgeArchetype, type GeneratedBridge } from "./bridges";
 
-function bridge(archetype:BridgeArchetype):GeneratedBridge{return {
+function bridge(archetype:BridgeArchetype):GeneratedBridge{const structural:Omit<GeneratedBridge,"collision">={
  id:`test-${archetype}`,ownerChunk:{x:0,z:0},crossingCentre:{x:0,y:2.18,z:0},riverTangent:{x:0,z:1},crossingDirection:{x:1,z:0},
  leftBankAnchor:{x:-4,y:2,z:0},rightBankAnchor:{x:4,y:2.05,z:0},spanLength:8,bankElevations:{left:2,right:2.05},deckWidth:3,
  archetype,variant:archetype==="stone-bridge"?"shallow-stone-span":archetype==="heavy-timber-bridge"?"simple-beam":"bare-plank",
  approachPoints:{left:{x:-7,y:2,z:0},right:{x:7,y:2.05,z:0}},zones:[],connections:{},scale:{span:8,width:3,profileHeight:archetype==="stone-bridge"?.65:archetype==="heavy-timber-bridge"?.22:.3},
-};}
+};return {...structural,collision:createBridgeCollision(structural)};}
 
 describe("bridge entry ramps",()=>{
  it.each(["pedestrian-footbridge","heavy-timber-bridge","stone-bridge"] as const)("adds gently sloped, deck-width ramps to both ends of a %s",archetype=>{

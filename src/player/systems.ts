@@ -5,6 +5,7 @@ import { sampleWetlandSpeedMultiplier } from "../world/wetlands";
 import type { InputController } from "./InputController";
 import type { GeneratedChunkRepository } from "../world/GeneratedChunkRepository";
 import { integrateMovement, normalizeInput } from "./movement";
+import { queryBridgeCollisions, resolveStructureMovement } from "../world/structureCollision";
 
 /** Converts screen-aligned input into world-space movement for a camera yaw. */
 export function rotateInputByCameraYaw(x: number, z: number, yaw: number): { x: number; z: number } {
@@ -73,6 +74,28 @@ export class TreeCollisionSystem implements FixedSystem {
   }
 }
 
+/**
+ * Resolves swept structure obstacles, then contextual floors and ceilings. Terrain
+ * grounding follows this system, so an underlying bank remains available without
+ * ever turning a deck into a globally sampled height column.
+ */
+export class StructureCollisionSystem implements FixedSystem {
+  constructor(private readonly chunks: GeneratedChunkRepository) {}
+  fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0]): void {
+    for (const entity of world.entities) {
+      if (!entity.transform || !entity.previousTransform || !entity.terrainFollower) continue;
+      const nearby = queryBridgeCollisions(this.chunks, entity.previousTransform, entity.transform);
+      if (!nearby.length) { if (entity.structureSupport) entity.structureSupport.surfaceId = undefined; continue; }
+      const result = resolveStructureMovement(entity.previousTransform, entity.transform, nearby,
+        entity.terrainFollower.heightOffset, entity.structureSupport?.surfaceId);
+      Object.assign(entity.transform, result.transform);
+      if (entity.structureSupport) entity.structureSupport.surfaceId = result.support?.id;
+      if (result.support && entity.velocity?.y && entity.velocity.y < 0) entity.velocity.y = 0;
+      if (result.support && entity.jump) entity.jump.grounded = true;
+    }
+  }
+}
+
 /** Grounds moving entities on the generated terrain, including river beds. */
 export class TerrainSamplingSystem implements FixedSystem {
   constructor(private readonly seed: number | string) {}
@@ -80,6 +103,10 @@ export class TerrainSamplingSystem implements FixedSystem {
   fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0]): void {
     for (const entity of world.entities) {
       if (!entity.transform || !entity.previousTransform || !entity.terrainFollower) continue;
+      if (entity.structureSupport?.surfaceId) {
+        if (entity.jump) entity.jump.grounded = true;
+        continue;
+      }
       const sample = sampleTerrain(this.seed, entity.transform.x, entity.transform.z);
       const groundY = sample.height + entity.terrainFollower.heightOffset;
       if (entity.transform.y <= groundY && (!entity.velocity || entity.velocity.y <= 0)) {

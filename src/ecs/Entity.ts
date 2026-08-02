@@ -22,6 +22,7 @@ export interface CameraTargetComponent {
 }
 
 export interface TerrainFollowerComponent { heightOffset: number }
+export interface StructureSupportComponent { surfaceId?: string }
 
 /** Seeded identity and interaction data. Kept independent of its Three.js view. */
 export interface InteractableComponent {
@@ -47,6 +48,7 @@ export interface Entity {
   jump?: JumpComponent;
   cameraTarget?: CameraTargetComponent;
   terrainFollower?: TerrainFollowerComponent;
+  structureSupport?: StructureSupportComponent;
   interactable?: InteractableComponent;
   proximity?: ProximityComponent;
   collectionState?: CollectionStateComponent;

@@ -3,7 +3,7 @@ import * as THREE from "three";
 import type { EcsWorld } from "../ecs/createEcsWorld";
 import type { SystemScheduler } from "../ecs/SystemScheduler";
 import { InputController } from "../player/InputController";
-import { InputSnapshotSystem, PlayerMovementSystem, TerrainSamplingSystem, TreeCollisionSystem } from "../player/systems";
+import { InputSnapshotSystem, PlayerMovementSystem, StructureCollisionSystem, TerrainSamplingSystem, TreeCollisionSystem } from "../player/systems";
 import type { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
 import { CameraPresentationSystem, PlayerShadowPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
@@ -77,6 +77,7 @@ export function createGameplay(
     playerControl: { moveX: 0, moveZ: 0, active: false, jump: false },
     jump: { grounded: true },
     terrainFollower: { heightOffset: 0.76 },
+    structureSupport: {},
     cameraTarget: { height: 4.5, distance: 6.5 },
     renderable: player,
   });
@@ -86,11 +87,7 @@ export function createGameplay(
   const camera = new CameraPresentationSystem(renderer.camera, input);
   systems.addFixedSystem(new InputSnapshotSystem(input, () => camera.getMovementReferenceYaw()));
   systems.addFixedSystem(new PlayerMovementSystem(worldSeed));
-  systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
-  systems.addFixedSystem(new ProximityDetectionSystem());
-  systems.addFixedSystem(new CollectionSystem());
   const persistence = new PersistenceSystem(storage, worldSeed);
-  systems.addFixedSystem(persistence);
   // Generate data before constructing meshes; then interpolate visuals and derive the camera pose.
   // The camera remains south of the player and looks north (negative world Z),
   // so spend the additional streaming row where it expands the visible view.
@@ -100,6 +97,11 @@ export function createGameplay(
     sunlightDirection: renderer.sunlightDirection,
   });
   systems.addFixedSystem(new TreeCollisionSystem(worldSeed, chunks.repository));
+  systems.addFixedSystem(new StructureCollisionSystem(chunks.repository));
+  systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
+  systems.addFixedSystem(new ProximityDetectionSystem());
+  systems.addFixedSystem(new CollectionSystem());
+  systems.addFixedSystem(persistence);
   systems.addRenderSystem(chunks);
   const mushroomCount = document.querySelector<HTMLElement>("#mushroom-count");
   if (!mushroomCount) throw new Error("The mushroom counter could not be found.");
