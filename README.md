@@ -84,8 +84,41 @@ to a Three.js mesh factory. Chunk geometries are disposed when they leave the
 radius, while terrain and river materials are shared for the streamer's
 lifetime. Resident chunks render without an edge-fade shader, so outer chunk
 edges can remain sharp while streaming work stays focused on generating and
-activating the player's neighborhood. Camera-distance fog covers the final 20
-units of the camera's draw distance, becoming fully opaque at the far plane.
+activating the player's neighborhood.
+
+### Rendering fog and material inventory
+
+The scene retains Three.js linear `Fog`, its pale-green background/color, and
+its existing 130/150 near/far values. A small `onBeforeCompile` patch changes
+only the standard fog distance: it is horizontal world-space X/Z distance from
+the player's interpolated visible position. The visibility volume is therefore
+a vertical cylinder. Camera yaw, tilt, zoom, height, and orbit position cannot
+move the boundary; the usual Three.js `smoothstep` and fog-color blend remain.
+
+The repository-wide material policy is deliberately explicit:
+
+* Fog-aware world geometry uses `MeshStandardMaterial`: terrain, river channel
+  and water, transparent wetland pools, instanced trunks/foliage/bushes/flowers,
+  POI buildings, bridges, mushrooms, and the player. World-space blob shadows
+  use transparent `MeshBasicMaterial` and receive the same patch. Alpha,
+  transparency, depth, blending, and render order are otherwise untouched.
+* Diagnostic chunk/POI/bridge lines and translucent candidate meshes use
+  `LineBasicMaterial`/`MeshBasicMaterial` with `fog: false`. DOM HUD, biome and
+  POI direction guides, settings, and debug panels have no Three.js material.
+* There are currently no Lambert, Phong, Physical, Points, Sprite,
+  `ShaderMaterial`, `RawShaderMaterial`, material subclasses, displaced,
+  skinned, or morph-target world paths. Ordinary and transformed meshes plus
+  `InstancedMesh` are supported; the patch derives X/Z after the standard
+  transformed vertex and instance/batch matrices.
+
+Future ordinary world materials must be registered once with
+`ThreeRenderer.prepareWorldObject` when created or activated. This preserves
+standard material shaders and shares one centre uniform across every material.
+Intentional diagnostic/UI exceptions must set `fog: false`; a custom shader is
+not implicitly supported and must explicitly implement the same shared
+world-X/Z distance. Tests audit the patch, opt-out, cache key, shader chunk
+contract, constants, shared uniform, and lifecycle so a new path cannot silently
+fall back to camera-depth fog.
 
 ### POI generation and presentation
 

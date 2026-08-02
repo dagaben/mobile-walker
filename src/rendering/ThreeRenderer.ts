@@ -1,10 +1,12 @@
 import * as THREE from "three";
 import { getBlobShadowStats } from "./blobShadows";
 import { SunlightDirection, type SunlightAngles } from "./sunlightDirection";
+import { createPlayerCentredFogController } from "./playerCentredFog";
 
 const MAX_PIXEL_RATIO = 2;
-const MAX_DRAW_DISTANCE = 150;
-const FOG_DEPTH = 20;
+export const MAX_DRAW_DISTANCE = 150;
+export const FOG_DEPTH = 20;
+export const FOG_COLOR = 0xd9ead8;
 const SUNLIGHT_DISTANCE = 10;
 
 export type { SunlightAngles } from "./sunlightDirection";
@@ -30,14 +32,16 @@ export class ThreeRenderer {
   readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, MAX_DRAW_DISTANCE);
   private readonly sunlight = new THREE.DirectionalLight(0xfff1d6, 2.2);
   readonly sunlightDirection = new SunlightDirection();
+  readonly playerCentredFog;
   private submission = { currentMs: 0, maximumMs: 0, rollingMaximumMs: 0, samples: [] as { at: number; ms: number }[] };
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PIXEL_RATIO));
-    this.scene.background = new THREE.Color(0xd9ead8);
-    this.scene.fog = new THREE.Fog(0xd9ead8, MAX_DRAW_DISTANCE - FOG_DEPTH, MAX_DRAW_DISTANCE);
+    this.scene.background = new THREE.Color(FOG_COLOR);
+    this.scene.fog = new THREE.Fog(FOG_COLOR, MAX_DRAW_DISTANCE - FOG_DEPTH, MAX_DRAW_DISTANCE);
+    this.playerCentredFog = createPlayerCentredFogController(this.scene.fog);
 
     this.camera.position.set(6, 5, 8);
     this.camera.lookAt(0, 0, 0);
@@ -65,6 +69,8 @@ export class ThreeRenderer {
     this.submission.rollingMaximumMs = Math.max(0, ...this.submission.samples.map(sample => sample.ms));
   }
 
+  prepareWorldObject(object: THREE.Object3D): void { this.playerCentredFog.applyObject(object); }
+
   setSunlightAngles(angles: SunlightAngles): void {
     this.sunlight.position.copy(sunlightPosition(angles));
     this.sunlightDirection.set(this.sunlight.position);
@@ -83,6 +89,7 @@ export class ThreeRenderer {
   getSubmissionTiming(): Readonly<{ currentMs: number; maximumMs: number; rollingMaximumMs: number }> { return this.submission; }
 
   dispose(): void {
+    this.playerCentredFog.dispose();
     this.resizeObserver?.disconnect();
     window.removeEventListener("resize", this.resize);
     for (const animationFrame of this.resizeAnimationFrames) cancelAnimationFrame(animationFrame);
