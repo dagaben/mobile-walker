@@ -18,6 +18,7 @@ import { generatePois, isVegetationExcluded, type GeneratedPoi, type PoiDebugCan
 import { generateWetlandPools, type WetlandPoolPlacement } from "./wetlands";
 import { placeCollectibles, type CollectiblePlacement } from "./collectibles";
 import { generateBridges, type BridgeCrossingCandidate, type GeneratedBridge } from "./bridges";
+import { validateStructureDefinition } from "./structureTypes";
 import {
   DEFAULT_TERRAIN_OCCLUSION_OPTIONS,
   sampleTerrainOcclusion,
@@ -217,6 +218,9 @@ export function generateChunk(
   let ownedBridgeCandidates:readonly BridgeCrossingCandidate[]=[];
   for(let dz=-1;dz<=1;dz++){const generated=generateBridges(seed,{x:coordinate.x,z:coordinate.z+dz},poiNeighborhood);bridgeNeighborhood.push(...generated.bridges);if(dz===0)ownedBridgeCandidates=generated.candidates;}
   const bridges=bridgeNeighborhood.filter(bridge=>bridge.ownerChunk.x===coordinate.x&&bridge.ownerChunk.z===coordinate.z);
+  // Structural parity is checked once as records enter the generated repository,
+  // never during rendering or a movement query.
+  for(const definition of [...pois.map(poi=>poi.structure),...bridges.map(bridge=>bridge.collision)])validateStructureDefinition(definition);
   const exclusionZones = [...poiNeighborhood.flatMap(poi => poi.zones),...bridgeNeighborhood.flatMap(bridge=>bridge.zones)];
   const irregularTerrain = channel ? generateIrregularTerrain(seed, coordinate, channel.sections, occlusionOptions) : undefined;
   const meshVertices = irregularTerrain?.vertices ?? terrainHeights.map((height, vertexIndex) => ({
