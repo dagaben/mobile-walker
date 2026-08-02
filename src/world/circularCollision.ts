@@ -1,0 +1,13 @@
+export interface CircularCollider { readonly id?:string;readonly x:number;readonly z:number;readonly radius:number }
+export interface CircularMovementResult {readonly x:number;readonly z:number;readonly contactNormal?:Readonly<{x:number;z:number}>;readonly slide?:Readonly<{x:number;z:number}>}
+export const CIRCULAR_COLLISION_SEPARATION_EPSILON=1e-5;
+const MINIMUM_DISPLACEMENT_SQUARED=1e-12;
+
+/** Shared deterministic swept-circle solver for trunks and structure posts. */
+export function resolveSweptCircularMovement(fromX:number,fromZ:number,displacementX:number,displacementZ:number,colliders:readonly CircularCollider[],retention=.95,maxIterations=5):CircularMovementResult{
+ let x=fromX,z=fromZ,remainingX=displacementX,remainingZ=displacementZ,contactNormal:CircularMovementResult["contactNormal"],slide:CircularMovementResult["slide"];
+ if(![x,z,remainingX,remainingZ,retention].every(Number.isFinite))return{x:fromX,z:fromZ};
+ for(let iteration=0;iteration<maxIterations;iteration++){let overlap:CircularCollider|undefined;for(const collider of colliders){const dx=x-collider.x,dz=z-collider.z;if(dx*dx+dz*dz<collider.radius*collider.radius){overlap=collider;break;}}if(!overlap)break;let nx=x-overlap.x,nz=z-overlap.z,length=Math.hypot(nx,nz);if(!length){length=Math.hypot(remainingX,remainingZ);nx=length?-remainingX/length:1;nz=length?-remainingZ/length:0;}else{nx/=length;nz/=length;}x=overlap.x+nx*(overlap.radius+CIRCULAR_COLLISION_SEPARATION_EPSILON);z=overlap.z+nz*(overlap.radius+CIRCULAR_COLLISION_SEPARATION_EPSILON);contactNormal={x:nx,z:nz};}
+ for(let iteration=0;iteration<maxIterations;iteration++){const movementSquared=remainingX*remainingX+remainingZ*remainingZ;if(movementSquared<=MINIMUM_DISPLACEMENT_SQUARED)break;let time=Infinity,hit:CircularCollider|undefined;for(const collider of colliders){const ox=x-collider.x,oz=z-collider.z,b=2*(ox*remainingX+oz*remainingZ);if(b>=0)continue;const c=ox*ox+oz*oz-collider.radius*collider.radius,disc=b*b-4*movementSquared*c;if(disc<0)continue;const candidate=(-b-Math.sqrt(disc))/(2*movementSquared);if(candidate>=0&&candidate<=1&&candidate<time){time=candidate;hit=collider;}}if(!hit){x+=remainingX;z+=remainingZ;break;}x+=remainingX*time;z+=remainingZ*time;let nx=x-hit.x,nz=z-hit.z,length=Math.hypot(nx,nz);if(length){nx/=length;nz/=length;}else{length=Math.sqrt(movementSquared);nx=-remainingX/length;nz=-remainingZ/length;}x+=nx*CIRCULAR_COLLISION_SEPARATION_EPSILON;z+=nz*CIRCULAR_COLLISION_SEPARATION_EPSILON;remainingX*=1-time;remainingZ*=1-time;const inward=remainingX*nx+remainingZ*nz;if(inward<0){remainingX-=nx*inward;remainingZ-=nz*inward;}remainingX*=retention;remainingZ*=retention;contactNormal={x:nx,z:nz};slide={x:remainingX,z:remainingZ};}
+ return{x,z,contactNormal,slide};
+}
