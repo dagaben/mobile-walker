@@ -23,9 +23,9 @@ export class PoiMeshFactory {
   private readonly roof=this.shared(createRoofGeometry());
   private readonly cylinder=this.shared(new THREE.CylinderGeometry(.5,.5,1,6));
   private readonly materials={wall:new THREE.MeshStandardMaterial({color:0xd8c49f,roughness:1}),lakeWall:new THREE.MeshStandardMaterial({color:0xa8b6a4,roughness:1}),roof:new THREE.MeshStandardMaterial({color:0x8d5f51,roughness:1,flatShading:true}),wood:new THREE.MeshStandardMaterial({color:0x80674d,roughness:1}),darkWood:new THREE.MeshStandardMaterial({color:0x57483d,roughness:1}),door:new THREE.MeshStandardMaterial({color:0x6e4b3d,roughness:1}),window:new THREE.MeshStandardMaterial({color:0x9fc7cf,roughness:.65}),chimney:new THREE.MeshStandardMaterial({color:0x786b62,roughness:1})};
-  private readonly debugMaterial=new THREE.LineBasicMaterial({color:0xffcc44,depthTest:false});
-  private readonly acceptedDebugMaterial=new THREE.MeshBasicMaterial({color:0x32ff72,transparent:true,opacity:.78,depthTest:false,depthWrite:false});
-  private readonly rejectedDebugMaterial=new THREE.MeshBasicMaterial({color:0xff285f,transparent:true,opacity:.68,depthTest:false,depthWrite:false});
+  private readonly debugMaterial=new THREE.LineBasicMaterial({color:0xffcc44,depthTest:false,fog:false});
+  private readonly acceptedDebugMaterial=new THREE.MeshBasicMaterial({color:0x32ff72,transparent:true,opacity:.78,depthTest:false,depthWrite:false,fog:false});
+  private readonly rejectedDebugMaterial=new THREE.MeshBasicMaterial({color:0xff285f,transparent:true,opacity:.68,depthTest:false,depthWrite:false,fog:false});
   constructor(){this.register("plains-farmhouse",poi=>this.buildHouse(poi,false));this.register("lake-house",poi=>this.buildHouse(poi,true));this.register("forest-cabin",poi=>this.buildCabin(poi));this.register("highland-watchtower",poi=>this.buildWatchtower(poi));}
   register(typeId:string,renderer:(poi:GeneratedPoi)=>THREE.Object3D):void{this.renderers.set(typeId,renderer);}
   create(poi:GeneratedPoi):THREE.Group{const root=new THREE.Group();root.name=`poi:${poi.typeId}:${poi.id}`;root.userData={poiId:poi.id,poiType:poi.typeId};root.position.set(poi.position.x,poi.position.y,poi.position.z);root.rotation.y=poi.rotation;const renderer=this.renderers.get(poi.typeId);if(renderer)root.add(renderer(poi));freezeStaticTree(root);return root;}

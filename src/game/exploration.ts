@@ -59,6 +59,7 @@ export class ExplorationPresentationSystem implements RenderSystem {
     offsets: Partial<ChunkNeighborhoodOffsets> = {},
     private readonly collectedCount?: HTMLElement,
     private readonly chunks?: GeneratedChunkRepository,
+    private readonly prepareWorldObject: (object: THREE.Object3D) => void = () => undefined,
   ) {
     this.offsets = resolveNeighborhoodOffsets(radius, offsets);
   }
@@ -87,6 +88,7 @@ export class ExplorationPresentationSystem implements RenderSystem {
         const entities = (data?.collectibles ?? placeCollectibles(this.seed, coordinate)).map((placement) => {
           const mesh = createMushroom();
           mesh.position.set(placement.x, placement.y, placement.z);
+          this.prepareWorldObject(mesh);
           mesh.visible = !state.collectedIds.has(placement.id);
           this.scene.add(mesh);
           return world.add({

@@ -6,7 +6,7 @@ import { InputController } from "../player/InputController";
 import { InputSnapshotSystem, PlayerMovementSystem, StructureCollisionSystem, TerrainSamplingSystem, TreeCollisionSystem } from "../player/systems";
 import type { ThreeRenderer } from "../rendering/ThreeRenderer";
 import { ChunkStreamingSystem } from "../world/ChunkStreamingSystem";
-import { CameraPresentationSystem, PlayerShadowPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
+import { CameraPresentationSystem, PlayerFogPresentationSystem, PlayerShadowPresentationSystem, TransformInterpolationSystem } from "./presentationSystems";
 import { createBlobShadowMaterial, createPlayerShadowGeometry, markBlobShadow } from "../rendering/blobShadows";
 import { CollectionSystem, createCollectionState, ExplorationPresentationSystem, ProximityDetectionSystem } from "./exploration";
 import { BiomeDebugPresentationSystem } from "./biomeDebug";
@@ -64,11 +64,13 @@ export function createGameplay(
     player.add(eye);
   }
   renderer.scene.add(player);
+  renderer.prepareWorldObject(player);
   const playerShadow = markBlobShadow(new THREE.Mesh(
     createPlayerShadowGeometry(), createBlobShadowMaterial(0.36),
   ));
   playerShadow.scale.set(0.58, 1, 0.43);
   renderer.scene.add(playerShadow);
+  renderer.prepareWorldObject(playerShadow);
 
   world.add({
     transform: { ...initialTransform },
@@ -95,6 +97,7 @@ export function createGameplay(
   const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1, {
     offsets: streamingOffsets,
     sunlightDirection: renderer.sunlightDirection,
+    prepareWorldObject: (object) => renderer.prepareWorldObject(object),
   });
   systems.addFixedSystem(new TreeCollisionSystem(worldSeed, chunks.repository));
   systems.addFixedSystem(new StructureCollisionSystem(chunks.repository));
@@ -105,9 +108,10 @@ export function createGameplay(
   systems.addRenderSystem(chunks);
   const mushroomCount = document.querySelector<HTMLElement>("#mushroom-count");
   if (!mushroomCount) throw new Error("The mushroom counter could not be found.");
-  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, mushroomCount, chunks.repository);
+  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, mushroomCount, chunks.repository, (object) => renderer.prepareWorldObject(object));
   systems.addRenderSystem(exploration);
   systems.addRenderSystem(new TransformInterpolationSystem());
+  systems.addRenderSystem(new PlayerFogPresentationSystem((x, z) => renderer.playerCentredFog.update(x, z)));
   systems.addRenderSystem(new PlayerShadowPresentationSystem(worldSeed, playerShadow, renderer.sunlightDirection));
   systems.addRenderSystem(camera);
   const biomeOverlay = document.querySelector<HTMLElement>("#biome-guide");

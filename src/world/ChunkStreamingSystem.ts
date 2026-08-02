@@ -25,6 +25,8 @@ export interface ChunkStreamingOptions {
   readonly meshFactory?: ChunkMeshFactory;
   readonly sunlightDirection?: SunlightDirection;
   readonly clock?: () => number;
+  /** Registers newly-created world materials with the shared fog shader patch. */
+  readonly prepareWorldObject?: (object: THREE.Object3D) => void;
 }
 export interface ChunkStreamingDiagnostics {
   generationQueued: number; generationInProgress: number; workerBusy: boolean; workerRequestBacklog: number; awaitingActivation: number; partiallyActivated: number;
@@ -62,6 +64,7 @@ export class ChunkStreamingSystem implements RenderSystem {
   private readonly meshes: ChunkMeshFactory; private readonly generator: ChunkGenerator; private readonly disposeGenerator: () => void;
   private readonly generationWorkPerFrame: number; private readonly legacyMeshWork?: number; private readonly activationBudgetMs: number;
   private readonly cacheSize: number; private readonly directionalPrefetchRows: number; private readonly now: () => number;
+  private readonly prepareWorldObject: (object: THREE.Object3D) => void;
   readonly repository: GeneratedChunkRepository;
   private offsets: ChunkNeighborhoodOffsets; private wanted = new Set<ChunkId>(); private dataWanted = new Set<ChunkId>();
   private center?: ChunkCoordinate; private priorityDirection = { x: 0, z: -1 }; private disposed = false;
@@ -69,6 +72,7 @@ export class ChunkStreamingSystem implements RenderSystem {
 
   constructor(private readonly scene: THREE.Scene, private readonly seed: number | string, private readonly radius = 1, options: ChunkStreamingOptions = {}) {
     this.now = options.clock ?? (() => performance.now()); this.meshes = options.meshFactory ?? new ChunkMeshFactory(options.sunlightDirection);
+    this.prepareWorldObject = options.prepareWorldObject ?? (() => undefined);
     const worker = options.generator ? undefined : createWorkerGenerator((g, t) => this.recordWorkerTiming(g, t), this.now);
     this.generator = options.generator ?? worker?.generate ?? generateChunk; this.disposeGenerator = worker?.dispose ?? (() => undefined);
     this.generationWorkPerFrame = Math.max(0, options.generationWorkPerFrame ?? 1); this.legacyMeshWork = options.meshWorkPerFrame;
@@ -127,13 +131,13 @@ export class ChunkStreamingSystem implements RenderSystem {
     for(const [id,job] of this.ordered(this.jobs)) {
       while(!job.complete) {
         if(this.diagnostics.activationMsThisFrame>=this.activationBudgetMs) return;
-        const timing=job.step(); if(!timing) break; this.recordStage(timing.stage,timing.milliseconds);
+        const timing=job.step(); if(!timing) break; this.prepareWorldObject(job.group); this.recordStage(timing.stage,timing.milliseconds);
         if(job.terrainReady&&!this.active.has(id)) { this.active.set(id,job.group); this.activeData.set(id,job.data); this.scene.add(job.group); }
       }
       if(job.complete) { this.jobs.delete(id); this.meshes.registerGroup(job.group); }
     }
   }
-  private activateComplete(id:ChunkId,data:GeneratedChunkData,group:THREE.Group):void { this.meshes.registerGroup(group); this.active.set(id,group);this.activeData.set(id,data);this.scene.add(group); }
+  private activateComplete(id:ChunkId,data:GeneratedChunkData,group:THREE.Group):void { this.prepareWorldObject(group);this.meshes.registerGroup(group); this.active.set(id,group);this.activeData.set(id,data);this.scene.add(group); }
   private processSafeRemovals():void { if([...this.wanted].some(id=>!this.active.has(id)))return; for(const [id,group] of this.requestedRemovals){this.requestedRemovals.delete(id);if(this.wanted.has(id))continue;this.active.delete(id);const data=this.activeData.get(id);this.activeData.delete(id);const partial=this.jobs.get(id);if(partial){this.jobs.delete(id);partial.cancel();if(data)this.putInCache(id,{data});continue;}this.meshes.unregisterGroup(group);group.removeFromParent();if(data)this.putInCache(id,{data,group});else this.meshes.disposeChunk(group);} }
   private putInCache(id:ChunkId,r:CachedChunk):void { if(this.cacheSize===0||this.disposed){if(r.group)this.meshes.disposeChunk(r.group);this.repository.delete(id);return;} const old=this.cache.get(id);if(old?.group&&old.group!==r.group)this.meshes.disposeChunk(old.group);this.cache.delete(id);this.cache.set(id,r);while(this.cache.size>this.cacheSize){const key=this.cache.keys().next().value as ChunkId;const value=this.cache.get(key);this.cache.delete(key);this.repository.delete(key);if(value?.group)this.meshes.disposeChunk(value.group);} }
   private recordWorkerTiming(g:number,t:number):void { this.diagnostics.lastWorkerGenerationMs=g;this.diagnostics.maxWorkerGenerationMs=Math.max(this.diagnostics.maxWorkerGenerationMs,g);this.diagnostics.lastRequestRoundTripMs=t;this.diagnostics.maxRequestRoundTripMs=Math.max(this.diagnostics.maxRequestRoundTripMs,t); }

@@ -206,7 +206,7 @@ export class ChunkMeshFactory {
   private readonly flowerHeadMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff, flatShading: true, roughness: 0.9,
   });
-  private readonly chunkBoundaryMaterial = new THREE.LineBasicMaterial({ color: 0x8b0000, depthTest: false });
+  private readonly chunkBoundaryMaterial = new THREE.LineBasicMaterial({ color: 0x8b0000, depthTest: false, fog: false });
   private readonly blobShadowMaterial = createBlobShadowMaterial(0.3);
   private debugView: DebugViewOptions = {
     wireframe: false, biomeGuide: false, occlusionMap: false, disableTerrainOcclusion: false,

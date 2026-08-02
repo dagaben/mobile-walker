@@ -18,6 +18,15 @@ import {
 } from "./cameraOrientation";
 export const PLAYER_SHADOW_EFFECTIVE_CASTER_HEIGHT = 0.82;
 
+/** Runs after interpolation so fog follows the visible pose, never simulation or camera state. */
+export class PlayerFogPresentationSystem implements RenderSystem {
+  constructor(private readonly update: (x: number, z: number) => void) {}
+  prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0]): void {
+    const player = world.entities.find((entity) => entity.playerControl && entity.renderable);
+    if (player?.renderable) this.update(player.renderable.position.x, player.renderable.position.z);
+  }
+}
+
 export class TransformInterpolationSystem implements RenderSystem {
   prepareRender(world: Parameters<RenderSystem["prepareRender"]>[0], interpolation: number): void {
     for (const entity of world.entities) {
