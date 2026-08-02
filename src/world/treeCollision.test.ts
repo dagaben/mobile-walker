@@ -5,7 +5,11 @@ import { generateTrees, TREE_TRUNK_RADIUS } from "./forest";
 import {
   clearTreeCollisionCache,
   PLAYER_COLLISION_RADIUS,
+  resolveSweptCircularMovement,
   resolveTreeTrunkMovement,
+  TREE_TRUNK_MAX_COLLISION_ITERATIONS,
+  TREE_TRUNK_SEPARATION_EPSILON,
+  TREE_TRUNK_TANGENTIAL_RETENTION,
   treeCollisionCacheDiagnostics,
 } from "./treeCollision";
 import { generateLeafTrees, LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
@@ -22,7 +26,9 @@ describe("resolveTreeTrunkMovement", () => {
     const from: TransformComponent = { x: tree.x - radius - 0.1, y: tree.y + 0.76, z: tree.z, yaw: 1 };
     const to: TransformComponent = { ...from, x: tree.x - radius + 0.05 };
 
-    expect(resolveTreeTrunkMovement(seed, from, to)).toEqual({ ...to, x: from.x });
+    const resolved = resolveTreeTrunkMovement(seed, from, to);
+    expect(resolved.x).toBeCloseTo(tree.x - radius - TREE_TRUNK_SEPARATION_EPSILON, 8);
+    expect(resolved.z).toBeCloseTo(tree.z, 8);
   });
 
   it("blocks movement into a generated leaf tree trunk", () => {
@@ -37,7 +43,8 @@ describe("resolveTreeTrunkMovement", () => {
     };
     const to: TransformComponent = { ...from, x: leafTree.x - radius + 0.05 };
 
-    expect(resolveTreeTrunkMovement(seed, from, to)).toEqual({ ...to, x: from.x });
+    const resolved = resolveTreeTrunkMovement(seed, from, to);
+    expect(resolved.x).toBeCloseTo(leafTree.x - radius - TREE_TRUNK_SEPARATION_EPSILON, 8);
   });
 
   it("allows movement beneath foliage when clear of the trunk", () => {
@@ -49,7 +56,7 @@ describe("resolveTreeTrunkMovement", () => {
     expect(resolveTreeTrunkMovement(seed, from, to)).toEqual(to);
   });
 
-  it("slides along a trunk when only one movement axis is blocked", () => {
+  it("slides tangentially around a trunk rather than resolving axes independently", () => {
     const radius = PLAYER_COLLISION_RADIUS + TREE_TRUNK_RADIUS * tree.scale;
     const from: TransformComponent = {
       x: tree.x - radius - 0.1,
@@ -59,7 +66,9 @@ describe("resolveTreeTrunkMovement", () => {
     };
     const to: TransformComponent = { ...from, x: tree.x - radius + 0.05, z: tree.z - 0.3 };
 
-    expect(resolveTreeTrunkMovement(seed, from, to)).toEqual({ ...to, x: from.x });
+    const resolved = resolveTreeTrunkMovement(seed, from, to);
+    expect(resolved.z).toBeLessThan(from.z);
+    expect(Math.hypot(resolved.x - tree.x, resolved.z - tree.z)).toBeGreaterThanOrEqual(radius);
   });
 
   it("reuses collision placements for repeated movement through the same chunks", () => {
@@ -92,5 +101,62 @@ describe("resolveTreeTrunkMovement", () => {
     const diagnostics = treeCollisionCacheDiagnostics();
     expect(diagnostics.generatedChunkCount).toBe(4);
     expect(new Set(diagnostics.keys).size).toBe(4);
+  });
+});
+
+describe("resolveSweptCircularMovement", () => {
+  const trunk = [{ x: 0, z: 0, radius: 1 }];
+
+  it("stops direct movement at the boundary and cannot tunnel", () => {
+    const result = resolveSweptCircularMovement(-10, 0, 20, 0, trunk);
+    expect(result.x).toBeCloseTo(-1 - TREE_TRUNK_SEPARATION_EPSILON, 8);
+    expect(result.z).toBe(0);
+    expect(Math.hypot(result.x, result.z)).toBeGreaterThanOrEqual(1);
+  });
+
+  it("retains exactly 95% of the geometrically valid tangent", () => {
+    // Contact is at (-1, 0), so the unconsumed (1, 1) has inward normal -1
+    // removed and leaves the tangent (0, 1).
+    const result = resolveSweptCircularMovement(-2, -1, 2, 2, trunk);
+    const tangentialTravel = result.z;
+    expect(tangentialTravel).toBeCloseTo(TREE_TRUNK_TANGENTIAL_RETENTION, 5);
+    expect(result.x).toBeCloseTo(-1 - TREE_TRUNK_SEPARATION_EPSILON, 5);
+  });
+
+  it.each([
+    [-2, -1, 2, 2],
+    [2, 1, -2, -2],
+    [1, -2, -2, 2],
+    [-1, 2, 2, -2],
+  ])("slides equivalently on every side", (x, z, dx, dz) => {
+    const result = resolveSweptCircularMovement(x, z, dx, dz, trunk);
+    expect(Math.hypot(result.x, result.z)).toBeGreaterThanOrEqual(1);
+    expect(Math.hypot(result.x - x, result.z - z)).toBeCloseTo(Math.hypot(1, 1.95), 4);
+  });
+
+  it("does not cancel outward movement", () => {
+    expect(resolveSweptCircularMovement(-1, 0, -2, 0, trunk)).toEqual({ x: -3, z: 0 });
+  });
+
+  it("resolves the earliest trunk and then a second collider", () => {
+    const colliders = [{ x: 0, z: 0, radius: 1 }, { x: -1, z: 2, radius: 1 }];
+    const result = resolveSweptCircularMovement(-3, 0, 4, 4, colliders);
+    for (const collider of colliders) {
+      expect(Math.hypot(result.x - collider.x, result.z - collider.z)).toBeGreaterThanOrEqual(collider.radius);
+    }
+  });
+
+  it("corrects initial penetration minimally and handles a degenerate centre", () => {
+    const nearEdge = resolveSweptCircularMovement(0.9, 0, 0, 0, trunk);
+    expect(nearEdge.x).toBeCloseTo(1 + TREE_TRUNK_SEPARATION_EPSILON, 8);
+    const centre = resolveSweptCircularMovement(0, 0, 0, 0, trunk);
+    expect(centre.x).toBeCloseTo(1 + TREE_TRUNK_SEPARATION_EPSILON, 8);
+    expect(Number.isFinite(centre.x) && Number.isFinite(centre.z)).toBe(true);
+  });
+
+  it("returns an unobstructed zero displacement unchanged", () => {
+    expect(resolveSweptCircularMovement(2, 3, 0, 0, trunk)).toEqual({ x: 2, z: 3 });
+    expect(TREE_TRUNK_MAX_COLLISION_ITERATIONS).toBeGreaterThan(0);
+    expect(TREE_TRUNK_MAX_COLLISION_ITERATIONS).toBeLessThanOrEqual(5);
   });
 });
