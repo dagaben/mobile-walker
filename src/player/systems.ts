@@ -5,7 +5,7 @@ import { sampleWetlandSpeedMultiplier } from "../world/wetlands";
 import type { InputController } from "./InputController";
 import type { GeneratedChunkRepository } from "../world/GeneratedChunkRepository";
 import { integrateMovement, normalizeInput } from "./movement";
-import { queryBridgeCollisions, resolveStructureMovement } from "../world/structureCollision";
+import { queryStructureCollisions, resolveStructureMovement } from "../world/structureCollision";
 
 /** Converts screen-aligned input into world-space movement for a camera yaw. */
 export function rotateInputByCameraYaw(x: number, z: number, yaw: number): { x: number; z: number } {
@@ -84,7 +84,7 @@ export class StructureCollisionSystem implements FixedSystem {
   fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0]): void {
     for (const entity of world.entities) {
       if (!entity.transform || !entity.previousTransform || !entity.terrainFollower) continue;
-      const nearby = queryBridgeCollisions(this.chunks, entity.previousTransform, entity.transform);
+      const nearby = queryStructureCollisions(this.chunks, entity.previousTransform, entity.transform);
       if (!nearby.length) { if (entity.structureSupport) entity.structureSupport.surfaceId = undefined; continue; }
       const result = resolveStructureMovement(entity.previousTransform, entity.transform, nearby,
         entity.terrainFollower.heightOffset, entity.structureSupport?.surfaceId);

@@ -3,19 +3,13 @@ import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { chunkId } from "./chunkId";
 import { generateVegetationKind, VEGETATION_PROFILES, type VegetationKind, type VegetationPlacement } from "./vegetation";
 import type { GeneratedChunkRepository } from "./GeneratedChunkRepository";
+import { resolveSweptCircularMovement, type CircularCollider } from "./circularCollision";
+export { resolveSweptCircularMovement } from "./circularCollision";
 
 export const PLAYER_COLLISION_RADIUS = 0.38;
 export const TREE_TRUNK_TANGENTIAL_RETENTION = 0.95;
 export const TREE_TRUNK_MAX_COLLISION_ITERATIONS = 5;
 export const TREE_TRUNK_SEPARATION_EPSILON = 1e-5;
-
-interface CircularCollider {
-  readonly x: number;
-  readonly z: number;
-  readonly radius: number;
-}
-
-const MINIMUM_DISPLACEMENT_SQUARED = 1e-12;
 
 function chunksBetween(
   from: TransformComponent,
@@ -125,108 +119,6 @@ export function overlapsGeneratedTreeTrunk(
  * first, then each contact rejects inward movement while retaining 95% of its
  * tangent. The bounded iteration count permits curved and multi-trunk sliding.
  */
-export function resolveSweptCircularMovement(
-  fromX: number,
-  fromZ: number,
-  displacementX: number,
-  displacementZ: number,
-  colliders: readonly CircularCollider[],
-): Readonly<{ x: number; z: number }> {
-  let x = fromX;
-  let z = fromZ;
-  let remainingX = displacementX;
-  let remainingZ = displacementZ;
-
-  // Old saves and newly activated chunks can begin inside a collider. Resolve
-  // overlapping circles one at a time in stable placement order.
-  for (let iteration = 0; iteration < TREE_TRUNK_MAX_COLLISION_ITERATIONS; iteration += 1) {
-    let overlap: CircularCollider | undefined;
-    for (const collider of colliders) {
-      const dx = x - collider.x;
-      const dz = z - collider.z;
-      if (dx * dx + dz * dz < collider.radius * collider.radius) {
-        overlap = collider;
-        break;
-      }
-    }
-    if (!overlap) break;
-    let normalX = x - overlap.x;
-    let normalZ = z - overlap.z;
-    const normalLength = Math.hypot(normalX, normalZ);
-    if (normalLength > 0) {
-      normalX /= normalLength;
-      normalZ /= normalLength;
-    } else {
-      const movementLength = Math.hypot(remainingX, remainingZ);
-      if (movementLength > 0) {
-        normalX = -remainingX / movementLength;
-        normalZ = -remainingZ / movementLength;
-      } else {
-        normalX = 1;
-        normalZ = 0;
-      }
-    }
-    const correctedRadius = overlap.radius + TREE_TRUNK_SEPARATION_EPSILON;
-    x = overlap.x + normalX * correctedRadius;
-    z = overlap.z + normalZ * correctedRadius;
-  }
-
-  for (let iteration = 0; iteration < TREE_TRUNK_MAX_COLLISION_ITERATIONS; iteration += 1) {
-    const movementSquared = remainingX * remainingX + remainingZ * remainingZ;
-    if (movementSquared <= MINIMUM_DISPLACEMENT_SQUARED) break;
-
-    let earliestTime = Number.POSITIVE_INFINITY;
-    let hit: CircularCollider | undefined;
-    for (const collider of colliders) {
-      const offsetX = x - collider.x;
-      const offsetZ = z - collider.z;
-      const b = 2 * (offsetX * remainingX + offsetZ * remainingZ);
-      if (b >= 0) continue; // Moving parallel to or away from this trunk.
-      const c = offsetX * offsetX + offsetZ * offsetZ - collider.radius * collider.radius;
-      const discriminant = b * b - 4 * movementSquared * c;
-      if (discriminant < 0) continue;
-      const time = (-b - Math.sqrt(discriminant)) / (2 * movementSquared);
-      if (time >= 0 && time <= 1 && time < earliestTime) {
-        earliestTime = time;
-        hit = collider;
-      }
-    }
-
-    if (!hit) {
-      x += remainingX;
-      z += remainingZ;
-      break;
-    }
-
-    x += remainingX * earliestTime;
-    z += remainingZ * earliestTime;
-    let normalX = x - hit.x;
-    let normalZ = z - hit.z;
-    const normalLength = Math.hypot(normalX, normalZ);
-    if (normalLength > 0) {
-      normalX /= normalLength;
-      normalZ /= normalLength;
-    } else {
-      const movementLength = Math.sqrt(movementSquared);
-      normalX = -remainingX / movementLength;
-      normalZ = -remainingZ / movementLength;
-    }
-    x += normalX * TREE_TRUNK_SEPARATION_EPSILON;
-    z += normalZ * TREE_TRUNK_SEPARATION_EPSILON;
-
-    remainingX *= 1 - earliestTime;
-    remainingZ *= 1 - earliestTime;
-    const inwardComponent = remainingX * normalX + remainingZ * normalZ;
-    if (inwardComponent < 0) {
-      remainingX -= normalX * inwardComponent;
-      remainingZ -= normalZ * inwardComponent;
-    }
-    remainingX *= TREE_TRUNK_TANGENTIAL_RETENTION;
-    remainingZ *= TREE_TRUNK_TANGENTIAL_RETENTION;
-  }
-  return { x, z };
-}
-
 /**
  * Resolves horizontal player movement with swept circular trunk collision.
  * Rendered crowns are intentionally absent, so foliage remains non-collidable.
@@ -251,6 +143,6 @@ export function resolveTreeTrunkMovement(
       colliders.push({ x: tree.x, z: tree.z, radius: playerRadius + group.radius * tree.scale });
     }
   }
-  const resolved = resolveSweptCircularMovement(from.x, from.z, to.x - from.x, to.z - from.z, colliders);
+  const resolved = resolveSweptCircularMovement(from.x, from.z, to.x - from.x, to.z - from.z, colliders, TREE_TRUNK_TANGENTIAL_RETENTION, TREE_TRUNK_MAX_COLLISION_ITERATIONS);
   return { ...to, ...resolved };
 }
