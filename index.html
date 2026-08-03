@@ -132,7 +132,7 @@
       </section>
 
       <div id="start-screen" class="vd-start-screen" aria-label="Title screen">
-        <img id="title-poster" src="./title-poster.jpg" alt="Vampire Ducks — Collect garlic by day. Fight off rubber duck vampires at night" width="640" height="360" />
+        <img id="title-poster" alt="Vampire Ducks — Collect garlic by day. Fight off rubber duck vampires at night" width="640" height="360" />
         <button id="play-button" type="button" class="play-button">PLAY</button>
         <div id="home-leaderboard" class="vd-home-leaderboard" aria-label="Top scores">
           <h2>🏆 TOP 10</h2>
@@ -172,5 +172,12 @@
       <noscript>This experience requires JavaScript.</noscript>
     </main>
     <script type="module" src="/src/main.ts"></script>
+    <script>
+      // Set poster from embedded asset to avoid large HTML payloads in some deploys
+      (function(){
+        var img = document.getElementById('title-poster');
+        if (img) img.src = 'https://dagaben.github.io/mobile-walker/title-poster.jpg';
+      })();
+    </script>
   </body>
 </html>
