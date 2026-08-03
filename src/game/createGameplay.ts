@@ -17,6 +17,7 @@ import { findSafeRestoredTransform } from "../world/safePlayerPosition";
 import { PLAYER_COLLISION_RADIUS } from "../world/treeCollision";
 import { PoiDebugPresentationSystem } from "./poiDebug";
 import { createCatDogMesh } from "../player/catDog";
+import { installGameOverUi } from "./gameOverUi";
 
 export interface GameplayControllers {
   readonly chunks: ChunkStreamingSystem;
@@ -46,7 +47,6 @@ export function createGameplay(
     0.5,
     5,
   );
-  // CatDog character (ported from Vampire Ducks v1)
   const player = createCatDogMesh(0.95);
   renderer.scene.add(player);
   renderer.prepareWorldObject(player);
@@ -116,5 +116,6 @@ export function createGameplay(
   if (!poiOverlay) throw new Error("The POI guide element could not be found.");
   const poiDebug = new PoiDebugPresentationSystem(chunks.repository, poiOverlay, () => camera.getFacingYaw());
   systems.addRenderSystem(poiDebug);
+  installGameOverUi();
   return { chunks, biomeDebug, poiDebug, camera, persistence, exploration, playerShadow };
 }
