@@ -43,12 +43,15 @@ export class DayNightSystem implements FixedSystem {
     const target = state.isDay ? 1 : 0;
     state.lightBlend += (target - state.lightBlend) * Math.min(1, deltaSeconds * 1.2);
     this.renderer.setDayNightBlend(state.lightBlend);
-    if (this.timeLabel) {
-      this.timeLabel.textContent = state.isDay ? "Day (safe)" : "Night (ducks!)";
-    }
+    // Compact mobile indicator: emoji only
     const chip = document.getElementById("time-chip");
     if (chip) {
-      chip.firstChild && (chip.childNodes[0].textContent = state.isDay ? "☀️ " : "🌙 ");
+      chip.textContent = state.isDay ? "☀️" : "🌙";
+      chip.setAttribute("aria-label", state.isDay ? "Day" : "Night");
+      chip.title = state.isDay ? "Day (safe)" : "Night (ducks!)";
+    }
+    if (this.timeLabel) {
+      this.timeLabel.textContent = state.isDay ? "Day" : "Night";
     }
   }
 }
