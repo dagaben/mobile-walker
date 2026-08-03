@@ -11,12 +11,13 @@
     <main id="app" aria-label="Vampire Ducks 2.0">
       <canvas id="game-canvas" aria-label="3D game view"></canvas>
       <div class="drag-origin" id="drag-origin" aria-hidden="true" hidden></div>
-      <output class="mushroom-counter" id="mushroom-counter" aria-label="Garlic collected" aria-live="polite" hidden>
+      <output class="garlic-counter" id="mushroom-counter" aria-label="Garlic collected" aria-live="polite">
+        <span class="garlic-icon" aria-hidden="true">🧄</span>
         <span id="mushroom-count">0</span>
+        <span id="garlic-count" hidden>0</span>
       </output>
       <div class="vd-hud" id="vd-hud" aria-label="Game status">
         <div class="vd-hud-chip" id="score-chip" title="Score">⭐ <span id="score-count">0</span></div>
-        <div class="vd-hud-chip" id="garlic-chip" title="Garlic">🧄 <span id="garlic-count">0</span></div>
         <div class="vd-hud-chip" id="lives-chip" title="Lives">❤️ <span id="lives-count">5</span></div>
         <div class="vd-hud-chip vd-hud-icon" id="time-chip" title="Day / Night" aria-label="Day">☀️</div>
       </div>
@@ -41,8 +42,8 @@
         <label for="debug-pois">POI layers
           <select id="debug-pois">
             <option value="off">Off</option>
-            <option value="markers">Markers</option>
-            <option value="volumes">Volumes</option>
+            <option value="accepted">Accepted</option>
+            <option value="candidates">Candidates</option>
           </select>
         </label>
         <label><input id="debug-camera" type="checkbox" /> Camera details</label>
@@ -102,9 +103,9 @@
           <div id="follow-responsiveness-settings" hidden>
             <span class="setting-label" id="follow-responsiveness-label">Follow responsiveness</span>
             <div class="segmented-control three-options" id="follow-responsiveness" role="radiogroup">
-              <button type="button" role="radio" aria-checked="false" data-value="snappy">Snappy</button>
-              <button type="button" role="radio" aria-checked="true" data-value="smooth">Smooth</button>
-              <button type="button" role="radio" aria-checked="false" data-value="floaty">Floaty</button>
+              <button type="button" role="radio" aria-checked="false" data-value="slow">Slow</button>
+              <button type="button" role="radio" aria-checked="true" data-value="normal">Normal</button>
+              <button type="button" role="radio" aria-checked="false" data-value="fast">Fast</button>
             </div>
           </div>
         </fieldset>
@@ -129,6 +130,17 @@
       <section class="biome-status">
         <div class="current-biome" hidden>Biome · <strong id="current-biome-name">Unknown</strong></div>
       </section>
+
+      <div id="start-screen" class="vd-start-screen" aria-label="Title screen">
+        <img id="title-poster" src="./title-poster.jpg" alt="Vampire Ducks — Collect garlic by day. Fight off rubber duck vampires at night" width="640" height="360" />
+        <button id="play-button" type="button" class="play-button">PLAY</button>
+        <div id="home-leaderboard" class="vd-home-leaderboard" aria-label="Top scores">
+          <h2>🏆 TOP 10</h2>
+          <ol id="home-scores"></ol>
+        </div>
+        <p class="controls-hint">Desktop: drag to move · space / click jump · P pause<br>Mobile: drag + jump · pinch zoom</p>
+      </div>
+
       <div id="pause-overlay" class="vd-overlay" hidden aria-label="Paused">
         <div class="vd-overlay-card">
           <h1>PAUSED</h1>
