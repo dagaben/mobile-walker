@@ -27,7 +27,8 @@ export class ProximityDetectionSystem implements FixedSystem {
       if (!entity.interactable || !entity.transform || !entity.proximity) continue;
       const dx = player.transform.x - entity.transform.x;
       const dz = player.transform.z - entity.transform.z;
-      entity.proximity.inRange = dx * dx + dz * dz <= entity.interactable.collectionRadius ** 2;
+      const radius = entity.interactable.collectionRadius;
+      entity.proximity.inRange = dx * dx + dz * dz <= radius * radius;
     }
   }
 }
@@ -38,26 +39,25 @@ export class CollectionSystem implements FixedSystem {
     if (!state) return;
     for (const entity of world.entities) {
       if (!entity.interactable || !entity.proximity?.inRange) continue;
+      if (state.collectedIds.has(entity.interactable.id)) continue;
       state.collectedIds.add(entity.interactable.id);
+      state.discovered = state.collectedIds.size;
+      if (entity.renderable) entity.renderable.visible = false;
     }
-    state.discovered = state.collectedIds.size;
   }
 }
 
-function disposeObject(object: THREE.Object3D): void { object.removeFromParent(); }
-
-/** Streams only ECS/presentation shells; collection truth lives on the persistent state entity. */
 export class ExplorationPresentationSystem implements RenderSystem {
-  private readonly active = new Map<string, Entity[]>();
+  private active = new Map<string, Entity[]>();
+  private center: ChunkCoordinate = { x: 0, z: 0 };
   private offsets: ChunkNeighborhoodOffsets;
-  private center?: ChunkCoordinate;
 
   constructor(
     private readonly scene: THREE.Scene,
     private readonly seed: number | string,
     radius = 1,
     offsets: Partial<ChunkNeighborhoodOffsets> = {},
-    private readonly collectedCount?: HTMLElement,
+    private readonly collectedCount?: HTMLElement | null,
     private readonly chunks?: GeneratedChunkRepository,
     private readonly prepareWorldObject: (object: THREE.Object3D) => void = () => undefined,
   ) {
@@ -121,28 +121,34 @@ export class ExplorationPresentationSystem implements RenderSystem {
       if (entity.renderable) disposeObject(entity.renderable);
     }
     this.active.clear();
-    mushroomStemGeometry.dispose(); mushroomCapGeometry.dispose(); mushroomStemMaterial.dispose(); mushroomCapMaterial.dispose();
+    garlicBulbGeometry.dispose(); garlicTipGeometry.dispose(); garlicBulbMaterial.dispose(); garlicTipMaterial.dispose();
   }
 }
 
+/** Garlic bulb collectible for Vampire Ducks 2.0 (replaces mushrooms). */
 function createMushroom(): THREE.Group {
-  const mushroom = new THREE.Group();
-  const stem = new THREE.Mesh(
-    mushroomStemGeometry, mushroomStemMaterial,
-  );
-  stem.position.y = 0.275;
-  stem.castShadow = true;
-  const cap = new THREE.Mesh(
-    mushroomCapGeometry, mushroomCapMaterial,
-  );
-  cap.scale.y = 0.65;
-  cap.position.y = 0.55;
-  cap.castShadow = true;
-  mushroom.add(stem, cap);
-  return mushroom;
+  // Keep function name for minimal API churn; mesh is garlic-themed.
+  const garlic = new THREE.Group();
+  const bulb = new THREE.Mesh(garlicBulbGeometry, garlicBulbMaterial);
+  bulb.position.y = 0.28;
+  bulb.castShadow = true;
+  const tip = new THREE.Mesh(garlicTipGeometry, garlicTipMaterial);
+  tip.position.y = 0.58;
+  tip.castShadow = true;
+  garlic.add(bulb, tip);
+  return garlic;
 }
 
-const mushroomStemGeometry = new THREE.CylinderGeometry(0.16, 0.22, 0.55, 8);
-const mushroomCapGeometry = new THREE.SphereGeometry(0.48, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-const mushroomStemMaterial = new THREE.MeshStandardMaterial({ color: 0xfffaf0, roughness: 0.9, flatShading: true });
-const mushroomCapMaterial = new THREE.MeshStandardMaterial({ color: 0xd94b45, roughness: 0.82, flatShading: true });
+const garlicBulbGeometry = new THREE.SphereGeometry(0.32, 10, 8);
+const garlicTipGeometry = new THREE.ConeGeometry(0.12, 0.28, 8);
+const garlicBulbMaterial = new THREE.MeshStandardMaterial({ color: 0xf5f0e1, roughness: 0.85, flatShading: true });
+const garlicTipMaterial = new THREE.MeshStandardMaterial({ color: 0xc8d89a, roughness: 0.75, flatShading: true });
+
+function disposeObject(object: THREE.Object3D): void {
+  object.removeFromParent();
+  object.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      // Shared geometries/materials are disposed in ExplorationPresentationSystem.dispose
+    }
+  });
+}
