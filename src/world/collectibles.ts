@@ -4,14 +4,41 @@ import { isVegetationExcluded, type PoiZone } from "./poi";
 import { hashFloat, normalizeSeed } from "./random";
 import { sampleTerrainHeight } from "./terrainSampling";
 
-export interface CollectiblePlacement { readonly id: string; readonly chunkId: string; readonly x: number; readonly y: number; readonly z: number; }
-const COLLECTIBLES_PER_CHUNK = 2;
+export interface CollectiblePlacement {
+  readonly id: string;
+  readonly chunkId: string;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  /** Garlic value: 1 normal, 10 super garlic. */
+  readonly value: number;
+  readonly isSuper: boolean;
+}
 
-export function placeCollectibles(seedInput: number | string, coordinate: ChunkCoordinate, poiZones: readonly PoiZone[] = []): readonly CollectiblePlacement[] {
-  const seed = normalizeSeed(seedInput), origin = chunkOrigin(coordinate), owner = chunkId(coordinate);
+const COLLECTIBLES_PER_CHUNK = 4;
+
+export function placeCollectibles(
+  seedInput: number | string,
+  coordinate: ChunkCoordinate,
+  poiZones: readonly PoiZone[] = [],
+): readonly CollectiblePlacement[] {
+  const seed = normalizeSeed(seedInput);
+  const origin = chunkOrigin(coordinate);
+  const owner = chunkId(coordinate);
   return Array.from({ length: COLLECTIBLES_PER_CHUNK }, (_, index) => {
     const x = origin.x + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 101) * (CHUNK_SIZE - 4);
     const z = origin.z + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 211) * (CHUNK_SIZE - 4);
-    return { id: `${owner}:waypoint:${index}`, chunkId: owner, x, y: sampleTerrainHeight(seed, x, z), z };
-  }).filter(placement => !isVegetationExcluded(placement.x, placement.z, poiZones));
+    const roll = hashFloat(seed, coordinate.x, coordinate.z, index, 307);
+    // Roughly 1 super per ~10 garlic
+    const isSuper = roll > 0.9;
+    return {
+      id: `${owner}:garlic:${index}`,
+      chunkId: owner,
+      x,
+      y: sampleTerrainHeight(seed, x, z),
+      z,
+      value: isSuper ? 10 : 1,
+      isSuper,
+    };
+  }).filter((placement) => !isVegetationExcluded(placement.x, placement.z, poiZones));
 }
