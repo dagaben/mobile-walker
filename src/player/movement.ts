@@ -1,6 +1,7 @@
 import type { PlayerControlComponent, TransformComponent, VelocityComponent } from "../ecs/Entity";
 
-export const PLAYER_SPEED = 4;
+/** Horizontal run speed — kept above duck chase speed (5.2) so the player can escape. */
+export const PLAYER_SPEED = 7;
 export const JUMP_SPEED = 5.5;
 export const GRAVITY = 14;
 
