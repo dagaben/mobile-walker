@@ -1,8 +1,10 @@
 import type { EcsWorld } from "../ecs/createEcsWorld";
 import type { FixedSystem } from "../ecs/System";
 import type { ThreeRenderer } from "../rendering/ThreeRenderer";
+import { getNightLengthSeconds } from "./difficulty";
 
 export const DAY_LENGTH_SECONDS = 75;
+/** Base night length before difficulty scaling (see getNightLengthSeconds). */
 export const NIGHT_LENGTH_SECONDS = 50;
 
 export interface DayNightState {
@@ -22,9 +24,15 @@ export function createDayNightState(isDay = true): DayNightState {
   return { isDay, phaseTime: 0, lightBlend: isDay ? 1 : 0, nightCount: 0 };
 }
 
+function lifetimeGarlic(world: EcsWorld): number {
+  const state = world.entities.find((e) => e.collectionState)?.collectionState;
+  return state?.garlicValue ?? 0;
+}
+
 /**
  * Advances the day/night cycle and drives renderer lighting.
  * Day is safe (no ducks); night spawns rubber vampire ducks.
+ * Night length scales with night count (from night 3) and lifetime garlic.
  */
 export class DayNightSystem implements FixedSystem {
   constructor(
@@ -38,7 +46,9 @@ export class DayNightSystem implements FixedSystem {
     if (!entity?.dayNight) return;
     const state = entity.dayNight;
     state.phaseTime += deltaSeconds;
-    const phaseLen = state.isDay ? DAY_LENGTH_SECONDS : NIGHT_LENGTH_SECONDS;
+    const phaseLen = state.isDay
+      ? DAY_LENGTH_SECONDS
+      : getNightLengthSeconds(Math.max(1, state.nightCount), lifetimeGarlic(world));
     if (state.phaseTime >= phaseLen) {
       state.phaseTime = 0;
       state.isDay = !state.isDay;

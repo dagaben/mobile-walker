@@ -48,6 +48,14 @@ export interface CollectionStateComponent {
 export interface DuckComponent {
   state: "alive" | "petrified";
   petrifyTimer: number;
+  /** Super Boss rubber duck (3× size, high petrify cost). */
+  isBoss?: boolean;
+  /** Override petrify garlic cost (bosses use 30). */
+  petrifyCost?: number;
+  /** Hit radius override (bosses are larger). */
+  hitRadius?: number;
+  /** Chase speed multiplier vs base difficulty duck speed. */
+  speedScale?: number;
 }
 
 export interface DayNightComponent {

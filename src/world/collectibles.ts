@@ -3,6 +3,12 @@ import { chunkId } from "./chunkId";
 import { isVegetationExcluded, type PoiZone } from "./poi";
 import { hashFloat, normalizeSeed } from "./random";
 import { sampleTerrainHeight } from "./terrainSampling";
+import {
+  BASE_COLLECTIBLES_PER_CHUNK,
+  getGarlicDensityPerChunk,
+  getSuperGarlicChance,
+  normalizeNight,
+} from "../game/difficulty";
 
 export interface CollectiblePlacement {
   readonly id: string;
@@ -15,26 +21,41 @@ export interface CollectiblePlacement {
   readonly isSuper: boolean;
 }
 
-/** Was 4; −20% overall density → 3 per chunk. */
-const COLLECTIBLES_PER_CHUNK = 3;
 /** Lift garlic so the bulb sits just above the terrain instead of half-buried. */
 const GARLIC_HOVER_OFFSET = 0.55;
 
+/**
+ * Place garlic in a chunk. Density and super-garlic chance scale down with nightCount
+ * (−5% garlic / night, −10% super chance / night).
+ */
 export function placeCollectibles(
   seedInput: number | string,
   coordinate: ChunkCoordinate,
   poiZones: readonly PoiZone[] = [],
+  nightCount = 1,
 ): readonly CollectiblePlacement[] {
   const seed = normalizeSeed(seedInput);
   const origin = chunkOrigin(coordinate);
   const owner = chunkId(coordinate);
-  return Array.from({ length: COLLECTIBLES_PER_CHUNK }, (_, index) => {
+  const night = normalizeNight(nightCount);
+  const density = getGarlicDensityPerChunk(night);
+  // Candidate slots stay fixed so IDs remain stable; density decides which spawn.
+  const candidates = BASE_COLLECTIBLES_PER_CHUNK;
+  const superChance = getSuperGarlicChance(night);
+  const placements: CollectiblePlacement[] = [];
+
+  for (let index = 0; index < candidates; index += 1) {
+    // Probabilistic keep so expected count ≈ density
+    const keepRoll = hashFloat(seed, coordinate.x, coordinate.z, index, 401);
+    if (keepRoll > density / candidates) continue;
+
     const x = origin.x + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 101) * (CHUNK_SIZE - 4);
     const z = origin.z + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 211) * (CHUNK_SIZE - 4);
+    if (isVegetationExcluded(x, z, poiZones)) continue;
+
     const roll = hashFloat(seed, coordinate.x, coordinate.z, index, 307);
-    // Roughly 1 super per ~10 garlic
-    const isSuper = roll > 0.9;
-    return {
+    const isSuper = roll > 1 - superChance;
+    placements.push({
       id: `${owner}:garlic:${index}`,
       chunkId: owner,
       x,
@@ -42,6 +63,8 @@ export function placeCollectibles(
       z,
       value: isSuper ? 10 : 1,
       isSuper,
-    };
-  }).filter((placement) => !isVegetationExcluded(placement.x, placement.z, poiZones));
+    });
+  }
+
+  return placements;
 }
