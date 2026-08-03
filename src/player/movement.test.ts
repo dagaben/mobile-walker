@@ -75,7 +75,7 @@ describe("integrateMovement", () => {
     const atOneHundredTwentyFps = simulate(120);
     expect(atThirtyFps.x).toBeCloseTo(atOneHundredTwentyFps.x);
     expect(atThirtyFps.z).toBeCloseTo(atOneHundredTwentyFps.z);
-    expect(Math.hypot(atThirtyFps.x, atThirtyFps.z)).toBeCloseTo(8.5);
+    expect(Math.hypot(atThirtyFps.x, atThirtyFps.z)).toBeCloseTo(14.5);
   });
 
   it("launches a grounded player and applies gravity in the air", () => {

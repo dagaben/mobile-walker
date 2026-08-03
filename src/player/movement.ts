@@ -1,7 +1,7 @@
 import type { PlayerControlComponent, TransformComponent, VelocityComponent } from "../ecs/Entity";
 
-/** Horizontal run speed — kept clearly above duck chase speed (5.2) so the player can outrun them. */
-export const PLAYER_SPEED = 8.5;
+/** Horizontal run speed — ~70% faster than previous so CatDog clearly outruns ducks (5.2). */
+export const PLAYER_SPEED = 14.5;
 export const JUMP_SPEED = 5.5;
 export const GRAVITY = 14;
 
