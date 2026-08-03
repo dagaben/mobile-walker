@@ -89,7 +89,8 @@ export function createGameplay(
   systems.addFixedSystem(new CollectionSystem());
   const mushroomCount = document.querySelector<HTMLElement>("#mushroom-count");
   if (!mushroomCount) throw new Error("The garlic counter could not be found.");
-  const garlicCount = document.querySelector<HTMLElement>("#garlic-count") ?? mushroomCount;
+  // Top-right visible counter is #mushroom-count; keep #garlic-count in sync if present.
+  const garlicCount = mushroomCount;
   const livesCount = document.querySelector<HTMLElement>("#lives-count");
   const scoreCount = document.querySelector<HTMLElement>("#score-count");
   systems.addFixedSystem(new DayNightSystem(renderer, null, (isDay) => {
