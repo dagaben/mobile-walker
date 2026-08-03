@@ -74,7 +74,7 @@ const SUNLIGHT_STORAGE_KEY = "mobile-walker-sunlight";
 const NEIGHBORHOOD_STORAGE_KEY = "mobile-walker-neighborhood";
 
 let orientationMode: CameraOrientationMode = "follow-movement";
-let followResponsiveness: FollowResponsiveness = "medium";
+let followResponsiveness: FollowResponsiveness = "normal";
 try {
   const savedOrientation = storage.getItem(CAMERA_ORIENTATION_STORAGE_KEY);
   if (isCameraOrientationMode(savedOrientation)) orientationMode = savedOrientation;
@@ -153,21 +153,23 @@ const toggleDebugPanel = (): void => {
     settingsButton.setAttribute("aria-expanded", "false");
   }
 };
-const updateDebugView = (): void => game.setDebugView({
-  wireframe: wireframeInput.checked,
-  biomeGuide: biomesInput.checked,
-  terrainOcclusion: !terrainOcclusionInput.checked,
-  occlusionMap: occlusionMapInput.checked,
-  pois: poisInput.value as "off" | "accepted" | "candidates",
-  cameraDetails: cameraInput.checked,
-  performance: performanceInput.checked,
-  shadows: shadowsInput.checked,
-});
+const updateDebugView = (): void => {
+  game.setDebugView({
+    wireframe: wireframeInput.checked,
+    biomeGuide: biomesInput.checked,
+    disableTerrainOcclusion: terrainOcclusionInput.checked,
+    occlusionMap: occlusionMapInput.checked,
+    pois: poisInput.value as "off" | "accepted" | "candidates",
+  });
+  game.setCameraDetailsEnabled(cameraInput.checked);
+  game.setPerformanceViewEnabled(performanceInput.checked);
+  game.setShadowsEnabled(shadowsInput.checked);
+};
 const updatePoiDirections = (): void => game.setPoiDirectionsEnabled(poiDirectionsInput.checked);
 const updateMovementYaw = (): void => {
   const degrees = Number(movementYawInput.value);
   movementYawValue.value = `${degrees}°`;
-  game.setMovementYawOffset(degrees * Math.PI / 180);
+  game.setMovementYawStrength(degrees);
   try { storage.setItem(MOVEMENT_YAW_STORAGE_KEY, String(degrees)); } catch { /* ok */ }
 };
 const updateSunlight = (): void => {
