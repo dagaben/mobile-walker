@@ -89,19 +89,19 @@ export function createGameplay(
   systems.addFixedSystem(new CollectionSystem());
   const mushroomCount = document.querySelector<HTMLElement>("#mushroom-count");
   if (!mushroomCount) throw new Error("The garlic counter could not be found.");
+  const garlicCount = document.querySelector<HTMLElement>("#garlic-count") ?? mushroomCount;
   const livesCount = document.querySelector<HTMLElement>("#lives-count");
   const scoreCount = document.querySelector<HTMLElement>("#score-count");
-  const timeLabel = document.querySelector<HTMLElement>("#time-of-day");
-  systems.addFixedSystem(new DayNightSystem(renderer, timeLabel, (isDay) => {
+  systems.addFixedSystem(new DayNightSystem(renderer, null, (isDay) => {
     void isDay;
   }));
   systems.addFixedSystem(
     new DuckSpawnSystem(renderer.scene, worldSeed, (object) => renderer.prepareWorldObject(object)),
   );
-  systems.addFixedSystem(new DuckAISystem(worldSeed, mushroomCount, livesCount, scoreCount));
+  systems.addFixedSystem(new DuckAISystem(worldSeed, garlicCount, livesCount, scoreCount));
   systems.addFixedSystem(persistence);
   systems.addRenderSystem(chunks);
-  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, mushroomCount, chunks.repository, (object) => renderer.prepareWorldObject(object));
+  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, garlicCount, chunks.repository, (object) => renderer.prepareWorldObject(object));
   systems.addRenderSystem(exploration);
   systems.addRenderSystem(new TransformInterpolationSystem());
   systems.addRenderSystem(new PlayerFogPresentationSystem((x, z) => renderer.playerCentredFog.update(x, z)));
