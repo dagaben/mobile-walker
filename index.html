@@ -11,20 +11,19 @@
     <main id="app" aria-label="Vampire Ducks 2.0">
       <canvas id="game-canvas" aria-label="3D game view"></canvas>
       <div class="drag-origin" id="drag-origin" aria-hidden="true" hidden></div>
-      <output class="mushroom-counter" id="mushroom-counter" aria-label="Garlic collected" aria-live="polite">
-        <svg aria-hidden="true" viewBox="0 0 32 32">
-          <path class="mushroom-cap" d="M4 15.5C4 8.6 9.4 4 16 4s12 4.6 12 11.5c0 1.4-1.1 2.5-2.5 2.5h-19A2.5 2.5 0 0 1 4 15.5Z" />
-          <path class="mushroom-stem" d="M12.5 17h7v6.5c0 2.5-1.5 4.5-3.5 4.5s-3.5-2-3.5-4.5V17Z" />
-          <circle cx="11" cy="10" r="1.6" /><circle cx="20.5" cy="12.5" r="1.4" />
-        </svg>
+      <output class="mushroom-counter" id="mushroom-counter" aria-label="Garlic collected" aria-live="polite" hidden>
         <span id="mushroom-count">0</span>
       </output>
       <div class="vd-hud" id="vd-hud" aria-label="Game status">
-        <div class="vd-hud-chip" id="score-chip">⭐ <span id="score-count">0</span></div>
-        <div class="vd-hud-chip" id="lives-chip">❤️ <span id="lives-count">5</span></div>
-        <div class="vd-hud-chip" id="time-chip">☀️ <span id="time-of-day">Day</span></div>
+        <div class="vd-hud-chip" id="score-chip" title="Score">⭐ <span id="score-count">0</span></div>
+        <div class="vd-hud-chip" id="garlic-chip" title="Garlic">🧄 <span id="garlic-count">0</span></div>
+        <div class="vd-hud-chip" id="lives-chip" title="Lives">❤️ <span id="lives-count">5</span></div>
+        <div class="vd-hud-chip vd-hud-icon" id="time-chip" title="Day / Night" aria-label="Day">☀️</div>
       </div>
       <div class="toolbar">
+        <button class="toolbar-button" id="pause-button" type="button" aria-label="Pause game" aria-pressed="false" title="Pause">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" /></svg>
+        </button>
         <button class="toolbar-button" id="debug-button" type="button" aria-label="Toggle debug tools" aria-controls="debug-panel" aria-expanded="false">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 3h6M10 3v3m4-3v3m-7 5H4m16 0h-3M7 15H4m16 0h-3M8 8h8l1 3v5a5 5 0 0 1-10 0v-5l1-3Z" /></svg>
         </button>
@@ -130,6 +129,13 @@
       <section class="biome-status">
         <div class="current-biome" hidden>Biome · <strong id="current-biome-name">Unknown</strong></div>
       </section>
+      <div id="pause-overlay" class="vd-overlay" hidden aria-label="Paused">
+        <div class="vd-overlay-card">
+          <h1>PAUSED</h1>
+          <p class="lb-hint">Tap pause or press P to resume</p>
+          <button id="resume-button" type="button">RESUME</button>
+        </div>
+      </div>
       <div id="game-over-screen" class="vd-overlay hidden" aria-label="Game over">
         <div class="vd-overlay-card">
           <h1>GAME OVER</h1>
