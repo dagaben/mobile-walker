@@ -151,6 +151,12 @@ export class DuckAISystem implements FixedSystem {
         }
         continue;
       }
+      // Snapshot pose for TransformInterpolationSystem (same pattern as PlayerMovementSystem).
+      // Without this, render interpolation jumps between a stale previousTransform and the
+      // live transform every frame → visible flicker, especially when the player is fast.
+      if (entity.previousTransform) {
+        Object.assign(entity.previousTransform, entity.transform);
+      }
       const dx = player.transform.x - entity.transform.x;
       const dz = player.transform.z - entity.transform.z;
       const dist = Math.hypot(dx, dz) || 1;
@@ -160,10 +166,7 @@ export class DuckAISystem implements FixedSystem {
       entity.transform.z += entity.velocity.z * deltaSeconds;
       entity.transform.y = sampleTerrainHeight(this.worldSeed, entity.transform.x, entity.transform.z) + 0.45;
       entity.transform.yaw = Math.atan2(dx, dz);
-      if (entity.renderable) {
-        entity.renderable.position.set(entity.transform.x, entity.transform.y, entity.transform.z);
-        entity.renderable.rotation.y = entity.transform.yaw;
-      }
+      // Do NOT write renderable.position here — TransformInterpolationSystem owns presentation.
       if (combat.invulnTimer > 0) continue;
       if (dist < DUCK_HIT_RADIUS) {
         if (combat.garlicCount >= GARLIC_PETRIFY_COST) {
