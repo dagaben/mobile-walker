@@ -5,7 +5,6 @@ import type { FixedSystem } from "../ecs/System";
 import { sampleTerrainHeight } from "../world/terrainSampling";
 import { getDifficulty } from "./difficulty";
 
-const DUCK_HIT_RADIUS = 1.15;
 const INVULN_SECONDS = 1.6;
 
 export interface GameCombatState {
@@ -22,61 +21,87 @@ export function createCombatState(): GameCombatState {
 
 export const VD_GAME_OVER_EVENT = "vd-game-over";
 
-function createDuckMesh(): THREE.Group {
+function createDuckMesh(scale = 1): THREE.Group {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(0.45, 10, 8),
-    new THREE.MeshStandardMaterial({ color: 0xffdd44, roughness: 0.7, flatShading: true }),
+    new THREE.SphereGeometry(0.45 * scale, 10, 8),
+    new THREE.MeshStandardMaterial({
+      color: scale > 1.5 ? 0xff4444 : 0xffdd44,
+      roughness: 0.7,
+      flatShading: true,
+    }),
   );
-  body.position.y = 0.45;
+  body.position.y = 0.45 * scale;
   body.castShadow = true;
   group.add(body);
   const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.32, 10, 8),
-    new THREE.MeshStandardMaterial({ color: 0xffdd44, roughness: 0.7, flatShading: true }),
+    new THREE.SphereGeometry(0.32 * scale, 10, 8),
+    new THREE.MeshStandardMaterial({
+      color: scale > 1.5 ? 0xff6666 : 0xffdd44,
+      roughness: 0.7,
+      flatShading: true,
+    }),
   );
-  head.position.set(0, 0.85, 0.25);
+  head.position.set(0, 0.85 * scale, 0.25 * scale);
   head.castShadow = true;
   group.add(head);
   const beak = new THREE.Mesh(
-    new THREE.ConeGeometry(0.12, 0.28, 6),
+    new THREE.ConeGeometry(0.12 * scale, 0.28 * scale, 6),
     new THREE.MeshStandardMaterial({ color: 0xff8800, roughness: 0.8, flatShading: true }),
   );
   beak.rotation.x = Math.PI / 2;
-  beak.position.set(0, 0.82, 0.52);
+  beak.position.set(0, 0.82 * scale, 0.52 * scale);
   group.add(beak);
-  const eyeMat = new THREE.MeshStandardMaterial({ color: 0xff2222, roughness: 0.4 });
+  const eyeMat = new THREE.MeshStandardMaterial({ color: scale > 1.5 ? 0xaa00ff : 0xff2222, roughness: 0.4 });
   for (const x of [-0.12, 0.12]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), eyeMat);
-    eye.position.set(x, 0.92, 0.48);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07 * scale, 6, 6), eyeMat);
+    eye.position.set(x * scale, 0.92 * scale, 0.48 * scale);
     group.add(eye);
   }
-  const wingGeo = new THREE.BoxGeometry(0.08, 0.35, 0.5);
-  const wingMat = new THREE.MeshStandardMaterial({ color: 0xe8c020, roughness: 0.75, flatShading: true });
+  const wingGeo = new THREE.BoxGeometry(0.08 * scale, 0.35 * scale, 0.5 * scale);
+  const wingMat = new THREE.MeshStandardMaterial({
+    color: scale > 1.5 ? 0xcc2020 : 0xe8c020,
+    roughness: 0.75,
+    flatShading: true,
+  });
   for (const x of [-0.42, 0.42]) {
     const wing = new THREE.Mesh(wingGeo, wingMat);
-    wing.position.set(x, 0.5, 0);
+    wing.position.set(x * scale, 0.5 * scale, 0);
     wing.rotation.z = x > 0 ? -0.4 : 0.4;
     group.add(wing);
+  }
+  if (scale > 1.5) {
+    const crown = new THREE.Mesh(
+      new THREE.ConeGeometry(0.2 * scale, 0.35 * scale, 5),
+      new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.4, roughness: 0.35, flatShading: true }),
+    );
+    crown.position.set(0, 1.15 * scale, 0);
+    group.add(crown);
   }
   return group;
 }
 
 export class DuckSpawnSystem implements FixedSystem {
   private timer = 0;
+  private bossTimer = 0;
   constructor(
     private readonly scene: THREE.Scene,
     private readonly worldSeed: string | number,
     private readonly prepareWorldObject: (object: THREE.Object3D) => void = () => undefined,
   ) {}
 
-  private spawnOne(world: EcsWorld, px: number, pz: number): void {
+  private spawnOne(
+    world: EcsWorld,
+    px: number,
+    pz: number,
+    opts: { isBoss: boolean; scale: number; petrifyCost: number; hitRadius: number; speedScale: number },
+  ): void {
     const angle = Math.random() * Math.PI * 2;
-    const dist = 12 + Math.random() * 8;
+    const dist = (opts.isBoss ? 18 : 12) + Math.random() * (opts.isBoss ? 10 : 8);
     const x = px + Math.cos(angle) * dist;
     const z = pz + Math.sin(angle) * dist;
-    const y = sampleTerrainHeight(this.worldSeed, x, z) + 0.45;
-    const mesh = createDuckMesh();
+    const y = sampleTerrainHeight(this.worldSeed, x, z) + 0.45 * opts.scale;
+    const mesh = createDuckMesh(opts.scale);
     mesh.position.set(x, y, z);
     this.scene.add(mesh);
     this.prepareWorldObject(mesh);
@@ -84,7 +109,14 @@ export class DuckSpawnSystem implements FixedSystem {
       transform: { x, y, z, yaw: 0 },
       previousTransform: { x, y, z, yaw: 0 },
       velocity: { x: 0, y: 0, z: 0 },
-      duck: { state: "alive", petrifyTimer: 0 },
+      duck: {
+        state: "alive",
+        petrifyTimer: 0,
+        isBoss: opts.isBoss,
+        petrifyCost: opts.petrifyCost,
+        hitRadius: opts.hitRadius,
+        speedScale: opts.speedScale,
+      },
       renderable: mesh,
     });
   }
@@ -93,6 +125,7 @@ export class DuckSpawnSystem implements FixedSystem {
     const dayNight = world.entities.find((e) => e.dayNight)?.dayNight;
     if (!dayNight || dayNight.isDay) {
       this.timer = 0;
+      this.bossTimer = 0;
       for (const entity of [...world.entities]) {
         if (entity.duck && entity.duck.state !== "petrified") {
           if (entity.renderable) {
@@ -104,21 +137,57 @@ export class DuckSpawnSystem implements FixedSystem {
       return;
     }
     const difficulty = getDifficulty(dayNight.nightCount || 1);
-    const live = world.entities.filter((e) => e.duck && e.duck.state !== "petrified").length;
-    if (live >= difficulty.maxDucks) return;
-    this.timer += deltaSeconds;
-    if (this.timer < difficulty.spawnInterval) return;
-    this.timer = 0;
     const player = world.entities.find((e) => e.playerControl && e.transform);
     if (!player?.transform) return;
-    this.spawnOne(world, player.transform.x, player.transform.z);
-    // Late-game double spawn when under the cap
-    if (
-      difficulty.doubleSpawnChance > 0
-      && Math.random() < difficulty.doubleSpawnChance
-      && world.entities.filter((e) => e.duck && e.duck.state !== "petrified").length < difficulty.maxDucks
-    ) {
-      this.spawnOne(world, player.transform.x, player.transform.z);
+
+    const liveRegular = world.entities.filter(
+      (e) => e.duck && e.duck.state !== "petrified" && !e.duck.isBoss,
+    ).length;
+    const liveBosses = world.entities.filter(
+      (e) => e.duck && e.duck.state !== "petrified" && e.duck.isBoss,
+    ).length;
+
+    if (liveRegular < difficulty.maxDucks) {
+      this.timer += deltaSeconds;
+      if (this.timer >= difficulty.spawnInterval) {
+        this.timer = 0;
+        this.spawnOne(world, player.transform.x, player.transform.z, {
+          isBoss: false,
+          scale: 1,
+          petrifyCost: difficulty.petrifyCost,
+          hitRadius: difficulty.regularHitRadius,
+          speedScale: 1,
+        });
+        if (
+          difficulty.doubleSpawnChance > 0
+          && Math.random() < difficulty.doubleSpawnChance
+          && world.entities.filter((e) => e.duck && e.duck.state !== "petrified" && !e.duck.isBoss).length
+            < difficulty.maxDucks
+        ) {
+          this.spawnOne(world, player.transform.x, player.transform.z, {
+            isBoss: false,
+            scale: 1,
+            petrifyCost: difficulty.petrifyCost,
+            hitRadius: difficulty.regularHitRadius,
+            speedScale: 1,
+          });
+        }
+      }
+    }
+
+    if (liveBosses < difficulty.maxBosses) {
+      this.bossTimer += deltaSeconds;
+      const bossInterval = Math.max(8, difficulty.spawnInterval * 2.2);
+      if (this.bossTimer >= bossInterval) {
+        this.bossTimer = 0;
+        this.spawnOne(world, player.transform.x, player.transform.z, {
+          isBoss: true,
+          scale: difficulty.bossScale,
+          petrifyCost: difficulty.bossPetrifyCost,
+          hitRadius: difficulty.bossHitRadius,
+          speedScale: 0.78,
+        });
+      }
     }
   }
 }
@@ -164,27 +233,32 @@ export class DuckAISystem implements FixedSystem {
         }
         continue;
       }
-      // Snapshot pose for TransformInterpolationSystem (same pattern as PlayerMovementSystem).
       if (entity.previousTransform) {
         Object.assign(entity.previousTransform, entity.transform);
       }
       const dx = player.transform.x - entity.transform.x;
       const dz = player.transform.z - entity.transform.z;
       const dist = Math.hypot(dx, dz) || 1;
-      entity.velocity.x = (dx / dist) * difficulty.duckSpeed;
-      entity.velocity.z = (dz / dist) * difficulty.duckSpeed;
+      const speed = difficulty.duckSpeed * (entity.duck.speedScale ?? 1);
+      entity.velocity.x = (dx / dist) * speed;
+      entity.velocity.z = (dz / dist) * speed;
       entity.transform.x += entity.velocity.x * deltaSeconds;
       entity.transform.z += entity.velocity.z * deltaSeconds;
-      entity.transform.y = sampleTerrainHeight(this.worldSeed, entity.transform.x, entity.transform.z) + 0.45;
+      const scale = entity.duck.isBoss ? difficulty.bossScale : 1;
+      entity.transform.y =
+        sampleTerrainHeight(this.worldSeed, entity.transform.x, entity.transform.z) + 0.45 * scale;
       entity.transform.yaw = Math.atan2(dx, dz);
-      // Do NOT write renderable.position here — TransformInterpolationSystem owns presentation.
+
       if (combat.invulnTimer > 0) continue;
-      if (dist < DUCK_HIT_RADIUS) {
-        if (combat.garlicCount >= difficulty.petrifyCost) {
-          combat.garlicCount -= difficulty.petrifyCost;
-          combat.score += 50;
+      const hitRadius = entity.duck.hitRadius ?? difficulty.regularHitRadius;
+      if (dist < hitRadius) {
+        const cost = entity.duck.petrifyCost
+          ?? (entity.duck.isBoss ? difficulty.bossPetrifyCost : difficulty.petrifyCost);
+        if (combat.garlicCount >= cost) {
+          combat.garlicCount -= cost;
+          combat.score += entity.duck.isBoss ? 250 : 50;
           entity.duck.state = "petrified";
-          entity.duck.petrifyTimer = 8;
+          entity.duck.petrifyTimer = entity.duck.isBoss ? 12 : 8;
           if (entity.renderable) {
             entity.renderable.traverse((child) => {
               if ((child as THREE.Mesh).isMesh) {
@@ -197,7 +271,7 @@ export class DuckAISystem implements FixedSystem {
           }
           this.syncHud(combat);
         } else {
-          combat.lives -= 1;
+          combat.lives -= entity.duck.isBoss ? 2 : 1;
           combat.invulnTimer = INVULN_SECONDS;
           this.syncHud(combat);
           if (combat.lives <= 0) {
