@@ -99,7 +99,8 @@ export class ExplorationPresentationSystem implements RenderSystem {
     this.center = center;
 
     try {
-      const placements = placeCollectibles(this.seed, center, []);
+      const nightCount = world.entities.find((e) => e.dayNight)?.dayNight?.nightCount || 1;
+      const placements = placeCollectibles(this.seed, center, [], nightCount);
       for (const placement of placements) {
         if (state.collectedIds.has(placement.id)) continue;
         if (this.active.has(placement.id)) continue;
