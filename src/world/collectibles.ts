@@ -15,7 +15,10 @@ export interface CollectiblePlacement {
   readonly isSuper: boolean;
 }
 
-const COLLECTIBLES_PER_CHUNK = 4;
+/** Was 4; −20% overall density → 3 per chunk. */
+const COLLECTIBLES_PER_CHUNK = 3;
+/** Lift garlic so the bulb sits just above the terrain instead of half-buried. */
+const GARLIC_HOVER_OFFSET = 0.55;
 
 export function placeCollectibles(
   seedInput: number | string,
@@ -35,7 +38,7 @@ export function placeCollectibles(
       id: `${owner}:garlic:${index}`,
       chunkId: owner,
       x,
-      y: sampleTerrainHeight(seed, x, z),
+      y: sampleTerrainHeight(seed, x, z) + GARLIC_HOVER_OFFSET,
       z,
       value: isSuper ? 10 : 1,
       isSuper,
