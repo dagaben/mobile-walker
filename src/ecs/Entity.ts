@@ -61,6 +61,7 @@ export interface CombatComponent {
   lives: number;
   invulnTimer: number;
   score: number;
+  gameOver: boolean;
 }
 
 export interface Entity {
