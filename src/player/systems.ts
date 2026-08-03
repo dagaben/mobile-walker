@@ -6,6 +6,7 @@ import type { InputController } from "./InputController";
 import type { GeneratedChunkRepository } from "../world/GeneratedChunkRepository";
 import { integrateMovement, normalizeInput } from "./movement";
 import { queryStructureCollisions, resolveStructureMovement } from "../world/structureCollision";
+import { getPlayerSpeedMultiplier } from "../game/difficulty";
 
 /** Converts screen-aligned input into world-space movement for a camera yaw. */
 export function rotateInputByCameraYaw(x: number, z: number, yaw: number): { x: number; z: number } {
@@ -40,12 +41,15 @@ export class PlayerMovementSystem implements FixedSystem {
   constructor(private readonly seed?: number | string) {}
 
   fixedUpdate(world: Parameters<FixedSystem["fixedUpdate"]>[0], deltaSeconds: number): void {
+    const lifetimeGarlic = world.entities.find((e) => e.collectionState)?.collectionState?.garlicValue ?? 0;
+    const garlicSpeedMult = getPlayerSpeedMultiplier(lifetimeGarlic);
     for (const entity of world.entities) {
       if (!entity.transform || !entity.previousTransform || !entity.playerControl || !entity.velocity) continue;
       Object.assign(entity.previousTransform, entity.transform);
-      const speedMultiplier = this.seed === undefined
+      const wetlandMult = this.seed === undefined
         ? 1
         : sampleWetlandSpeedMultiplier(this.seed, entity.transform.x, entity.transform.z);
+      const speedMultiplier = wetlandMult * garlicSpeedMult;
       Object.assign(entity.transform, integrateMovement(
         entity.transform, entity.playerControl, entity.velocity, deltaSeconds, undefined, entity.jump?.grounded,
         speedMultiplier,
