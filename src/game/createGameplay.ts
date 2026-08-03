@@ -10,6 +10,8 @@ import { CameraPresentationSystem, PlayerFogPresentationSystem, PlayerShadowPres
 import { createBlobShadowMaterial, createPlayerShadowGeometry, markBlobShadow } from "../rendering/blobShadows";
 import { CollectionSystem, createCollectionState, ExplorationPresentationSystem, ProximityDetectionSystem } from "./exploration";
 import { BiomeDebugPresentationSystem } from "./biomeDebug";
+import { createDayNightState, DayNightSystem } from "./dayNight";
+import { createCombatState, DuckAISystem, DuckSpawnSystem } from "./ducks";
 import { getBrowserStorage, loadGameState, PersistenceSystem } from "./persistence";
 import { findSafeRestoredTransform } from "../world/safePlayerPosition";
 import { PLAYER_COLLISION_RADIUS } from "../world/treeCollision";
@@ -32,7 +34,7 @@ export function createGameplay(
   inputElement: HTMLElement,
   dragIndicator?: HTMLElement,
 ): GameplayControllers {
-  const worldSeed = "mobile-walker-v2";
+  const worldSeed = "vampire-ducks-v2";
   const storage = getBrowserStorage();
   const savedState = loadGameState(storage, worldSeed);
   const initialTransform = findSafeRestoredTransform(
@@ -84,15 +86,14 @@ export function createGameplay(
     renderable: player,
   });
   world.add({ collectionState: createCollectionState(savedState?.collectedIds) });
+  world.add({ dayNight: createDayNightState(true) });
+  world.add({ combat: createCombatState() });
   // Fixed order: snapshot event state, then integrate.
   const input = new InputController(inputElement, dragIndicator);
   const camera = new CameraPresentationSystem(renderer.camera, input);
   systems.addFixedSystem(new InputSnapshotSystem(input, () => camera.getMovementReferenceYaw()));
   systems.addFixedSystem(new PlayerMovementSystem(worldSeed));
   const persistence = new PersistenceSystem(storage, worldSeed);
-  // Generate data before constructing meshes; then interpolate visuals and derive the camera pose.
-  // The camera remains south of the player and looks north (negative world Z),
-  // so spend the additional streaming row where it expands the visible view.
   const streamingOffsets = { west: 1, east: 1, south: 1, north: 4 } as const;
   const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1, {
     offsets: streamingOffsets,
@@ -104,10 +105,19 @@ export function createGameplay(
   systems.addFixedSystem(new TerrainSamplingSystem(worldSeed));
   systems.addFixedSystem(new ProximityDetectionSystem());
   systems.addFixedSystem(new CollectionSystem());
+  const mushroomCount = document.querySelector<HTMLElement>("#mushroom-count");
+  if (!mushroomCount) throw new Error("The garlic counter could not be found.");
+  const livesCount = document.querySelector<HTMLElement>("#lives-count");
+  const timeLabel = document.querySelector<HTMLElement>("#time-of-day");
+  systems.addFixedSystem(new DayNightSystem(renderer, timeLabel, (isDay) => {
+    void isDay;
+  }));
+  systems.addFixedSystem(
+    new DuckSpawnSystem(renderer.scene, worldSeed, (object) => renderer.prepareWorldObject(object)),
+  );
+  systems.addFixedSystem(new DuckAISystem(worldSeed, mushroomCount, livesCount));
   systems.addFixedSystem(persistence);
   systems.addRenderSystem(chunks);
-  const mushroomCount = document.querySelector<HTMLElement>("#mushroom-count");
-  if (!mushroomCount) throw new Error("The mushroom counter could not be found.");
   const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, mushroomCount, chunks.repository, (object) => renderer.prepareWorldObject(object));
   systems.addRenderSystem(exploration);
   systems.addRenderSystem(new TransformInterpolationSystem());
