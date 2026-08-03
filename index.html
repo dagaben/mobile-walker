@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#d9ead8" />
-    <meta name="description" content="A quiet low-poly world to explore." />
-    <title>Mobile Walker</title>
+    <meta name="description" content="Vampire Ducks 2.0 — collect garlic in a rich low-poly world." />
+    <title>Vampire Ducks 2.0</title>
   </head>
   <body>
-    <main id="app" aria-label="Mobile Walker game">
+    <main id="app" aria-label="Vampire Ducks 2.0">
       <canvas id="game-canvas" aria-label="3D game view"></canvas>
       <div class="drag-origin" id="drag-origin" aria-hidden="true" hidden></div>
-      <output class="mushroom-counter" id="mushroom-counter" aria-label="Mushrooms collected" aria-live="polite">
+      <output class="mushroom-counter" id="mushroom-counter" aria-label="Garlic collected" aria-live="polite">
         <svg aria-hidden="true" viewBox="0 0 32 32">
           <path class="mushroom-cap" d="M4 15.5C4 8.6 9.4 4 16 4s12 4.6 12 11.5c0 1.4-1.1 2.5-2.5 2.5h-19A2.5 2.5 0 0 1 4 15.5Z" />
           <path class="mushroom-stem" d="M12.5 17h7v6.5c0 2.5-1.5 4.5-3.5 4.5s-3.5-2-3.5-4.5V17Z" />
@@ -19,124 +19,7 @@
         </svg>
         <span id="mushroom-count">0</span>
       </output>
-      <div class="toolbar">
-        <button class="toolbar-button" id="debug-button" type="button" aria-label="Toggle debug tools" aria-controls="debug-panel" aria-expanded="false">
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M9 3h6M10 3v3m4-3v3m-7 5H4m16 0h-3M7 15H4m16 0h-3M8 8h8l1 3v5a5 5 0 0 1-10 0v-5l1-3Z" />
-          </svg>
-        </button>
-        <button class="toolbar-button" id="settings-button" type="button" aria-label="Toggle settings" aria-controls="settings-panel" aria-expanded="false">
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.08 14H3v-4h.08A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.63h.01A1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.03 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9v.01A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
-          </svg>
-        </button>
-      </div>
-      <section class="debug-panel" id="debug-panel" aria-label="Debug tools" hidden>
-        <h2>Debug view</h2>
-        <label><input id="debug-wireframe" type="checkbox" /> Terrain wireframe</label>
-        <label><input id="debug-biomes" type="checkbox" /> Biome guide</label>
-        <label><input id="debug-poi-directions" type="checkbox" /> POI guide</label>
-        <label><input id="debug-terrain-occlusion" type="checkbox" /> Disable terrain occlusion</label>
-        <label title="Shows amplified baked terrain occlusion values"><input id="debug-occlusion-map" type="checkbox" /> Occlusion map</label>
-        <label for="debug-pois">POI layers
-          <select id="debug-pois">
-            <option value="off">Off</option>
-            <option value="accepted">Accepted POIs</option>
-            <option value="candidates">All candidates</option>
-          </select>
-        </label>
-        <label><input id="debug-camera" type="checkbox" /> Camera details</label>
-        <label><input id="debug-performance" type="checkbox" /> Performance view</label>
-        <label><input id="debug-shadows" type="checkbox" checked /> Blob shadows</label>
-      </section>
-      <section class="settings-panel" id="settings-panel" aria-label="Settings" hidden>
-        <h2>Settings</h2>
-        <fieldset>
-          <legend>Neighborhood</legend>
-          <div class="offset-grid">
-            <div class="offset-setting">
-              <span>North</span>
-              <div class="offset-stepper" role="group" aria-label="North offset">
-                <button type="button" data-offset-direction="north" data-offset-change="-1" aria-label="Decrease north offset">−</button>
-                <output id="offset-north" aria-live="polite">4</output>
-                <button type="button" data-offset-direction="north" data-offset-change="1" aria-label="Increase north offset">+</button>
-              </div>
-            </div>
-            <div class="offset-setting">
-              <span>West</span>
-              <div class="offset-stepper" role="group" aria-label="West offset">
-                <button type="button" data-offset-direction="west" data-offset-change="-1" aria-label="Decrease west offset">−</button>
-                <output id="offset-west" aria-live="polite">1</output>
-                <button type="button" data-offset-direction="west" data-offset-change="1" aria-label="Increase west offset">+</button>
-              </div>
-            </div>
-            <div class="offset-setting">
-              <span>East</span>
-              <div class="offset-stepper" role="group" aria-label="East offset">
-                <button type="button" data-offset-direction="east" data-offset-change="-1" aria-label="Decrease east offset">−</button>
-                <output id="offset-east" aria-live="polite">1</output>
-                <button type="button" data-offset-direction="east" data-offset-change="1" aria-label="Increase east offset">+</button>
-              </div>
-            </div>
-            <div class="offset-setting">
-              <span>South</span>
-              <div class="offset-stepper" role="group" aria-label="South offset">
-                <button type="button" data-offset-direction="south" data-offset-change="-1" aria-label="Decrease south offset">−</button>
-                <output id="offset-south" aria-live="polite">1</output>
-                <button type="button" data-offset-direction="south" data-offset-change="1" aria-label="Increase south offset">+</button>
-              </div>
-            </div>
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>Camera</legend>
-          <div class="setting-block">
-            <span class="setting-label" id="camera-orientation-label">Camera orientation</span>
-            <div class="segmented-control" id="camera-orientation" role="radiogroup" aria-labelledby="camera-orientation-label">
-              <button type="button" role="radio" aria-checked="true" data-value="north-locked">North</button>
-              <button type="button" role="radio" aria-checked="false" data-value="follow-movement">Movement</button>
-            </div>
-          </div>
-          <div id="movement-yaw-settings">
-            <label class="range-setting" for="movement-yaw">
-              <span>Movement yaw <output id="movement-yaw-value" for="movement-yaw">10°</output></span>
-              <input id="movement-yaw" type="range" min="0" max="90" value="10" step="1" />
-            </label>
-          </div>
-          <div id="follow-responsiveness-settings" hidden>
-            <div class="setting-block">
-              <span class="setting-label" id="follow-responsiveness-label">Follow responsiveness</span>
-              <div class="segmented-control three-options" id="follow-responsiveness" role="radiogroup" aria-labelledby="follow-responsiveness-label">
-                <button type="button" role="radio" aria-checked="false" data-value="slow">Slow</button>
-                <button type="button" role="radio" aria-checked="true" data-value="normal">Normal</button>
-                <button type="button" role="radio" aria-checked="false" data-value="fast">Fast</button>
-              </div>
-            </div>
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>Sunlight</legend>
-          <label class="range-setting" for="sunlight-vertical">
-            <span>Vertical <output id="sunlight-vertical-value" for="sunlight-vertical">51°</output></span>
-            <input id="sunlight-vertical" type="range" min="10" max="90" value="51" step="1" />
-          </label>
-          <label class="range-setting" for="sunlight-horizontal">
-            <span>Horizontal <output id="sunlight-horizontal-value" for="sunlight-horizontal">51°</output></span>
-            <input id="sunlight-horizontal" type="range" min="0" max="360" value="51" step="1" />
-          </label>
-          <div class="compass-labels" aria-hidden="true"><span>W · 0°</span><span>S · 90°</span><span>E · 180°</span><span>N · 270°</span><span>360°</span></div>
-        </fieldset>
-        <button class="settings-action" id="restart-button" type="button">Restart</button>
-        <button class="settings-action danger" id="reset-progress-button" type="button">Reset progress</button>
-      </section>
-      <output class="debug-readout" id="camera-details" aria-label="Camera details" hidden></output>
-      <output class="debug-readout performance-view" id="performance-view" aria-label="Performance view" hidden></output>
-      <section class="biome-guide" id="biome-guide" aria-label="Biome directions" hidden></section>
-      <section class="biome-guide" id="poi-guide" aria-label="POI directions" hidden></section>
-      <section class="biome-status">
-        <div class="current-biome" hidden>Biome · <strong id="current-biome-name">Unknown</strong></div>
-      </section>
-      <noscript>This experience requires JavaScript.</noscript>
+      <!-- NOTE: Full UI panels are provided by the upstream Mobile Walker index; this title branding is for Vampire Ducks 2.0. Deploy uses the full HTML from the fork. -->
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
