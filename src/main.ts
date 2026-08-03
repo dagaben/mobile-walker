@@ -4,6 +4,7 @@ import { Game } from "./core/Game";
 import { getBrowserStorage, resetGameState } from "./game/persistence";
 import { installGameGestureProtection } from "./game/gameGestureProtection";
 import { installPauseUi } from "./game/pauseUi";
+import { fetchLeaderboard, renderLeaderboardList } from "./game/leaderboard";
 import {
   clampNeighborhoodOffset,
   MAX_NEIGHBORHOOD_OFFSET,
@@ -42,48 +43,69 @@ const sunlightVerticalInput = document.querySelector<HTMLInputElement>("#sunligh
 const sunlightHorizontalInput = document.querySelector<HTMLInputElement>("#sunlight-horizontal");
 const sunlightVerticalValue = document.querySelector<HTMLOutputElement>("#sunlight-vertical-value");
 const sunlightHorizontalValue = document.querySelector<HTMLOutputElement>("#sunlight-horizontal-value");
-const offsetButtons = document.querySelectorAll<HTMLButtonElement>("[data-offset-direction]");
-const offsetOutputs = {
-  north: document.querySelector<HTMLOutputElement>("#offset-north"),
-  west: document.querySelector<HTMLOutputElement>("#offset-west"),
-  east: document.querySelector<HTMLOutputElement>("#offset-east"),
-  south: document.querySelector<HTMLOutputElement>("#offset-south"),
-};
-const cameraDetails = document.querySelector<HTMLElement>("#camera-details");
-const performanceView = document.querySelector<HTMLElement>("#performance-view");
+const offsetOutputs = Object.fromEntries(["west", "east", "north", "south"].map((direction) => [
+  direction, document.querySelector<HTMLOutputElement>(`#offset-${direction}`),
+])) as Record<keyof ChunkNeighborhoodOffsets, HTMLOutputElement | null>;
+const offsetButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-offset-direction][data-offset-change]")];
+const startScreen = document.querySelector<HTMLElement>("#start-screen");
+const playButton = document.querySelector<HTMLButtonElement>("#play-button");
+const homeScores = document.querySelector<HTMLElement>("#home-scores");
 
 if (!canvas || !restartButton || !resetProgressButton || !settingsButton || !settingsPanel || !debugButton || !debugPanel
   || !wireframeInput || !biomesInput || !poiDirectionsInput || !terrainOcclusionInput || !occlusionMapInput || !poisInput
   || !cameraInput || !performanceInput || !shadowsInput || !movementYawInput || !movementYawValue || !orientationControl
   || !responsivenessControl || !movementYawSettings || !responsivenessSettings || !sunlightVerticalInput
-  || !sunlightHorizontalInput || !sunlightVerticalValue || !sunlightHorizontalValue || !cameraDetails || !performanceView) {
-  throw new Error("Required UI elements are missing from the document.");
+  || !sunlightHorizontalInput || !sunlightVerticalValue || !sunlightHorizontalValue
+  || Object.values(offsetOutputs).some((output) => !output) || offsetButtons.length !== 8
+  || !startScreen || !playButton) {
+  throw new Error("The game interface could not be found.");
 }
 
+const NEIGHBORHOOD_STORAGE_KEY = "mobile-walker:neighborhood-offsets";
+const SUNLIGHT_STORAGE_KEY = "mobile-walker:sunlight-angles";
+const MOVEMENT_YAW_STORAGE_KEY = "mobile-walker:movement-yaw";
 const storage = getBrowserStorage();
-const MOVEMENT_YAW_STORAGE_KEY = "mobile-walker-movement-yaw";
-const SUNLIGHT_STORAGE_KEY = "mobile-walker-sunlight";
-const NEIGHBORHOOD_STORAGE_KEY = "mobile-walker-neighborhood";
 
-let orientationMode: CameraOrientationMode = "follow-movement";
-let followResponsiveness: FollowResponsiveness = "medium";
+let orientationMode: CameraOrientationMode = "north-locked";
+let followResponsiveness: FollowResponsiveness = "normal";
 try {
-  const savedOrientation = storage.getItem(CAMERA_ORIENTATION_STORAGE_KEY);
-  if (isCameraOrientationMode(savedOrientation)) orientationMode = savedOrientation;
-  const savedResponsiveness = storage.getItem(FOLLOW_RESPONSIVENESS_STORAGE_KEY);
-  if (isFollowResponsiveness(savedResponsiveness)) followResponsiveness = savedResponsiveness;
-  const savedYaw = Number(storage.getItem(MOVEMENT_YAW_STORAGE_KEY));
-  if (Number.isFinite(savedYaw)) movementYawInput.value = String(Math.min(45, Math.max(-45, savedYaw)));
-} catch { /* Invalid or unavailable settings fall back to the values in the interface. */ }
+  const saved = storage.getItem(CAMERA_ORIENTATION_STORAGE_KEY);
+  if (isCameraOrientationMode(saved)) orientationMode = saved;
+  const savedResponse = storage.getItem(FOLLOW_RESPONSIVENESS_STORAGE_KEY);
+  if (isFollowResponsiveness(savedResponse)) followResponsiveness = savedResponse;
+} catch { /* keep defaults */ }
+try {
+  const savedMovementYawSetting = storage.getItem(MOVEMENT_YAW_STORAGE_KEY);
+  if (savedMovementYawSetting !== null) {
+    const savedMovementYaw = Number(savedMovementYawSetting);
+    if (Number.isFinite(savedMovementYaw) && savedMovementYaw >= 0 && savedMovementYaw <= 90) {
+      movementYawInput.value = String(savedMovementYaw);
+    }
+  }
+} catch { /* keep UI default */ }
+try {
+  const savedOffsets = JSON.parse(storage.getItem(NEIGHBORHOOD_STORAGE_KEY) ?? "null") as Partial<ChunkNeighborhoodOffsets> | null;
+  if (savedOffsets) {
+    for (const [direction, output] of Object.entries(offsetOutputs)) {
+      const value = savedOffsets[direction as keyof ChunkNeighborhoodOffsets];
+      if (typeof value === "number" && Number.isFinite(value)) output!.value = String(clampNeighborhoodOffset(value));
+    }
+  }
+} catch { /* keep UI defaults */ }
 try {
   const savedAngles = JSON.parse(storage.getItem(SUNLIGHT_STORAGE_KEY) ?? "null") as { vertical?: unknown; horizontal?: unknown } | null;
-  if (typeof savedAngles?.vertical === "number" && Number.isFinite(savedAngles.vertical)) sunlightVerticalInput.value = String(Math.min(90, Math.max(10, savedAngles.vertical)));
-  if (typeof savedAngles?.horizontal === "number" && Number.isFinite(savedAngles.horizontal)) sunlightHorizontalInput.value = String(Math.min(360, Math.max(0, savedAngles.horizontal)));
-} catch { /* Invalid or unavailable settings fall back to the values in the interface. */ }
+  if (typeof savedAngles?.vertical === "number" && Number.isFinite(savedAngles.vertical)) {
+    sunlightVerticalInput.value = String(Math.min(90, Math.max(10, savedAngles.vertical)));
+  }
+  if (typeof savedAngles?.horizontal === "number" && Number.isFinite(savedAngles.horizontal)) {
+    sunlightHorizontalInput.value = String(Math.min(360, Math.max(0, savedAngles.horizontal)));
+  }
+} catch { /* keep UI defaults */ }
 
 const game = new Game(canvas);
 installPauseUi(game);
 const removeGameGestureProtection = installGameGestureProtection(canvas);
+
 const selectSegment = (control: HTMLElement, value: string): void => {
   for (const button of control.querySelectorAll<HTMLButtonElement>("button[role=radio]")) {
     const selected = button.dataset.value === value;
@@ -91,39 +113,54 @@ const selectSegment = (control: HTMLElement, value: string): void => {
     button.tabIndex = selected ? 0 : -1;
   }
 };
+
 const updateOrientation = (mode: CameraOrientationMode): void => {
   orientationMode = mode;
   selectSegment(orientationControl, mode);
   movementYawSettings.hidden = mode !== "north-locked";
   responsivenessSettings.hidden = mode !== "follow-movement";
   game.setCameraOrientationMode(mode);
-  try { storage.setItem(CAMERA_ORIENTATION_STORAGE_KEY, mode); } catch { /* Gameplay remains live without storage. */ }
+  try { storage.setItem(CAMERA_ORIENTATION_STORAGE_KEY, mode); } catch { /* ok */ }
 };
+
 const updateResponsiveness = (value: FollowResponsiveness): void => {
   followResponsiveness = value;
   selectSegment(responsivenessControl, value);
   game.setFollowResponsiveness(value);
-  try { storage.setItem(FOLLOW_RESPONSIVENESS_STORAGE_KEY, value); } catch { /* Gameplay remains live without storage. */ }
+  try { storage.setItem(FOLLOW_RESPONSIVENESS_STORAGE_KEY, value); } catch { /* ok */ }
 };
+
 const activateSegment = (event: Event): void => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-value]");
   if (!button) return;
-  if (button.parentElement === orientationControl && isCameraOrientationMode(button.dataset.value)) updateOrientation(button.dataset.value);
-  if (button.parentElement === responsivenessControl && isFollowResponsiveness(button.dataset.value)) updateResponsiveness(button.dataset.value);
+  if (button.parentElement === orientationControl && isCameraOrientationMode(button.dataset.value)) {
+    updateOrientation(button.dataset.value);
+  }
+  if (button.parentElement === responsivenessControl && isFollowResponsiveness(button.dataset.value)) {
+    updateResponsiveness(button.dataset.value);
+  }
   button.focus();
 };
+
 const navigateSegment = (event: KeyboardEvent): void => {
   if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
   const control = event.currentTarget as HTMLElement;
   const buttons = [...control.querySelectorAll<HTMLButtonElement>("button[data-value]")];
   const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
-  let next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : current + (["ArrowRight", "ArrowDown"].includes(event.key) ? 1 : -1);
+  let next = event.key === "Home" ? 0
+    : event.key === "End" ? buttons.length - 1
+    : current + (["ArrowRight", "ArrowDown"].includes(event.key) ? 1 : -1);
   next = (next + buttons.length) % buttons.length;
   event.preventDefault();
   buttons[next].click();
 };
+
 const restartGame = (): void => window.location.reload();
-const resetProgress = (): void => { resetGameState(getBrowserStorage()); window.location.reload(); };
+const resetProgress = (): void => {
+  resetGameState(getBrowserStorage());
+  window.location.reload();
+};
+
 const toggleSettingsPanel = (): void => {
   const open = settingsPanel.hidden;
   settingsPanel.hidden = !open;
@@ -133,6 +170,7 @@ const toggleSettingsPanel = (): void => {
     debugButton.setAttribute("aria-expanded", "false");
   }
 };
+
 const toggleDebugPanel = (): void => {
   const open = debugPanel.hidden;
   debugPanel.hidden = !open;
@@ -142,30 +180,41 @@ const toggleDebugPanel = (): void => {
     settingsButton.setAttribute("aria-expanded", "false");
   }
 };
-const updateDebugView = (): void => game.setDebugView({
-  wireframe: wireframeInput.checked,
-  biomeGuide: biomesInput.checked,
-  terrainOcclusion: !terrainOcclusionInput.checked,
-  occlusionMap: occlusionMapInput.checked,
-  pois: poisInput.value as "off" | "markers" | "volumes",
-  cameraDetails: cameraInput.checked,
-  performance: performanceInput.checked,
-  shadows: shadowsInput.checked,
-});
-const updatePoiDirections = (): void => game.setPoiDirectionsEnabled(poiDirectionsInput.checked);
-const updateMovementYaw = (): void => {
-  const degrees = Number(movementYawInput.value);
-  movementYawValue.value = `${degrees}°`;
-  game.setMovementYawOffset(degrees * Math.PI / 180);
-  try { storage.setItem(MOVEMENT_YAW_STORAGE_KEY, String(degrees)); } catch { /* Gameplay remains live without storage. */ }
+
+const updateDebugView = (): void => {
+  game.setDebugView({
+    wireframe: wireframeInput.checked,
+    biomeGuide: biomesInput.checked,
+    disableTerrainOcclusion: terrainOcclusionInput.checked,
+    occlusionMap: occlusionMapInput.checked,
+    pois: poisInput.value as "off" | "accepted" | "candidates",
+  });
+  game.setCameraDetailsEnabled(cameraInput.checked);
+  game.setPerformanceViewEnabled(performanceInput.checked);
+  game.setShadowsEnabled(shadowsInput.checked);
 };
+
+const updatePoiDirections = (): void => game.setPoiDirectionsEnabled(poiDirectionsInput.checked);
+
+const updateMovementYaw = (): void => {
+  const degrees = Math.min(90, Math.max(0, Number(movementYawInput.value)));
+  movementYawInput.value = String(degrees);
+  movementYawValue.value = `${degrees}°`;
+  game.setMovementYawStrength(degrees);
+  try { storage.setItem(MOVEMENT_YAW_STORAGE_KEY, String(degrees)); } catch { /* ok */ }
+};
+
 const updateSunlight = (): void => {
-  const angles = { vertical: Number(sunlightVerticalInput.value), horizontal: Number(sunlightHorizontalInput.value) };
+  const angles = {
+    vertical: Number(sunlightVerticalInput.value),
+    horizontal: Number(sunlightHorizontalInput.value),
+  };
   sunlightVerticalValue.value = `${angles.vertical}°`;
   sunlightHorizontalValue.value = `${angles.horizontal}°`;
   game.setSunlightAngles(angles);
-  try { storage.setItem(SUNLIGHT_STORAGE_KEY, JSON.stringify(angles)); } catch { /* Gameplay remains live without storage. */ }
+  try { storage.setItem(SUNLIGHT_STORAGE_KEY, JSON.stringify(angles)); } catch { /* ok */ }
 };
+
 const updateNeighborhood = (): void => {
   const offsets = Object.fromEntries(Object.entries(offsetOutputs).map(([direction, output]) => {
     const value = clampNeighborhoodOffset(Number(output!.value));
@@ -180,20 +229,47 @@ const updateNeighborhood = (): void => {
       : offsets[direction] >= MAX_NEIGHBORHOOD_OFFSET;
   }
   game.setNeighborhoodOffsets(offsets);
-  try { storage.setItem(NEIGHBORHOOD_STORAGE_KEY, JSON.stringify(offsets)); } catch { /* Gameplay remains live without storage. */ }
+  try { storage.setItem(NEIGHBORHOOD_STORAGE_KEY, JSON.stringify(offsets)); } catch { /* ok */ }
 };
+
 const changeNeighborhoodOffset = (event: MouseEvent): void => {
   const button = event.currentTarget as HTMLButtonElement;
   const direction = button.dataset.offsetDirection as keyof ChunkNeighborhoodOffsets;
-  offsetOutputs[direction]!.value = String(Number(offsetOutputs[direction]!.value) + Number(button.dataset.offsetChange));
+  offsetOutputs[direction]!.value = String(
+    Number(offsetOutputs[direction]!.value) + Number(button.dataset.offsetChange),
+  );
   updateNeighborhood();
 };
+
+async function loadHomeLeaderboard(): Promise<void> {
+  if (!homeScores) return;
+  try {
+    const board = await fetchLeaderboard();
+    renderLeaderboardList(homeScores, board);
+  } catch {
+    homeScores.innerHTML = "<li style='opacity:.7'>No scores yet — be the first!</li>";
+  }
+}
+
+function beginPlay(): void {
+  if (startScreen) startScreen.hidden = true;
+  updateNeighborhood();
+  updateResponsiveness(followResponsiveness);
+  updateOrientation(orientationMode);
+  updateDebugView();
+  updatePoiDirections();
+  updateMovementYaw();
+  updateSunlight();
+  game.start();
+}
 
 restartButton.addEventListener("click", restartGame);
 resetProgressButton.addEventListener("click", resetProgress);
 settingsButton.addEventListener("click", toggleSettingsPanel);
 debugButton.addEventListener("click", toggleDebugPanel);
-for (const input of [wireframeInput, biomesInput, terrainOcclusionInput, occlusionMapInput, poisInput]) input.addEventListener("change", updateDebugView);
+for (const input of [wireframeInput, biomesInput, terrainOcclusionInput, occlusionMapInput, poisInput]) {
+  input.addEventListener("change", updateDebugView);
+}
 poiDirectionsInput.addEventListener("change", updatePoiDirections);
 cameraInput.addEventListener("change", updateDebugView);
 performanceInput.addEventListener("change", updateDebugView);
@@ -206,18 +282,26 @@ responsivenessControl.addEventListener("keydown", navigateSegment);
 sunlightVerticalInput.addEventListener("input", updateSunlight);
 sunlightHorizontalInput.addEventListener("input", updateSunlight);
 for (const button of offsetButtons) button.addEventListener("click", changeNeighborhoodOffset);
+playButton.addEventListener("click", beginPlay);
 
-updateOrientation(orientationMode);
-updateResponsiveness(followResponsiveness);
-updateMovementYaw();
-updateSunlight();
-updateNeighborhood();
-updateDebugView();
-updatePoiDirections();
-game.start();
+void loadHomeLeaderboard();
+selectSegment(orientationControl, orientationMode);
+selectSegment(responsivenessControl, followResponsiveness);
 
-window.addEventListener("pagehide", () => {
-  try {
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    restartButton.removeEventListener("click", restartGame);
+    resetProgressButton.removeEventListener("click", resetProgress);
+    settingsButton.removeEventListener("click", toggleSettingsPanel);
+    debugButton.removeEventListener("click", toggleDebugPanel);
+    for (const input of [wireframeInput, biomesInput, terrainOcclusionInput, occlusionMapInput, poisInput]) {
+      input.removeEventListener("change", updateDebugView);
+    }
+    poiDirectionsInput.removeEventListener("change", updatePoiDirections);
+    cameraInput.removeEventListener("change", updateDebugView);
+    performanceInput.removeEventListener("change", updateDebugView);
+    shadowsInput.removeEventListener("change", updateDebugView);
+    movementYawInput.removeEventListener("input", updateMovementYaw);
     orientationControl.removeEventListener("click", activateSegment);
     orientationControl.removeEventListener("keydown", navigateSegment);
     responsivenessControl.removeEventListener("click", activateSegment);
@@ -225,7 +309,8 @@ window.addEventListener("pagehide", () => {
     sunlightVerticalInput.removeEventListener("input", updateSunlight);
     sunlightHorizontalInput.removeEventListener("input", updateSunlight);
     for (const button of offsetButtons) button.removeEventListener("click", changeNeighborhoodOffset);
+    playButton.removeEventListener("click", beginPlay);
     removeGameGestureProtection();
     game.dispose();
-  } catch { /* Best-effort cleanup. */ }
-});
+  });
+}
