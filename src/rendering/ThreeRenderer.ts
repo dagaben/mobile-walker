@@ -31,6 +31,8 @@ export class ThreeRenderer {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, MAX_DRAW_DISTANCE);
   private readonly sunlight = new THREE.DirectionalLight(0xfff1d6, 2.2);
+  private hemiLight!: THREE.HemisphereLight;
+  private dayNightBlend = 1;
   readonly sunlightDirection = new SunlightDirection();
   readonly playerCentredFog;
   private submission = { currentMs: 0, maximumMs: 0, rollingMaximumMs: 0, samples: [] as { at: number; ms: number }[] };
@@ -46,14 +48,14 @@ export class ThreeRenderer {
     this.camera.position.set(6, 5, 8);
     this.camera.lookAt(0, 0, 0);
 
-    this.scene.add(new THREE.HemisphereLight(0xfff8e8, 0x9ebba5, 2.4));
+    this.hemiLight = new THREE.HemisphereLight(0xfff8e8, 0x9ebba5, 2.4);
+    this.scene.add(this.hemiLight);
     this.setSunlightAngles({ vertical: 51, horizontal: 51 });
     this.scene.add(this.sunlight);
+    this.dayNightBlend = 1;
 
     this.resizeObserver = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(this.resize);
     this.resizeObserver?.observe(canvas);
-    // ResizeObserver follows layout changes; this listener remains for iOS versions
-    // where browser chrome changes are not always reported to the observer.
     window.addEventListener("resize", this.resize);
     this.resize();
     this.scheduleInitialResize(2);
@@ -74,6 +76,40 @@ export class ThreeRenderer {
   setSunlightAngles(angles: SunlightAngles): void {
     this.sunlight.position.copy(sunlightPosition(angles));
     this.sunlightDirection.set(this.sunlight.position);
+  }
+
+  getDayNightBlend(): number { return this.dayNightBlend; }
+
+  /**
+   * 1 = full day, 0 = deep night. Smoothly blends sky, fog, and light intensities.
+   */
+  setDayNightBlend(blend: number): void {
+    const t = Math.min(1, Math.max(0, blend));
+    this.dayNightBlend = t;
+    const dayBg = 0xd9ead8;
+    const nightBg = 0x0a1628;
+    const dayFog = 0xd9ead8;
+    const nightFog = 0x0a1628;
+    const lerpColor = (a: number, b: number) => {
+      const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+      const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+      const r = Math.round(ar + (br - ar) * (1 - t));
+      const g = Math.round(ag + (bg - ag) * (1 - t));
+      const bl = Math.round(ab + (bb - ab) * (1 - t));
+      return (r << 16) | (g << 8) | bl;
+    };
+    const bg = lerpColor(dayBg, nightBg);
+    const fog = lerpColor(dayFog, nightFog);
+    this.scene.background = new THREE.Color(bg);
+    if (this.scene.fog instanceof THREE.Fog) this.scene.fog.color.setHex(fog);
+    this.sunlight.intensity = 0.35 + 1.85 * t;
+    this.sunlight.color.setHex(t > 0.5 ? 0xfff1d6 : 0x8899cc);
+    this.hemiLight.intensity = 0.55 + 1.85 * t;
+    if (t < 0.45) {
+      this.setSunlightAngles({ vertical: 12 + 20 * t, horizontal: 220 });
+    } else {
+      this.setSunlightAngles({ vertical: 40 + 25 * (t - 0.45) / 0.55, horizontal: 51 });
+    }
   }
 
   getPerformanceDetails(): { drawCalls: number; triangles: number; shadowDrawCalls: number; shadowTriangles: number } {
