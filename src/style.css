@@ -162,7 +162,10 @@ body { overscroll-behavior: none; touch-action: none; }
   backdrop-filter: blur(8px);
   pointer-events: auto;
 }
-.vd-overlay.hidden { display: none; }
+.vd-overlay.hidden,
+.vd-overlay[hidden] {
+  display: none !important;
+}
 .vd-overlay-card {
   width: min(22rem, calc(100vw - 2rem));
   padding: 1.4rem 1.25rem 1.25rem;
