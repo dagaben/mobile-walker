@@ -3,12 +3,9 @@ import * as THREE from "three";
 import type { EcsWorld } from "../ecs/createEcsWorld";
 import type { FixedSystem } from "../ecs/System";
 import { sampleTerrainHeight } from "../world/terrainSampling";
+import { getDifficulty } from "./difficulty";
 
-const DUCK_SPAWN_INTERVAL = 6.5;
-const DUCK_SPEED = 5.2;
 const DUCK_HIT_RADIUS = 1.15;
-const MAX_DUCKS = 8;
-const GARLIC_PETRIFY_COST = 10;
 const INVULN_SECONDS = 1.6;
 
 export interface GameCombatState {
@@ -73,6 +70,25 @@ export class DuckSpawnSystem implements FixedSystem {
     private readonly prepareWorldObject: (object: THREE.Object3D) => void = () => undefined,
   ) {}
 
+  private spawnOne(world: EcsWorld, px: number, pz: number): void {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 12 + Math.random() * 8;
+    const x = px + Math.cos(angle) * dist;
+    const z = pz + Math.sin(angle) * dist;
+    const y = sampleTerrainHeight(this.worldSeed, x, z) + 0.45;
+    const mesh = createDuckMesh();
+    mesh.position.set(x, y, z);
+    this.scene.add(mesh);
+    this.prepareWorldObject(mesh);
+    world.add({
+      transform: { x, y, z, yaw: 0 },
+      previousTransform: { x, y, z, yaw: 0 },
+      velocity: { x: 0, y: 0, z: 0 },
+      duck: { state: "alive", petrifyTimer: 0 },
+      renderable: mesh,
+    });
+  }
+
   fixedUpdate(world: EcsWorld, deltaSeconds: number): void {
     const dayNight = world.entities.find((e) => e.dayNight)?.dayNight;
     if (!dayNight || dayNight.isDay) {
@@ -87,29 +103,23 @@ export class DuckSpawnSystem implements FixedSystem {
       }
       return;
     }
+    const difficulty = getDifficulty(dayNight.nightCount || 1);
     const live = world.entities.filter((e) => e.duck && e.duck.state !== "petrified").length;
-    if (live >= MAX_DUCKS) return;
+    if (live >= difficulty.maxDucks) return;
     this.timer += deltaSeconds;
-    if (this.timer < DUCK_SPAWN_INTERVAL) return;
+    if (this.timer < difficulty.spawnInterval) return;
     this.timer = 0;
     const player = world.entities.find((e) => e.playerControl && e.transform);
     if (!player?.transform) return;
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 12 + Math.random() * 8;
-    const x = player.transform.x + Math.cos(angle) * dist;
-    const z = player.transform.z + Math.sin(angle) * dist;
-    const y = sampleTerrainHeight(this.worldSeed, x, z) + 0.45;
-    const mesh = createDuckMesh();
-    mesh.position.set(x, y, z);
-    this.scene.add(mesh);
-    this.prepareWorldObject(mesh);
-    world.add({
-      transform: { x, y, z, yaw: 0 },
-      previousTransform: { x, y, z, yaw: 0 },
-      velocity: { x: 0, y: 0, z: 0 },
-      duck: { state: "alive", petrifyTimer: 0 },
-      renderable: mesh,
-    });
+    this.spawnOne(world, player.transform.x, player.transform.z);
+    // Late-game double spawn when under the cap
+    if (
+      difficulty.doubleSpawnChance > 0
+      && Math.random() < difficulty.doubleSpawnChance
+      && world.entities.filter((e) => e.duck && e.duck.state !== "petrified").length < difficulty.maxDucks
+    ) {
+      this.spawnOne(world, player.transform.x, player.transform.z);
+    }
   }
 }
 
@@ -128,6 +138,9 @@ export class DuckAISystem implements FixedSystem {
     const combat = world.entities.find((e) => e.combat)?.combat;
     const player = world.entities.find((e) => e.playerControl && e.transform);
     if (!combat || !player?.transform || combat.gameOver) return;
+
+    const dayNight = world.entities.find((e) => e.dayNight)?.dayNight;
+    const difficulty = getDifficulty(dayNight?.nightCount || 1);
 
     combat.score += deltaSeconds * 2;
     this.syncHud(combat);
@@ -152,16 +165,14 @@ export class DuckAISystem implements FixedSystem {
         continue;
       }
       // Snapshot pose for TransformInterpolationSystem (same pattern as PlayerMovementSystem).
-      // Without this, render interpolation jumps between a stale previousTransform and the
-      // live transform every frame → visible flicker, especially when the player is fast.
       if (entity.previousTransform) {
         Object.assign(entity.previousTransform, entity.transform);
       }
       const dx = player.transform.x - entity.transform.x;
       const dz = player.transform.z - entity.transform.z;
       const dist = Math.hypot(dx, dz) || 1;
-      entity.velocity.x = (dx / dist) * DUCK_SPEED;
-      entity.velocity.z = (dz / dist) * DUCK_SPEED;
+      entity.velocity.x = (dx / dist) * difficulty.duckSpeed;
+      entity.velocity.z = (dz / dist) * difficulty.duckSpeed;
       entity.transform.x += entity.velocity.x * deltaSeconds;
       entity.transform.z += entity.velocity.z * deltaSeconds;
       entity.transform.y = sampleTerrainHeight(this.worldSeed, entity.transform.x, entity.transform.z) + 0.45;
@@ -169,8 +180,8 @@ export class DuckAISystem implements FixedSystem {
       // Do NOT write renderable.position here — TransformInterpolationSystem owns presentation.
       if (combat.invulnTimer > 0) continue;
       if (dist < DUCK_HIT_RADIUS) {
-        if (combat.garlicCount >= GARLIC_PETRIFY_COST) {
-          combat.garlicCount -= GARLIC_PETRIFY_COST;
+        if (combat.garlicCount >= difficulty.petrifyCost) {
+          combat.garlicCount -= difficulty.petrifyCost;
           combat.score += 50;
           entity.duck.state = "petrified";
           entity.duck.petrifyTimer = 8;
