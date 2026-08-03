@@ -23,35 +23,7 @@ body { overscroll-behavior: none; touch-action: none; }
 
 #game-canvas { display: block; width: 100%; height: 100%; outline: none; touch-action: none; }
 
-.mushroom-counter {
-  position: absolute;
-  top: max(1rem, env(safe-area-inset-top));
-  right: max(4.2rem, env(safe-area-inset-right));
-  left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: .4rem;
-  min-width: 3.6rem;
-  height: 2.25rem;
-  padding: .3rem .65rem .3rem .45rem;
-  border: 1px solid rgb(49 71 58 / 14%);
-  border-radius: 999px;
-  color: #31473a;
-  background: rgb(255 255 255 / 78%);
-  box-shadow: 0 .2rem .8rem rgb(49 71 58 / 12%);
-  font-size: .95rem;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-  backdrop-filter: blur(.45rem);
-  -webkit-backdrop-filter: blur(.45rem);
-  z-index: 6;
-}
-
-.mushroom-counter svg { width: 1.5rem; height: 1.5rem; overflow: visible; }
-.mushroom-counter .mushroom-cap { fill: #e8e0c8; stroke: #c8d89a; stroke-width: 1; }
-.mushroom-counter .mushroom-stem { fill: #fffaf0; stroke: #d8d2c6; stroke-width: 1; }
-.mushroom-counter circle { fill: #fffaf0; }
+.mushroom-counter[hidden] { display: none !important; }
 
 .vd-hud {
   position: absolute;
@@ -72,6 +44,12 @@ body { overscroll-behavior: none; touch-action: none; }
   font-size: 0.95rem;
   backdrop-filter: blur(6px);
   border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.vd-hud-chip.vd-hud-icon {
+  min-width: 2.2rem;
+  text-align: center;
+  padding: 0.35rem 0.55rem;
+  font-size: 1.15rem;
 }
 
 .toolbar {
@@ -96,8 +74,6 @@ body { overscroll-behavior: none; touch-action: none; }
   background: rgb(255 255 255 / 72%);
   box-shadow: 0 .25rem 1rem rgb(49 71 58 / 12%);
   font: inherit;
-  font-size: .85rem;
-  font-weight: 700;
   cursor: pointer;
   backdrop-filter: blur(.5rem);
 }
@@ -124,8 +100,6 @@ body { overscroll-behavior: none; touch-action: none; }
   border-radius: 1rem;
   color: #31473a;
   background: rgb(255 255 255 / 88%);
-  box-shadow: 0 .5rem 1.5rem rgb(49 71 58 / 16%);
-  backdrop-filter: blur(.65rem);
   z-index: 8;
   touch-action: pan-y;
 }
@@ -140,20 +114,6 @@ body { overscroll-behavior: none; touch-action: none; }
   left: max(1rem, env(safe-area-inset-left));
   pointer-events: none;
 }
-.current-biome { color: #587064; font-size: .9rem; font-weight: 600; }
-.debug-readout {
-  position: absolute;
-  top: max(1rem, env(safe-area-inset-top));
-  left: max(1rem, env(safe-area-inset-left));
-  min-width: 10.5rem;
-  padding: .65rem .75rem;
-  border-radius: .75rem;
-  background: rgb(255 255 255 / 86%);
-  font: 600 .75rem/1.55 ui-monospace, monospace;
-  white-space: pre;
-  pointer-events: none;
-  z-index: 4;
-}
 .drag-origin {
   position: fixed;
   z-index: 1;
@@ -166,7 +126,6 @@ body { overscroll-behavior: none; touch-action: none; }
   transform: translate(-50%, -50%);
 }
 
-/* Score + game over + leaderboard */
 .vd-overlay {
   position: absolute;
   inset: 0;
@@ -176,7 +135,6 @@ body { overscroll-behavior: none; touch-action: none; }
   justify-content: center;
   background: rgba(6, 12, 20, 0.72);
   backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   pointer-events: auto;
 }
 .vd-overlay.hidden { display: none; }
@@ -186,80 +144,40 @@ body { overscroll-behavior: none; touch-action: none; }
   border-radius: 1.1rem;
   background: linear-gradient(160deg, #1a2836 0%, #0d1520 100%);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.45);
   color: #f2f6fa;
   text-align: center;
 }
 .vd-overlay-card h1 {
   margin: 0 0 0.4rem;
   font-size: 1.75rem;
-  letter-spacing: 0.06em;
   color: #ffdd66;
 }
-.vd-overlay-card h2 {
-  margin: 0 0 0.6rem;
-  font-size: 1rem;
-  letter-spacing: 0.04em;
-  color: #9ed0ff;
-}
+.vd-overlay-card h2 { margin: 0 0 0.6rem; font-size: 1rem; color: #9ed0ff; }
 .vd-overlay-card #final-score {
   margin: 0 0 1rem;
   font-size: 1.25rem;
   font-weight: 750;
-  font-variant-numeric: tabular-nums;
 }
 .name-prompt { margin: 0 0 0.65rem; font-size: 0.9rem; color: #c8d6e5; }
-.name-inputs {
-  display: flex;
-  justify-content: center;
-  gap: 0.45rem;
-  margin-bottom: 0.85rem;
-}
+.name-inputs { display: flex; justify-content: center; gap: 0.45rem; margin-bottom: 0.85rem; }
 .name-letter {
-  width: 2.6rem;
-  height: 2.8rem;
-  text-align: center;
-  font-size: 1.4rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  border-radius: 0.55rem;
+  width: 2.6rem; height: 2.8rem; text-align: center; font-size: 1.4rem; font-weight: 800;
+  text-transform: uppercase; border-radius: 0.55rem;
   border: 2px solid rgba(255, 221, 102, 0.55);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  outline: none;
+  background: rgba(255, 255, 255, 0.08); color: #fff; outline: none;
 }
-.name-letter:focus { border-color: #ffdd66; background: rgba(255, 221, 102, 0.12); }
-#submit-name-button, #play-again-button {
-  display: inline-block;
-  margin-top: 0.35rem;
-  padding: 0.65rem 1.1rem;
-  border: 0;
-  border-radius: 999px;
-  font: 750 0.9rem/1 inherit;
-  cursor: pointer;
-  color: #1a1508;
-  background: linear-gradient(180deg, #ffe066, #f0b429);
-  box-shadow: 0 0.35rem 1rem rgba(240, 180, 41, 0.35);
+#submit-name-button, #play-again-button, #resume-button {
+  display: inline-block; margin-top: 0.9rem; padding: 0.65rem 1.1rem; border: 0;
+  border-radius: 999px; font: 750 0.9rem/1 inherit; cursor: pointer;
+  color: #1a1508; background: linear-gradient(180deg, #ffe066, #f0b429);
 }
-#play-again-button { margin-top: 0.9rem; }
 .lb-hint { margin: 0.55rem 0 0; font-size: 0.72rem; color: #8aa0b5; }
-.vd-leaderboard ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  text-align: left;
-}
+.vd-leaderboard ol { list-style: none; margin: 0; padding: 0; text-align: left; }
 .vd-leaderboard li {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.35rem 0.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
+  display: flex; justify-content: space-between; padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-weight: 700;
 }
 .vd-leaderboard li:nth-child(1) { color: #ffd700; }
 .vd-leaderboard li:nth-child(2) { color: #c0c0c0; }
 .vd-leaderboard li:nth-child(3) { color: #cd7f32; }
-.lb-name { letter-spacing: 0.12em; }
-.lb-score { opacity: 0.95; }
 .hidden { display: none !important; }
