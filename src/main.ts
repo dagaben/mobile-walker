@@ -3,7 +3,7 @@ import "./style.css";
 import { Game } from "./core/Game";
 import { getBrowserStorage, resetGameState } from "./game/persistence";
 import { installGameGestureProtection } from "./game/gameGestureProtection";
-import { installPauseUi } from "./game/pauseUi";
+import { installPauseUi, armPausePlayGuard } from "./game/pauseUi";
 import { TITLE_POSTER_DATA_URI } from "./titlePosterData";
 import { fetchLeaderboard, renderLeaderboardList } from "./game/leaderboard";
 import {
@@ -214,6 +214,8 @@ async function loadHomeLeaderboard(): Promise<void> {
 
 function beginPlay(): void {
   if (startScreen) startScreen.hidden = true;
+  // Block ghost-clicks on the pause toolbar under the PLAY button (mobile).
+  armPausePlayGuard();
   updateNeighborhood();
   updateResponsiveness(followResponsiveness);
   updateOrientation(orientationMode);
@@ -222,6 +224,8 @@ function beginPlay(): void {
   updateMovementYaw();
   updateSunlight();
   game.start();
+  // Ensure we never leave the world paused + overlay up after PLAY.
+  armPausePlayGuard();
 }
 
 restartButton.addEventListener("click", restartGame);
