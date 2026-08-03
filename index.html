@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#d9ead8" />
+    <meta name="description" content="Vampire Ducks 2.0 — collect garlic by day, survive rubber vampire ducks at night." />
+    <title>Vampire Ducks 2.0</title>
+  </head>
+  <body>
+    <main id="app" aria-label="Vampire Ducks 2.0">
+      <canvas id="game-canvas" aria-label="3D game view"></canvas>
+      <div class="drag-origin" id="drag-origin" aria-hidden="true" hidden></div>
+      <output class="garlic-counter" id="mushroom-counter" aria-label="Garlic collected" aria-live="polite">
+        <span class="garlic-icon" aria-hidden="true">🧄</span>
+        <span id="mushroom-count">0</span>
+        <span id="garlic-count" hidden>0</span>
+      </output>
+      <div class="vd-hud" id="vd-hud" aria-label="Game status">
+        <div class="vd-hud-chip" id="score-chip" title="Score">⭐ <span id="score-count">0</span></div>
+        <div class="vd-hud-chip" id="lives-chip" title="Lives">❤️ <span id="lives-count">5</span></div>
+        <div class="vd-hud-chip vd-hud-icon" id="time-chip" title="Day / Night" aria-label="Day">☀️</div>
+      </div>
+      <div class="toolbar">
+        <button class="toolbar-button" id="pause-button" type="button" aria-label="Pause game" aria-pressed="false" title="Pause">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" /></svg>
+        </button>
+        <button class="toolbar-button" id="debug-button" type="button" aria-label="Toggle debug tools" aria-controls="debug-panel" aria-expanded="false">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 3h6M10 3v3m4-3v3m-7 5H4m16 0h-3M7 15H4m16 0h-3M8 8h8l1 3v5a5 5 0 0 1-10 0v-5l1-3Z" /></svg>
+        </button>
+        <button class="toolbar-button" id="settings-button" type="button" aria-label="Toggle settings" aria-controls="settings-panel" aria-expanded="false">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.08 14H3v-4h.08A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.63h.01A1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.03 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9v.01A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" /></svg>
+        </button>
+      </div>
+      <section class="debug-panel" id="debug-panel" aria-label="Debug tools" hidden>
+        <h2>Debug view</h2>
+        <label><input id="debug-wireframe" type="checkbox" /> Terrain wireframe</label>
+        <label><input id="debug-biomes" type="checkbox" /> Biome guide</label>
+        <label><input id="debug-poi-directions" type="checkbox" /> POI guide</label>
+        <label><input id="debug-terrain-occlusion" type="checkbox" /> Disable terrain occlusion</label>
+        <label><input id="debug-occlusion-map" type="checkbox" /> Occlusion map</label>
+        <label for="debug-pois">POI layers
+          <select id="debug-pois">
+            <option value="off">Off</option>
+            <option value="accepted">Accepted</option>
+            <option value="candidates">Candidates</option>
+          </select>
+        </label>
+        <label><input id="debug-camera" type="checkbox" /> Camera details</label>
+        <label><input id="debug-performance" type="checkbox" /> Performance view</label>
+        <label><input id="debug-shadows" type="checkbox" checked /> Blob shadows</label>
+      </section>
+      <section class="settings-panel" id="settings-panel" aria-label="Settings" hidden>
+        <h2>Settings</h2>
+        <fieldset>
+          <legend>Neighborhood</legend>
+          <div class="offset-settings">
+            <div class="offset-setting"><span>North</span>
+              <div class="offset-stepper" role="group" aria-label="North offset">
+                <button type="button" data-offset-direction="north" data-offset-change="-1">−</button>
+                <output id="offset-north">4</output>
+                <button type="button" data-offset-direction="north" data-offset-change="1">+</button>
+              </div>
+            </div>
+            <div class="offset-setting"><span>West</span>
+              <div class="offset-stepper" role="group" aria-label="West offset">
+                <button type="button" data-offset-direction="west" data-offset-change="-1">−</button>
+                <output id="offset-west">1</output>
+                <button type="button" data-offset-direction="west" data-offset-change="1">+</button>
+              </div>
+            </div>
+            <div class="offset-setting"><span>East</span>
+              <div class="offset-stepper" role="group" aria-label="East offset">
+                <button type="button" data-offset-direction="east" data-offset-change="-1">−</button>
+                <output id="offset-east">1</output>
+                <button type="button" data-offset-direction="east" data-offset-change="1">+</button>
+              </div>
+            </div>
+            <div class="offset-setting"><span>South</span>
+              <div class="offset-stepper" role="group" aria-label="South offset">
+                <button type="button" data-offset-direction="south" data-offset-change="-1">−</button>
+                <output id="offset-south">1</output>
+                <button type="button" data-offset-direction="south" data-offset-change="1">+</button>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Camera</legend>
+          <div class="setting-block">
+            <span class="setting-label" id="camera-orientation-label">Camera orientation</span>
+            <div class="segmented-control" id="camera-orientation" role="radiogroup" aria-labelledby="camera-orientation-label">
+              <button type="button" role="radio" aria-checked="true" data-value="north-locked">North</button>
+              <button type="button" role="radio" aria-checked="false" data-value="follow-movement">Movement</button>
+            </div>
+          </div>
+          <div id="movement-yaw-settings">
+            <label class="setting-block">
+              <span>Movement yaw <output id="movement-yaw-value" for="movement-yaw">10°</output></span>
+              <input id="movement-yaw" type="range" min="0" max="90" value="10" step="1" />
+            </label>
+          </div>
+          <div id="follow-responsiveness-settings" hidden>
+            <span class="setting-label" id="follow-responsiveness-label">Follow responsiveness</span>
+            <div class="segmented-control three-options" id="follow-responsiveness" role="radiogroup">
+              <button type="button" role="radio" aria-checked="false" data-value="slow">Slow</button>
+              <button type="button" role="radio" aria-checked="true" data-value="normal">Normal</button>
+              <button type="button" role="radio" aria-checked="false" data-value="fast">Fast</button>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Sunlight</legend>
+          <label class="setting-block">
+            <span>Vertical <output id="sunlight-vertical-value">51°</output></span>
+            <input id="sunlight-vertical" type="range" min="10" max="90" value="51" step="1" />
+          </label>
+          <label class="setting-block">
+            <span>Horizontal <output id="sunlight-horizontal-value">51°</output></span>
+            <input id="sunlight-horizontal" type="range" min="0" max="360" value="51" step="1" />
+          </label>
+        </fieldset>
+        <button class="settings-action" id="restart-button" type="button">Restart</button>
+        <button class="settings-action danger" id="reset-progress-button" type="button">Reset progress</button>
+      </section>
+      <output class="debug-readout" id="camera-details" aria-label="Camera details" hidden></output>
+      <output class="debug-readout performance-view" id="performance-view" aria-label="Performance view" hidden></output>
+      <section class="biome-guide" id="biome-guide" aria-label="Biome directions" hidden></section>
+      <section class="biome-guide" id="poi-guide" aria-label="POI directions" hidden></section>
+      <section class="biome-status">
+        <div class="current-biome" hidden>Biome · <strong id="current-biome-name">Unknown</strong></div>
+      </section>
+
+      <div id="start-screen" class="vd-start-screen" aria-label="Title screen">
+        <img id="title-poster" src="./title-poster.jpg" alt="Vampire Ducks — Collect garlic by day. Fight off rubber duck vampires at night" width="960" height="540" decoding="async" />
+        <button id="play-button" type="button" class="play-button">PLAY</button>
+        <div id="home-leaderboard" class="vd-home-leaderboard" aria-label="Top scores">
+          <h2>🏆 TOP 10</h2>
+          <ol id="home-scores"></ol>
+        </div>
+        <p class="controls-hint">Desktop: drag to move · space / click jump · P pause<br>Mobile: drag + jump · pinch zoom</p>
+      </div>
+
+      <div id="pause-overlay" class="vd-overlay" hidden aria-label="Paused">
+        <div class="vd-overlay-card">
+          <h1>PAUSED</h1>
+          <p class="lb-hint">Tap pause or press P to resume</p>
+          <button id="resume-button" type="button">RESUME</button>
+        </div>
+      </div>
+      <div id="game-over-screen" class="vd-overlay hidden" aria-label="Game over">
+        <div class="vd-overlay-card">
+          <h1>GAME OVER</h1>
+          <p id="final-score">Score: 0</p>
+          <div id="name-entry" class="hidden">
+            <p class="name-prompt">NEW HIGH SCORE! Enter your initials</p>
+            <div class="name-inputs">
+              <input id="name-letter-0" maxlength="1" class="name-letter" autocomplete="off" />
+              <input id="name-letter-1" maxlength="1" class="name-letter" autocomplete="off" />
+              <input id="name-letter-2" maxlength="1" class="name-letter" autocomplete="off" />
+            </div>
+            <button id="submit-name-button" type="button">SAVE TO GLOBAL BOARD</button>
+            <p class="lb-hint">Shared with every player online</p>
+          </div>
+          <div id="go-leaderboard" class="vd-leaderboard hidden">
+            <h2>🌍 GLOBAL TOP 10</h2>
+            <ol id="go-scores"></ol>
+            <button id="play-again-button" type="button">PLAY AGAIN</button>
+          </div>
+        </div>
+      </div>
+      <noscript>This experience requires JavaScript.</noscript>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+
+  </body>
+</html>
