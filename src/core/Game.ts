@@ -19,6 +19,7 @@ export class Game {
   private readonly systems: SystemScheduler;
   private readonly loop: GameLoop;
   private running = false;
+  private paused = false;
   private readonly chunks: ChunkStreamingSystem;
   private readonly biomeDebug: BiomeDebugPresentationSystem;
   private readonly poiDebug: PoiDebugPresentationSystem;
@@ -65,7 +66,20 @@ export class Game {
 
   start(): void {
     this.running = true;
+    this.paused = false;
     this.loop.start();
+  }
+
+  togglePause(): boolean {
+    if (!this.running) return this.paused;
+    this.paused = !this.paused;
+    if (this.paused) this.loop.stop();
+    else this.loop.start();
+    return this.paused;
+  }
+
+  isPaused(): boolean {
+    return this.paused;
   }
 
   setDebugView(options: DebugViewOptions): void {
@@ -125,7 +139,7 @@ export class Game {
       this.persistence.flush();
       this.loop.stop();
     }
-    else if (this.running) this.loop.start();
+    else if (this.running && !this.paused) this.loop.start();
   };
 
   private readonly saveProgress = (): void => { this.persistence.flush(); };
