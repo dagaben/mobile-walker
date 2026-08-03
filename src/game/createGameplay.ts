@@ -16,6 +16,7 @@ import { getBrowserStorage, loadGameState, PersistenceSystem } from "./persisten
 import { findSafeRestoredTransform } from "../world/safePlayerPosition";
 import { PLAYER_COLLISION_RADIUS } from "../world/treeCollision";
 import { PoiDebugPresentationSystem } from "./poiDebug";
+import { createCatDogMesh } from "../player/catDog";
 
 export interface GameplayControllers {
   readonly chunks: ChunkStreamingSystem;
@@ -45,26 +46,8 @@ export function createGameplay(
     0.5,
     5,
   );
-  const player = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.38, 0.75, 4, 8),
-    new THREE.MeshStandardMaterial({ color: 0xf28f8f, flatShading: true, roughness: 0.9 }),
-  );
-  body.castShadow = true;
-  player.add(body);
-
-  const eyeGeometry = new THREE.SphereGeometry(0.105, 12, 8);
-  const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0xfffbf2, roughness: 0.65 });
-  const pupilGeometry = new THREE.SphereGeometry(0.048, 10, 8);
-  const pupilMaterial = new THREE.MeshStandardMaterial({ color: 0x31473a, roughness: 0.75 });
-  for (const x of [-0.14, 0.14]) {
-    const eye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    eye.position.set(x, 0.42, 0.32);
-    const pupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
-    pupil.position.set(0, 0, 0.09);
-    eye.add(pupil);
-    player.add(eye);
-  }
+  // CatDog character (ported from Vampire Ducks v1)
+  const player = createCatDogMesh(0.95);
   renderer.scene.add(player);
   renderer.prepareWorldObject(player);
   const playerShadow = markBlobShadow(new THREE.Mesh(
@@ -88,7 +71,6 @@ export function createGameplay(
   world.add({ collectionState: createCollectionState(savedState?.collectedIds) });
   world.add({ dayNight: createDayNightState(true) });
   world.add({ combat: createCombatState() });
-  // Fixed order: snapshot event state, then integrate.
   const input = new InputController(inputElement, dragIndicator);
   const camera = new CameraPresentationSystem(renderer.camera, input);
   systems.addFixedSystem(new InputSnapshotSystem(input, () => camera.getMovementReferenceYaw()));
@@ -108,6 +90,7 @@ export function createGameplay(
   const mushroomCount = document.querySelector<HTMLElement>("#mushroom-count");
   if (!mushroomCount) throw new Error("The garlic counter could not be found.");
   const livesCount = document.querySelector<HTMLElement>("#lives-count");
+  const scoreCount = document.querySelector<HTMLElement>("#score-count");
   const timeLabel = document.querySelector<HTMLElement>("#time-of-day");
   systems.addFixedSystem(new DayNightSystem(renderer, timeLabel, (isDay) => {
     void isDay;
@@ -115,7 +98,7 @@ export function createGameplay(
   systems.addFixedSystem(
     new DuckSpawnSystem(renderer.scene, worldSeed, (object) => renderer.prepareWorldObject(object)),
   );
-  systems.addFixedSystem(new DuckAISystem(worldSeed, mushroomCount, livesCount));
+  systems.addFixedSystem(new DuckAISystem(worldSeed, mushroomCount, livesCount, scoreCount));
   systems.addFixedSystem(persistence);
   systems.addRenderSystem(chunks);
   const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, mushroomCount, chunks.repository, (object) => renderer.prepareWorldObject(object));
