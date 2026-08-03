@@ -16,11 +16,14 @@ export interface GameCombatState {
   lives: number;
   invulnTimer: number;
   score: number;
+  gameOver: boolean;
 }
 
 export function createCombatState(): GameCombatState {
-  return { garlicCount: 0, lives: 5, invulnTimer: 0, score: 0 };
+  return { garlicCount: 0, lives: 5, invulnTimer: 0, score: 0, gameOver: false };
 }
+
+export const VD_GAME_OVER_EVENT = "vd-game-over";
 
 function createDuckMesh(): THREE.Group {
   const group = new THREE.Group();
@@ -69,7 +72,7 @@ export class DuckSpawnSystem implements FixedSystem {
   fixedUpdate(world: EcsWorld, deltaSeconds: number): void {
     const dayNight = world.entities.find((e) => e.dayNight)?.dayNight;
     const combat = world.entities.find((e) => e.combat)?.combat;
-    if (!dayNight || !combat) return;
+    if (!dayNight || !combat || combat.gameOver) return;
 
     if (dayNight.isDay) {
       for (const entity of [...world.entities]) {
@@ -118,6 +121,7 @@ export class DuckAISystem implements FixedSystem {
     worldSeed: string | number,
     private readonly garlicLabel?: HTMLElement | null,
     private readonly livesLabel?: HTMLElement | null,
+    private readonly scoreLabel?: HTMLElement | null,
   ) {
     this.worldSeed = worldSeed;
   }
@@ -126,6 +130,10 @@ export class DuckAISystem implements FixedSystem {
     const player = world.entities.find((e) => e.playerControl && e.transform);
     const combat = world.entities.find((e) => e.combat)?.combat;
     if (!player?.transform || !combat) return;
+    if (combat.gameOver) return;
+
+    combat.score += deltaSeconds * 2;
+    this.syncHud(combat);
 
     if (combat.invulnTimer > 0) {
       combat.invulnTimer = Math.max(0, combat.invulnTimer - deltaSeconds);
@@ -185,9 +193,14 @@ export class DuckAISystem implements FixedSystem {
           combat.invulnTimer = INVULN_SECONDS;
           this.syncHud(combat);
           if (combat.lives <= 0) {
-            combat.lives = 5;
-            combat.garlicCount = Math.max(0, combat.garlicCount);
+            combat.lives = 0;
+            combat.gameOver = true;
             this.syncHud(combat);
+            window.dispatchEvent(
+              new CustomEvent(VD_GAME_OVER_EVENT, {
+                detail: { score: Math.floor(combat.score) },
+              }),
+            );
           }
         }
       }
@@ -197,6 +210,7 @@ export class DuckAISystem implements FixedSystem {
   private syncHud(combat: GameCombatState): void {
     if (this.garlicLabel) this.garlicLabel.textContent = String(combat.garlicCount);
     if (this.livesLabel) this.livesLabel.textContent = String(combat.lives);
+    if (this.scoreLabel) this.scoreLabel.textContent = String(Math.floor(combat.score));
   }
 }
 
