@@ -54,6 +54,8 @@ export interface DayNightComponent {
   isDay: boolean;
   phaseTime: number;
   lightBlend: number;
+  /** Nights started this run (0 before first dusk). */
+  nightCount: number;
 }
 
 export interface CombatComponent {

@@ -11,10 +11,15 @@ export interface DayNightState {
   phaseTime: number;
   /** 0 = midnight-ish night peak, 1 = noon day peak (smooth blend for lighting). */
   lightBlend: number;
+  /**
+   * How many nights have started this run (0 before first dusk).
+   * Difficulty uses this as the current night number while isDay === false.
+   */
+  nightCount: number;
 }
 
 export function createDayNightState(isDay = true): DayNightState {
-  return { isDay, phaseTime: 0, lightBlend: isDay ? 1 : 0 };
+  return { isDay, phaseTime: 0, lightBlend: isDay ? 1 : 0, nightCount: 0 };
 }
 
 /**
@@ -37,6 +42,10 @@ export class DayNightSystem implements FixedSystem {
     if (state.phaseTime >= phaseLen) {
       state.phaseTime = 0;
       state.isDay = !state.isDay;
+      // Entering night: advance the difficulty counter.
+      if (!state.isDay) {
+        state.nightCount += 1;
+      }
       this.onPhaseChange?.(state.isDay);
     }
     // Smooth light blend toward day (1) or night (0)
