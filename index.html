@@ -20,6 +20,7 @@
         <span id="mushroom-count">0</span>
       </output>
       <div class="vd-hud" id="vd-hud" aria-label="Game status">
+        <div class="vd-hud-chip" id="score-chip">⭐ <span id="score-count">0</span></div>
         <div class="vd-hud-chip" id="lives-chip">❤️ <span id="lives-count">5</span></div>
         <div class="vd-hud-chip" id="time-chip">☀️ <span id="time-of-day">Day</span></div>
       </div>
@@ -129,6 +130,27 @@
       <section class="biome-status">
         <div class="current-biome" hidden>Biome · <strong id="current-biome-name">Unknown</strong></div>
       </section>
+      <div id="game-over-screen" class="vd-overlay hidden" aria-label="Game over">
+        <div class="vd-overlay-card">
+          <h1>GAME OVER</h1>
+          <p id="final-score">Score: 0</p>
+          <div id="name-entry" class="hidden">
+            <p class="name-prompt">NEW HIGH SCORE! Enter your initials</p>
+            <div class="name-inputs">
+              <input id="name-letter-0" maxlength="1" class="name-letter" autocomplete="off" />
+              <input id="name-letter-1" maxlength="1" class="name-letter" autocomplete="off" />
+              <input id="name-letter-2" maxlength="1" class="name-letter" autocomplete="off" />
+            </div>
+            <button id="submit-name-button" type="button">SAVE TO GLOBAL BOARD</button>
+            <p class="lb-hint">Shared with every player online</p>
+          </div>
+          <div id="go-leaderboard" class="vd-leaderboard hidden">
+            <h2>🌍 GLOBAL TOP 10</h2>
+            <ol id="go-scores"></ol>
+            <button id="play-again-button" type="button">PLAY AGAIN</button>
+          </div>
+        </div>
+      </div>
       <noscript>This experience requires JavaScript.</noscript>
     </main>
     <script type="module" src="/src/main.ts"></script>
