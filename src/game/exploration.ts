@@ -16,7 +16,7 @@ export { placeCollectibles } from "../world/collectibles";
 
 export function createCollectionState(collectedIds: Iterable<string> = []): NonNullable<Entity["collectionState"]> {
   const ids = new Set(collectedIds);
-  return { collectedIds: ids, discovered: ids.size };
+  return { collectedIds: ids, discovered: ids.size, garlicValue: 0 };
 }
 
 export class ProximityDetectionSystem implements FixedSystem {
@@ -27,8 +27,7 @@ export class ProximityDetectionSystem implements FixedSystem {
       if (!entity.interactable || !entity.transform || !entity.proximity) continue;
       const dx = player.transform.x - entity.transform.x;
       const dz = player.transform.z - entity.transform.z;
-      const radius = entity.interactable.collectionRadius;
-      entity.proximity.inRange = dx * dx + dz * dz <= radius * radius;
+      entity.proximity.inRange = dx * dx + dz * dz <= entity.interactable.collectionRadius ** 2;
     }
   }
 }
@@ -36,21 +35,32 @@ export class ProximityDetectionSystem implements FixedSystem {
 export class CollectionSystem implements FixedSystem {
   fixedUpdate(world: EcsWorld): void {
     const state = world.entities.find((entity) => entity.collectionState)?.collectionState;
+    const combat = world.entities.find((entity) => entity.combat)?.combat;
     if (!state) return;
+    if (state.garlicValue === undefined) state.garlicValue = 0;
     for (const entity of world.entities) {
       if (!entity.interactable || !entity.proximity?.inRange) continue;
       if (state.collectedIds.has(entity.interactable.id)) continue;
       state.collectedIds.add(entity.interactable.id);
-      state.discovered = state.collectedIds.size;
+      const value = entity.interactable.value ?? 1;
+      state.garlicValue += value;
+      if (combat) {
+        combat.garlicCount += value;
+        combat.score += value * 10;
+      }
       if (entity.renderable) entity.renderable.visible = false;
     }
+    state.discovered = state.collectedIds.size;
   }
 }
 
+function disposeObject(object: THREE.Object3D): void { object.removeFromParent(); }
+
+/** Streams only ECS/presentation shells; collection truth lives on the persistent state entity. */
 export class ExplorationPresentationSystem implements RenderSystem {
-  private active = new Map<string, Entity[]>();
-  private center: ChunkCoordinate = { x: 0, z: 0 };
+  private readonly active = new Map<string, Entity[]>();
   private offsets: ChunkNeighborhoodOffsets;
+  private center?: ChunkCoordinate;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -72,8 +82,10 @@ export class ExplorationPresentationSystem implements RenderSystem {
     const player = world.entities.find((entity) => entity.playerControl && entity.transform);
     const state = world.entities.find((entity) => entity.collectionState)?.collectionState;
     if (!player?.transform || !state) return;
-    if (this.collectedCount && this.collectedCount.textContent !== String(state.discovered)) {
-      this.collectedCount.textContent = String(state.discovered);
+    const combat = world.entities.find((entity) => entity.combat)?.combat;
+    const display = combat ? combat.garlicCount : (state.garlicValue ?? state.discovered);
+    if (this.collectedCount && this.collectedCount.textContent !== String(display)) {
+      this.collectedCount.textContent = String(display);
     }
     this.center = selectChunkCenter(player.transform.x, player.transform.z, this.center);
     const wanted = new Set<string>();
@@ -86,14 +98,16 @@ export class ExplorationPresentationSystem implements RenderSystem {
         const data = this.chunks?.get(id);
         if (this.chunks && !data) continue;
         const entities = (data?.collectibles ?? placeCollectibles(this.seed, coordinate)).map((placement) => {
-          const mesh = createMushroom();
+          const isSuper = "isSuper" in placement ? Boolean((placement as { isSuper?: boolean }).isSuper) : false;
+          const value = "value" in placement ? Number((placement as { value?: number }).value) || 1 : 1;
+          const mesh = createMushroom(isSuper);
           mesh.position.set(placement.x, placement.y, placement.z);
           this.prepareWorldObject(mesh);
           mesh.visible = !state.collectedIds.has(placement.id);
           this.scene.add(mesh);
           return world.add({
             transform: { x: placement.x, y: placement.y, z: placement.z, yaw: 0 },
-            interactable: { id: placement.id, kind: "waypoint", collectionRadius: 1.25, chunkId: placement.chunkId },
+            interactable: { id: placement.id, kind: "garlic", collectionRadius: 1.35, chunkId: placement.chunkId, value, isSuper },
             proximity: { inRange: false },
             renderable: mesh,
           });
@@ -121,34 +135,48 @@ export class ExplorationPresentationSystem implements RenderSystem {
       if (entity.renderable) disposeObject(entity.renderable);
     }
     this.active.clear();
-    garlicBulbGeometry.dispose(); garlicTipGeometry.dispose(); garlicBulbMaterial.dispose(); garlicTipMaterial.dispose();
+    garlicBulbGeometry.dispose(); garlicCloveGeometry.dispose(); garlicTipGeometry.dispose();
+    garlicBulbMaterial.dispose(); garlicTipMaterial.dispose();
+    garlicSuperBulbMaterial.dispose(); garlicSuperTipMaterial.dispose();
   }
 }
 
-/** Garlic bulb collectible for Vampire Ducks 2.0 (replaces mushrooms). */
-function createMushroom(): THREE.Group {
-  // Keep function name for minimal API churn; mesh is garlic-themed.
+/** Solid garlic bulb (Vampire Ducks 2.0). isSuper uses a golden tint. */
+function createMushroom(isSuper = false): THREE.Group {
   const garlic = new THREE.Group();
-  const bulb = new THREE.Mesh(garlicBulbGeometry, garlicBulbMaterial);
-  bulb.position.y = 0.28;
+  const bulbMat = isSuper ? garlicSuperBulbMaterial : garlicBulbMaterial;
+  const tipMat = isSuper ? garlicSuperTipMaterial : garlicTipMaterial;
+  const bulb = new THREE.Mesh(garlicBulbGeometry, bulbMat);
+  bulb.position.y = 0.32;
+  bulb.scale.set(1.05, 0.95, 1.05);
   bulb.castShadow = true;
-  const tip = new THREE.Mesh(garlicTipGeometry, garlicTipMaterial);
-  tip.position.y = 0.58;
+  const cloveL = new THREE.Mesh(garlicCloveGeometry, bulbMat);
+  cloveL.position.set(-0.18, 0.28, 0.05);
+  cloveL.scale.set(0.55, 0.7, 0.55);
+  cloveL.castShadow = true;
+  const cloveR = new THREE.Mesh(garlicCloveGeometry, bulbMat);
+  cloveR.position.set(0.18, 0.28, 0.05);
+  cloveR.scale.set(0.55, 0.7, 0.55);
+  cloveR.castShadow = true;
+  const tip = new THREE.Mesh(garlicTipGeometry, tipMat);
+  tip.position.y = 0.62;
   tip.castShadow = true;
-  garlic.add(bulb, tip);
+  garlic.add(bulb, cloveL, cloveR, tip);
+  if (isSuper) {
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.55, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xffe566, transparent: true, opacity: 0.22, flatShading: true }),
+    );
+    glow.position.y = 0.35;
+    garlic.add(glow);
+  }
   return garlic;
 }
 
-const garlicBulbGeometry = new THREE.SphereGeometry(0.32, 10, 8);
-const garlicTipGeometry = new THREE.ConeGeometry(0.12, 0.28, 8);
-const garlicBulbMaterial = new THREE.MeshStandardMaterial({ color: 0xf5f0e1, roughness: 0.85, flatShading: true });
-const garlicTipMaterial = new THREE.MeshStandardMaterial({ color: 0xc8d89a, roughness: 0.75, flatShading: true });
-
-function disposeObject(object: THREE.Object3D): void {
-  object.removeFromParent();
-  object.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      // Shared geometries/materials are disposed in ExplorationPresentationSystem.dispose
-    }
-  });
-}
+const garlicBulbGeometry = new THREE.SphereGeometry(0.34, 12, 10);
+const garlicCloveGeometry = new THREE.SphereGeometry(0.28, 8, 6);
+const garlicTipGeometry = new THREE.ConeGeometry(0.11, 0.3, 8);
+const garlicBulbMaterial = new THREE.MeshStandardMaterial({ color: 0xf7f2e4, roughness: 0.82, flatShading: true });
+const garlicTipMaterial = new THREE.MeshStandardMaterial({ color: 0xb8d080, roughness: 0.72, flatShading: true });
+const garlicSuperBulbMaterial = new THREE.MeshStandardMaterial({ color: 0xfff3b0, roughness: 0.55, flatShading: true, emissive: 0x665500, emissiveIntensity: 0.25 });
+const garlicSuperTipMaterial = new THREE.MeshStandardMaterial({ color: 0xe8c547, roughness: 0.55, flatShading: true, emissive: 0x886600, emissiveIntensity: 0.2 });
