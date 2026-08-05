@@ -27,6 +27,7 @@ export class Game {
   private readonly persistence: PersistenceSystem;
   private readonly exploration: ExplorationPresentationSystem;
   private readonly playerShadow: import("three").Mesh;
+  private readonly audio: import("../game/audio").GameAudio;
   private readonly cameraDetails: HTMLOutputElement;
   private readonly performanceView: HTMLOutputElement;
   private smoothedFrameSeconds = 1 / 60;
@@ -46,6 +47,7 @@ export class Game {
     this.persistence = gameplay.persistence;
     this.exploration = gameplay.exploration;
     this.playerShadow = gameplay.playerShadow;
+    this.audio = gameplay.audio;
     const cameraDetails = document.querySelector<HTMLOutputElement>("#camera-details");
     const performanceView = document.querySelector<HTMLOutputElement>("#performance-view");
     if (!cameraDetails || !performanceView) throw new Error("Debug readouts could not be found.");
@@ -125,11 +127,24 @@ export class Game {
     this.cameraPresentation.setFollowResponsiveness(responsiveness);
   }
 
+  resumeAudio(): void {
+    this.audio.resume();
+  }
+
+  toggleMute(): boolean {
+    return this.audio.toggleMute();
+  }
+
+  isMuted(): boolean {
+    return this.audio.isMuted();
+  }
+
   dispose(): void {
     this.running = false;
     this.loop.stop();
     this.systems.dispose();
     this.renderer.dispose();
+    this.audio.dispose();
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     window.removeEventListener("pagehide", this.saveProgress);
   }
@@ -138,8 +153,12 @@ export class Game {
     if (document.hidden) {
       this.persistence.flush();
       this.loop.stop();
+      this.audio.suspend();
     }
-    else if (this.running && !this.paused) this.loop.start();
+    else if (this.running && !this.paused) {
+      this.loop.start();
+      this.audio.resume();
+    }
   };
 
   private readonly saveProgress = (): void => { this.persistence.flush(); };
