@@ -223,6 +223,7 @@ function beginPlay(): void {
   updatePoiDirections();
   updateMovementYaw();
   updateSunlight();
+  game.resumeAudio();
   game.start();
   // Ensure we never leave the world paused + overlay up after PLAY.
   armPausePlayGuard();
@@ -248,6 +249,15 @@ sunlightVerticalInput.addEventListener("input", updateSunlight);
 sunlightHorizontalInput.addEventListener("input", updateSunlight);
 for (const button of offsetButtons) button.addEventListener("click", changeNeighborhoodOffset);
 playButton.addEventListener("click", beginPlay);
+const muteButton = document.querySelector<HTMLButtonElement>("#mute-button");
+if (muteButton) {
+  muteButton.addEventListener("click", () => {
+    const muted = game.toggleMute();
+    muteButton.setAttribute("aria-pressed", String(muted));
+    muteButton.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
+    muteButton.title = muted ? "Unmute" : "Mute";
+  });
+}
 
 void loadHomeLeaderboard();
 
