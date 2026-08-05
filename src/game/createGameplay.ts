@@ -18,6 +18,7 @@ import { PLAYER_COLLISION_RADIUS } from "../world/treeCollision";
 import { PoiDebugPresentationSystem } from "./poiDebug";
 import { createCatDogMesh } from "../player/catDog";
 import { installGameOverUi } from "./gameOverUi";
+import { GameAudio } from "./audio";
 
 export interface GameplayControllers {
   readonly chunks: ChunkStreamingSystem;
@@ -27,6 +28,7 @@ export interface GameplayControllers {
   readonly persistence: PersistenceSystem;
   readonly exploration: ExplorationPresentationSystem;
   readonly playerShadow: THREE.Mesh;
+  readonly audio: GameAudio;
 }
 
 export function createGameplay(
@@ -93,8 +95,9 @@ export function createGameplay(
   const garlicCount = mushroomCount;
   const livesCount = document.querySelector<HTMLElement>("#lives-count");
   const scoreCount = document.querySelector<HTMLElement>("#score-count");
+  const audio = new GameAudio();
   systems.addFixedSystem(new DayNightSystem(renderer, null, (isDay) => {
-    void isDay;
+    audio.setPhase(isDay ? "day" : "night");
   }));
   systems.addFixedSystem(
     new DuckSpawnSystem(renderer.scene, worldSeed, (object) => renderer.prepareWorldObject(object)),
@@ -118,5 +121,5 @@ export function createGameplay(
   const poiDebug = new PoiDebugPresentationSystem(chunks.repository, poiOverlay, () => camera.getFacingYaw());
   systems.addRenderSystem(poiDebug);
   installGameOverUi();
-  return { chunks, biomeDebug, poiDebug, camera, persistence, exploration, playerShadow };
+  return { chunks, biomeDebug, poiDebug, camera, persistence, exploration, playerShadow, audio };
 }
