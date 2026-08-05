@@ -1,7 +1,16 @@
-import { CHUNK_SIZE, worldToChunk } from "./chunkCoordinates";
+import { CHUNK_SIZE } from "./chunkCoordinates";
 import { sampleBiome, type BiomeId, type BiomeWeights } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
-import { isRiverColumn, sampleRiverSpine } from "./river";
+import {
+  applyWorldRiverCarving,
+  sampleWorldRiverCarving,
+  WORLD_RIVER_CARVING,
+  WORLD_RIVER_MAX_CARVING_RADIUS,
+  type WorldRiverCarvingContext,
+} from "./worldRiverCarving";
+import { getWorldRiverOwner } from "./worldRiverOwner";
+import { sampleRiverWidth } from "./worldRiverWidth";
+import { getCachedWorldRiverCarvingContext } from "./worldRiverContextCache";
 
 export type TerrainSurface = "land" | "river" | "lake";
 /** Default chunk resolution; dry chunks retain the original generation cost. */
@@ -15,21 +24,21 @@ export interface TerrainSample {
 }
 
 const LATTICE_SPACING = CHUNK_SIZE / TERRAIN_SEGMENTS;
+function riverContextForSeed(seed: number | string, x=0,z=0): WorldRiverCarvingContext {
+  return getCachedWorldRiverCarvingContext(getWorldRiverOwner(seed), x, z);
+}
 /**
  * Vertical distance from the water surface to the walkable river bed.
  *
  * The player is approximately 1.5 world units tall, so this submerges them by
  * roughly 30% of their height while they cross a river.
  */
-export const RIVER_BED_DEPTH = 0.45;
 /** Shared level and depth for the broad lake basin. */
 export const LAKE_SURFACE_ELEVATION = -0.08;
 export const LAKE_BED_DEPTH = 0.72;
 export const LAKE_WATER_WEIGHT = 0.34;
 const LAKE_BANK_WEIGHT = 0.18;
 /** Horizontal distances beyond the water edge occupied by each bank region. */
-export const RIVER_BANK_WIDTH = 0.75;
-export const RIVER_TRANSITION_WIDTH = 1.25;
 /** Only the highest mountain summits reach the permanent snow line. */
 export const MOUNTAIN_SNOW_LINE = 12.5;
 export const MOUNTAIN_SNOW_BLEND_DEPTH = 0.65;
@@ -50,46 +59,6 @@ export function mountainSnowCoverage(height: number, biomeWeights: BiomeWeights)
   ));
 }
 
-export interface RiverCrossSectionSample {
-  readonly centerX: number;
-  readonly waterWidth: number;
-  readonly surfaceElevation: number;
-  /** Absolute lateral distance, where 1 is exactly the rendered water edge. */
-  readonly normalizedLateralDistance: number;
-}
-
-/**
- * Samples the authoritative river cross-section at an arbitrary world point.
- * Keeping interpolation here prevents water geometry, collision, and terrain
- * carving from independently interpreting the river spine.
- */
-export function sampleRiverCrossSection(
-  seedInput: number | string,
-  worldX: number,
-  worldZ: number,
-): RiverCrossSectionSample | undefined {
-  const seed = normalizeSeed(seedInput);
-  const coordinate = worldToChunk(worldX, worldZ);
-  if (!isRiverColumn(coordinate)) return undefined;
-  const spine = sampleRiverSpine(seed, coordinate);
-  const local = (worldZ - coordinate.z * CHUNK_SIZE) / CHUNK_SIZE;
-  const segmentPosition = Math.max(0, Math.min(1, local)) * (spine.length - 1);
-  const index = Math.min(spine.length - 2, Math.floor(segmentPosition));
-  const fraction = segmentPosition - index;
-  const start = spine[index];
-  const end = spine[index + 1];
-  if (!start || !end) return undefined;
-
-  const centerX = start.x + (end.x - start.x) * fraction;
-  const waterWidth = start.width + (end.width - start.width) * fraction;
-  return {
-    centerX,
-    waterWidth,
-    surfaceElevation: start.surfaceElevation
-      + (end.surfaceElevation - start.surfaceElevation) * fraction,
-    normalizedLateralDistance: Math.abs(worldX - centerX) / (waterWidth / 2),
-  };
-}
 
 function smoothstep(value: number): number {
   const clamped = Math.max(0, Math.min(1, value));
@@ -175,28 +144,23 @@ export function sampleChannelTerrainHeight(seed: number, worldX: number, worldZ:
     const bedHeight = LAKE_SURFACE_ELEVATION - LAKE_BED_DEPTH;
     shapedHeight = naturalHeight + (Math.min(naturalHeight, bedHeight) - naturalHeight) * basinBlend;
   }
-  const crossSection = sampleRiverCrossSection(seed, worldX, worldZ);
-  if (!crossSection) return shapedHeight;
+  return applyWorldRiverCarving(shapedHeight, sampleWorldRiverCarving(worldX, worldZ,riverContextForSeed(seed,worldX,worldZ)));
+}
 
-  const halfWidth = crossSection.waterWidth / 2;
-  const distanceFromWater = Math.max(0, Math.abs(worldX - crossSection.centerX) - halfWidth);
-  if (distanceFromWater >= RIVER_BANK_WIDTH + RIVER_TRANSITION_WIDTH) return shapedHeight;
-
-  // The slight bowl avoids a mechanically flat bed while remaining safely
-  // below the water right up to the collision/rendered water boundary.
-  const bedHeight = crossSection.surfaceElevation - RIVER_BED_DEPTH
-    + RIVER_BED_DEPTH * 0.08 * Math.min(1, crossSection.normalizedLateralDistance) ** 2;
-  if (crossSection.normalizedLateralDistance <= 1) return Math.min(naturalHeight, bedHeight);
-
-  if (distanceFromWater <= RIVER_BANK_WIDTH) {
-    const bankBlend = smoothstep(distanceFromWater / RIVER_BANK_WIDTH) * 0.7;
-    return Math.min(naturalHeight, bedHeight + (naturalHeight - bedHeight) * bankBlend);
-  }
-  const transitionBlend = smoothstep(
-    (distanceFromWater - RIVER_BANK_WIDTH) / RIVER_TRANSITION_WIDTH,
-  );
-  const bankShoulder = bedHeight + (naturalHeight - bedHeight) * 0.7;
-  return Math.min(naturalHeight, bankShoulder + (naturalHeight - bankShoulder) * transitionBlend);
+/** Bounded variant used by chunk generation; it never invokes the global diagnostic scan. */
+export function sampleChannelTerrainHeightInContext(
+  seed: number,
+  worldX: number,
+  worldZ: number,
+  riverContext: WorldRiverCarvingContext,
+): number {
+  const naturalHeight = sampleNaturalTerrainHeight(seed, worldX, worldZ);
+  const lakeWeight = sampleBiome(seed, worldX, worldZ).weights.lake;
+  const shapedHeight = lakeWeight > LAKE_BANK_WEIGHT
+    ? naturalHeight + (Math.min(naturalHeight, LAKE_SURFACE_ELEVATION - LAKE_BED_DEPTH) - naturalHeight)
+      * smoothstep((lakeWeight - LAKE_BANK_WEIGHT) / (LAKE_WATER_WEIGHT - LAKE_BANK_WEIGHT))
+    : naturalHeight;
+  return applyWorldRiverCarving(shapedHeight, sampleWorldRiverCarving(worldX, worldZ, riverContext));
 }
 
 /**
@@ -205,6 +169,13 @@ export function sampleChannelTerrainHeight(seed: number, worldX: number, worldZ:
  */
 export function sampleTerrainHeight(seedInput: number | string, worldX: number, worldZ: number): number {
   const seed = normalizeSeed(seedInput);
+  const riverContext = riverContextForSeed(seedInput,worldX,worldZ);
+  const river = sampleWorldRiverCarving(worldX, worldZ, riverContext);
+  if (river && river.distanceToCentreline <= WORLD_RIVER_MAX_CARVING_RADIUS + 1e-3) {
+    // The locally refined river terrain samples this exact authoritative field;
+    // movement must not interpolate the old coarse lattice across its bank.
+    return sampleChannelTerrainHeight(seed, worldX, worldZ);
+  }
   const spacing = CHUNK_SIZE / TERRAIN_SEGMENTS;
   const latticeX = worldX / spacing;
   const latticeZ = worldZ / spacing;
@@ -223,14 +194,6 @@ export function sampleTerrainHeight(seedInput: number | string, worldX: number, 
   return bottomRight + (bottomLeft - bottomRight) * (1 - x) + (topRight - bottomRight) * (1 - z);
 }
 
-/** Returns whether a point is inside the generated river ribbon. */
-export function isRiverAt(seedInput: number | string, worldX: number, worldZ: number): boolean {
-  const crossSection = sampleRiverCrossSection(seedInput, worldX, worldZ);
-  // Include mathematically exact mesh-edge positions despite the final
-  // subtraction/division accumulating a few floating-point ULPs.
-  return crossSection !== undefined && crossSection.normalizedLateralDistance <= 1 + 1e-9;
-}
-
 /** Returns whether a point lies in the flooded center of a lake biome. */
 export function isLakeAt(seedInput: number | string, worldX: number, worldZ: number): boolean {
   return sampleBiome(seedInput, worldX, worldZ).weights.lake >= LAKE_WATER_WEIGHT;
@@ -238,10 +201,45 @@ export function isLakeAt(seedInput: number | string, worldX: number, worldZ: num
 
 export function sampleTerrain(seed: number | string, worldX: number, worldZ: number): TerrainSample {
   const biome = sampleBiome(seed, worldX, worldZ);
+  const owner = getWorldRiverOwner(seed),spine=owner.spine;
   return {
     height: sampleTerrainHeight(seed, worldX, worldZ),
-    surface: isRiverAt(seed, worldX, worldZ) ? "river" : isLakeAt(seed, worldX, worldZ) ? "lake" : "land",
+    surface: (()=>{const nearest=spine.nearestPointToRiver(worldX,worldZ);return nearest.distanceToRiver <= sampleRiverWidth(owner.widthProfile,nearest.distanceAlongRiver,spine).halfWidth})()
+      ? "river" : isLakeAt(seed, worldX, worldZ) ? "lake" : "land",
     biome: biome.dominant,
     biomeWeights: biome.weights,
+  };
+}
+
+/** Compatibility aliases used by bridges, vegetation, and POI systems. */
+export const RIVER_BANK_WIDTH = WORLD_RIVER_CARVING.bankWidth;
+export const RIVER_TRANSITION_WIDTH = WORLD_RIVER_CARVING.falloffWidth;
+export const RIVER_BED_DEPTH = WORLD_RIVER_CARVING.nominalBedDepth;
+
+export interface RiverCrossSectionSample {
+  readonly centerX: number;
+  readonly waterWidth: number;
+  readonly surfaceElevation: number;
+  readonly normalizedLateralDistance: number;
+}
+
+export function isRiverAt(seedInput: number | string, worldX: number, worldZ: number): boolean {
+  return sampleTerrain(seedInput, worldX, worldZ).surface === "river";
+}
+
+export function sampleRiverCrossSection(
+  seedInput: number | string,
+  worldX: number,
+  worldZ: number,
+): RiverCrossSectionSample | undefined {
+  const owner = getWorldRiverOwner(seedInput);
+  const nearest = owner.spine.nearestPointToRiver(worldX, worldZ);
+  const halfWidth = sampleRiverWidth(owner.widthProfile, nearest.distanceAlongRiver, owner.spine).halfWidth;
+  if (nearest.distanceToRiver > halfWidth + WORLD_RIVER_MAX_CARVING_RADIUS) return undefined;
+  return {
+    centerX: nearest.position.x,
+    waterWidth: halfWidth * 2,
+    surfaceElevation: WORLD_RIVER_CARVING.surfaceElevation,
+    normalizedLateralDistance: nearest.distanceToRiver / Math.max(1e-6, halfWidth),
   };
 }

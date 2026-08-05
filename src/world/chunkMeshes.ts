@@ -5,13 +5,14 @@ import { blobShadowProjectionForCaster, SunlightDirection } from "../rendering/s
 
 import { BIOME_DEBUG_COLORS, type BiomeId, type BiomeWeights } from "./biomes";
 import { TREE_TRUNK_RADIUS } from "./forest";
-import type { GeneratedChunkData, RiverChannelSection } from "./generateChunk";
-import type { RiverPoint } from "./river";
+import type { GeneratedChunkData } from "./generateChunk";
 import { LEAF_TREE_TRUNK_RADIUS } from "./vegetation";
-import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, mountainSnowCoverage, RIVER_BED_DEPTH, sampleTerrainHeight } from "./terrainSampling";
+import { LAKE_SURFACE_ELEVATION, LAKE_WATER_WEIGHT, mountainSnowCoverage, sampleTerrainHeight } from "./terrainSampling";
 import { terrainDarkening } from "./terrainOcclusion";
 import { PoiMeshFactory } from "./poiMeshes";
 import { BridgeMeshFactory } from "./bridgeMeshes";
+import { tessellateWorldRiverWaterChunk, WORLD_RIVER_WATER_SAMPLE_SPACING } from "./worldRiverWater";
+import { getWorldRiverOwner } from "./worldRiverOwner";
 
 export interface DebugViewOptions {
   readonly wireframe: boolean;
@@ -19,6 +20,7 @@ export interface DebugViewOptions {
   readonly occlusionMap?: boolean;
   readonly disableTerrainOcclusion?: boolean;
   readonly pois?: "off" | "accepted" | "candidates";
+  readonly waterWireframe?: boolean;
 }
 
 export type ChunkActivationStage = "terrain" | "hydrology" | "trees" | "vegetation" | "pois" | "details";
@@ -105,72 +107,6 @@ function addTerrainPresentationAttributes(
   geometry.setAttribute("occlusionColor", new THREE.Float32BufferAttribute(occlusionColors, 3));
 }
 
-/** Builds the shared river ribbon with front faces and normals pointing upward. */
-export function createRiverRibbonGeometry(
-  spine: readonly RiverPoint[],
-  elevationOffset = 0,
-): THREE.BufferGeometry {
-  const positions: number[] = [];
-  const indices: number[] = [];
-  for (const point of spine) {
-    const elevation = point.surfaceElevation + elevationOffset;
-    positions.push(
-      point.x - point.width / 2, elevation, point.z,
-      point.x + point.width / 2, elevation, point.z,
-    );
-  }
-  for (let index = 0; index < spine.length - 1; index += 1) {
-    const left = index * 2;
-    indices.push(left, left + 2, left + 1, left + 1, left + 2, left + 3);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-/** Builds the banks and bed as one deliberately faceted six-vertex strip. */
-export function createRiverChannelGeometry(
-  sections: readonly RiverChannelSection[],
-  maximumDarkening = 0,
-): THREE.BufferGeometry {
-  const positions: number[] = [];
-  const presentationVertices: TerrainPresentationVertex[] = [];
-  const indices: number[] = [];
-  for (const section of sections) {
-    const westWater = section.centerX - section.waterHalfWidth;
-    const eastWater = section.centerX + section.waterHalfWidth;
-    const bedHeight = section.surfaceElevation - RIVER_BED_DEPTH;
-    const lipHeight = section.surfaceElevation + 0.04;
-    positions.push(
-      westWater - section.bankWidth, section.westShoulderHeight, section.z,
-      westWater, lipHeight, section.z,
-      westWater + section.waterHalfWidth * 0.1, bedHeight, section.z,
-      eastWater - section.waterHalfWidth * 0.1, bedHeight, section.z,
-      eastWater, lipHeight, section.z,
-      eastWater + section.bankWidth, section.eastShoulderHeight, section.z,
-    );
-    section.terrainVertices.forEach((vertex, index) => presentationVertices.push({
-      ...vertex,
-      height: positions[(positions.length / 3 - 6 + index) * 3 + 1]!,
-    }));
-  }
-  for (let section = 0; section < sections.length - 1; section += 1) {
-    for (let cross = 0; cross < 5; cross += 1) {
-      const current = section * 6 + cross;
-      const next = current + 6;
-      indices.push(current, next, current + 1, current + 1, next, next + 1);
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  addTerrainPresentationAttributes(geometry, presentationVertices, maximumDarkening);
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
 /** Presentation-only conversion of plain generated data into disposable Three.js objects. */
 export class ChunkMeshFactory {
   private readonly poiMeshes = new PoiMeshFactory();
@@ -231,7 +167,7 @@ export class ChunkMeshFactory {
   addActivationStage(group: THREE.Group, data: GeneratedChunkData, stage: ChunkActivationStage): void {
     if (stage === "terrain") group.add(this.createTerrain(data));
     else if (stage === "hydrology") {
-      if (data.river) group.add(this.createRiver(data.river.spine), this.createRiverChannel(data.river.channelSections, data.terrainMaximumDarkening));
+      const riverWater = this.createWorldRiverWater(data); if (riverWater) group.add(riverWater);
       group.add(this.createLake(data), this.createWetlandPools(data));
     } else if (stage === "trees") group.add(this.createTrees(data));
     else if (stage === "vegetation") group.add(this.createVegetation(data));
@@ -254,6 +190,8 @@ export class ChunkMeshFactory {
     this.debugView = { ...options };
     this.terrainMaterial.wireframe = options.wireframe;
     this.terrainMaterial.needsUpdate = true;
+    this.riverMaterial.wireframe = options.waterWireframe ?? options.wireframe;
+    this.riverMaterial.needsUpdate = true;
     // Debug objects share stable names, including chunks streamed after a toggle.
     for (const group of this.groups) this.applyDebugVisibility(group);
   }
@@ -405,17 +343,20 @@ export class ChunkMeshFactory {
     return boundary;
   }
 
-  private createRiver(spine: readonly RiverPoint[]): THREE.Mesh {
-    const mesh = new THREE.Mesh(createRiverRibbonGeometry(spine), this.riverMaterial);
-    mesh.name = "river";
-    return mesh;
-  }
-
-  private createRiverChannel(sections: readonly RiverChannelSection[], maximumDarkening: number): THREE.Mesh {
-    const mesh = new THREE.Mesh(createRiverChannelGeometry(sections, maximumDarkening), this.terrainMaterial);
-    mesh.name = "river-channel";
-    mesh.userData.isTerrainSurface = true;
+  private createWorldRiverWater(data: GeneratedChunkData): THREE.Mesh | undefined {
+    const owner = getWorldRiverOwner(data.seed);
+    if (owner.identity !== data.riverGenerationIdentity) throw new Error(`Chunk ${data.id} river identity does not match its world seed`);
+    const fragment = tessellateWorldRiverWaterChunk(data.coordinate, owner.spine,owner.widthProfile);
+    if (fragment.indices.length === 0) return undefined;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(fragment.vertices.flatMap(vertex => [vertex.x, vertex.y, vertex.z]), 3));
+    geometry.setAttribute("uv", new THREE.Float32BufferAttribute(fragment.vertices.flatMap(vertex => [vertex.u, vertex.v]), 2));
+    geometry.setIndex([...fragment.indices]);
+    geometry.computeVertexNormals();
+    const mesh = new THREE.Mesh(geometry, this.riverMaterial);
+    mesh.name = "world-river-water";
     mesh.receiveShadow = true;
+    mesh.userData.sampleSpacing = WORLD_RIVER_WATER_SAMPLE_SPACING;
     return mesh;
   }
 
@@ -637,7 +578,7 @@ export class ChunkMeshFactory {
       group.add(this.poiMeshes.createDebug(data.pois, data.candidates ?? [], level));
       group.add(this.bridgeMeshes.createDebug((group.userData.bridgeDebugData as GeneratedChunkData["bridgeCandidates"])??[]));
     }
-    if(level==="off"&&bridgeDebug)group.remove(bridgeDebug);
+    if((level==="off"||poiDebug?.userData.level!==level)&&bridgeDebug){group.remove(bridgeDebug);bridgeDebug.traverse(object=>{if(object instanceof THREE.Line){object.geometry.dispose();(object.material as THREE.Material).dispose();}});}
     group.traverse((object) => {
       if (!(object instanceof THREE.Mesh) || object.userData.isTerrainSurface !== true) return;
       const terrain = object;
