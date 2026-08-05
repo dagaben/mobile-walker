@@ -31,51 +31,38 @@ jobs:
             echo "Fetching $f"
             curl -fsSL "$UPSTREAM/$f" -o "src/world/$f"
           done
-          # Compatibility for Vampire Ducks (bridges/POI still call these symbols)
-          cat >> src/world/terrainSampling.ts << 'EOF'
-
-/** Compatibility aliases used by bridges, vegetation, and POI systems. */
-export const RIVER_BANK_WIDTH = WORLD_RIVER_CARVING.bankWidth;
-export const RIVER_TRANSITION_WIDTH = WORLD_RIVER_CARVING.falloffWidth;
-export const RIVER_BED_DEPTH = WORLD_RIVER_CARVING.nominalBedDepth;
-
-export interface RiverCrossSectionSample {
-  readonly centerX: number;
-  readonly waterWidth: number;
-  readonly surfaceElevation: number;
-  readonly normalizedLateralDistance: number;
-}
-
-/** True when the point is inside the rendered world-river water footprint. */
-export function isRiverAt(seedInput: number | string, worldX: number, worldZ: number): boolean {
-  const sample = sampleTerrain(seedInput, worldX, worldZ);
-  return sample.surface === "river";
-}
-
-/**
- * Compatibility cross-section for legacy bridge placement.
- * Maps the world river spine + variable width into the old centerX/waterWidth shape.
- */
-export function sampleRiverCrossSection(
-  seedInput: number | string,
-  worldX: number,
-  worldZ: number,
-): RiverCrossSectionSample | undefined {
-  const owner = getWorldRiverOwner(seedInput);
-  const nearest = owner.spine.nearestPointToRiver(worldX, worldZ);
-  const halfWidth = sampleRiverWidth(owner.widthProfile, nearest.distanceAlongRiver, owner.spine).halfWidth;
-  if (nearest.distanceToRiver > halfWidth + WORLD_RIVER_MAX_CARVING_RADIUS) return undefined;
-  return {
-    centerX: nearest.position.x,
-    waterWidth: halfWidth * 2,
-    surfaceElevation: WORLD_RIVER_CARVING.surfaceElevation,
-    normalizedLateralDistance: nearest.distanceToRiver / Math.max(1e-6, halfWidth),
-  };
-}
-EOF
-          # Ensure WORLD_RIVER_CARVING is imported in terrainSampling
+          # Ensure WORLD_RIVER_CARVING is imported for compatibility helpers
           if ! grep -q 'WORLD_RIVER_CARVING,' src/world/terrainSampling.ts; then
             sed -i 's/WORLD_RIVER_MAX_CARVING_RADIUS,/WORLD_RIVER_CARVING,\n  WORLD_RIVER_MAX_CARVING_RADIUS,/' src/world/terrainSampling.ts
+          fi
+          # Append VD compatibility symbols if missing
+          if ! grep -q 'export function isRiverAt' src/world/terrainSampling.ts; then
+            printf '\n/** Compatibility aliases used by bridges, vegetation, and POI systems. */\n' >> src/world/terrainSampling.ts
+            printf 'export const RIVER_BANK_WIDTH = WORLD_RIVER_CARVING.bankWidth;\n' >> src/world/terrainSampling.ts
+            printf 'export const RIVER_TRANSITION_WIDTH = WORLD_RIVER_CARVING.falloffWidth;\n' >> src/world/terrainSampling.ts
+            printf 'export const RIVER_BED_DEPTH = WORLD_RIVER_CARVING.nominalBedDepth;\n\n' >> src/world/terrainSampling.ts
+            printf 'export interface RiverCrossSectionSample {\n' >> src/world/terrainSampling.ts
+            printf '  readonly centerX: number;\n' >> src/world/terrainSampling.ts
+            printf '  readonly waterWidth: number;\n' >> src/world/terrainSampling.ts
+            printf '  readonly surfaceElevation: number;\n' >> src/world/terrainSampling.ts
+            printf '  readonly normalizedLateralDistance: number;\n}\n\n' >> src/world/terrainSampling.ts
+            printf 'export function isRiverAt(seedInput: number | string, worldX: number, worldZ: number): boolean {\n' >> src/world/terrainSampling.ts
+            printf '  return sampleTerrain(seedInput, worldX, worldZ).surface === "river";\n}\n\n' >> src/world/terrainSampling.ts
+            printf 'export function sampleRiverCrossSection(\n' >> src/world/terrainSampling.ts
+            printf '  seedInput: number | string,\n' >> src/world/terrainSampling.ts
+            printf '  worldX: number,\n' >> src/world/terrainSampling.ts
+            printf '  worldZ: number,\n' >> src/world/terrainSampling.ts
+            printf '): RiverCrossSectionSample | undefined {\n' >> src/world/terrainSampling.ts
+            printf '  const owner = getWorldRiverOwner(seedInput);\n' >> src/world/terrainSampling.ts
+            printf '  const nearest = owner.spine.nearestPointToRiver(worldX, worldZ);\n' >> src/world/terrainSampling.ts
+            printf '  const halfWidth = sampleRiverWidth(owner.widthProfile, nearest.distanceAlongRiver, owner.spine).halfWidth;\n' >> src/world/terrainSampling.ts
+            printf '  if (nearest.distanceToRiver > halfWidth + WORLD_RIVER_MAX_CARVING_RADIUS) return undefined;\n' >> src/world/terrainSampling.ts
+            printf '  return {\n' >> src/world/terrainSampling.ts
+            printf '    centerX: nearest.position.x,\n' >> src/world/terrainSampling.ts
+            printf '    waterWidth: halfWidth * 2,\n' >> src/world/terrainSampling.ts
+            printf '    surfaceElevation: WORLD_RIVER_CARVING.surfaceElevation,\n' >> src/world/terrainSampling.ts
+            printf '    normalizedLateralDistance: nearest.distanceToRiver / Math.max(1e-6, halfWidth),\n' >> src/world/terrainSampling.ts
+            printf '  };\n}\n' >> src/world/terrainSampling.ts
           fi
       - name: Commit if changed
         run: |
