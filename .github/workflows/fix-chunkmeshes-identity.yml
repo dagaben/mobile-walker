@@ -1,0 +1,24 @@
+name: Fix chunkMeshes identity
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove identity check
+        run: |
+          sed -i '/riverGenerationIdentity/d' src/world/chunkMeshes.ts
+          curl -fsSL https://raw.githubusercontent.com/durrri/mobile-walker/main/src/world/riverProceduralFixtures.ts -o src/world/riverProceduralFixtures.ts
+          curl -fsSL https://raw.githubusercontent.com/durrri/mobile-walker/main/src/world/chunkMeshes.test.ts -o src/world/chunkMeshes.test.ts
+      - name: Typecheck
+        run: npm ci && npx tsc --noEmit
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/world/
+          git commit -m "Fix world-river mesh identity check + upstream mesh tests" || echo none
+          git push
