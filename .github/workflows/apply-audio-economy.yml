@@ -1,0 +1,28 @@
+name: Apply audio and economy
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write files
+        run: |
+          bash scripts/apply-audio-econ-1.sh
+          bash scripts/apply-audio-econ-2.sh
+          bash scripts/apply-audio-econ-3.sh
+          bash scripts/apply-audio-econ-4.sh
+      - name: Typecheck and test
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npx vitest run src/game/difficulty.test.ts src/game/audio.test.ts
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/game src/core index.html
+          git commit -m "Day/night audio + tighter garlic economy" || echo none
+          git push
