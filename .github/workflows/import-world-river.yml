@@ -1,0 +1,43 @@
+name: Import world river modules
+on:
+  workflow_dispatch:
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch world-river sources from upstream durrri/mobile-walker
+        run: |
+          set -euo pipefail
+          UPSTREAM=https://raw.githubusercontent.com/durrri/mobile-walker/main/src/world
+          for f in \
+            riverSpineGeometry.ts \
+            worldRiverGeneration.ts \
+            worldRiverWidth.ts \
+            worldRiverCarving.ts \
+            worldRiverWater.ts \
+            worldRiverEnvironment.ts \
+            worldRiverGameplay.ts \
+            worldRiverRelationship.ts \
+            worldRiverSpine.ts \
+            worldRiverOwner.ts \
+            worldRiverContextCache.ts
+          do
+            echo "Fetching $f"
+            curl -fsSL "$UPSTREAM/$f" -o "src/world/$f"
+          done
+      - name: Typecheck
+        run: npm ci && npx tsc --noEmit
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/world/
+          if git diff --staged --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Import world river modules from durrri/mobile-walker"
+            git push
+          fi
