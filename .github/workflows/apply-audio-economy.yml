@@ -8,12 +8,17 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - name: Assemble scripts
+        run: |
+          cat scripts/apply-audio-rest.sh.a scripts/apply-audio-rest.sh.b > scripts/apply-audio-rest.sh
+          cat scripts/apply-audio-wire-a.sh.a scripts/apply-audio-wire-a.sh.b > scripts/apply-audio-wire-a.sh
+          cat scripts/apply-audio-wire-b.sh.a scripts/apply-audio-wire-b.sh.b > scripts/apply-audio-wire-b.sh
+          chmod +x scripts/apply-audio-rest.sh scripts/apply-audio-wire-a.sh scripts/apply-audio-wire-b.sh
       - name: Write files
         run: |
-          bash scripts/apply-audio-econ-1.sh
-          bash scripts/apply-audio-econ-2.sh
-          bash scripts/apply-audio-econ-3.sh
-          bash scripts/apply-audio-econ-4.sh
+          bash scripts/apply-audio-rest.sh
+          bash scripts/apply-audio-wire-a.sh
+          bash scripts/apply-audio-wire-b.sh
       - name: Typecheck and test
         run: |
           npm ci
