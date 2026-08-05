@@ -13,6 +13,7 @@
  *   - Super Boss ducks (3× size, 30 garlic) with count doubling each night
  *   - Player speed penalties from lifetime garlic (per 400 and per 500)
  *   - Garlic density −5%/night, super-garlic chance −10%/night
+ *   - Economy tighten (2026-08): base petrify 12, fewer garlics (~20% less base density)
  */
 
 export interface DifficultyParams {
@@ -43,10 +44,12 @@ export interface DifficultyParams {
 const BASE_SPAWN_INTERVAL = 6.5;
 const BASE_MAX_DUCKS = 8;
 const BASE_DUCK_SPEED = 5.2;
-const BASE_PETRIFY_COST = 10;
+/** Raised so garlic is a spend resource, not a free pass. */
+const BASE_PETRIFY_COST = 12;
 const BASE_NIGHT_LENGTH = 50;
-const BASE_COLLECTIBLES_PER_CHUNK = 3;
-const BASE_SUPER_CHANCE = 0.1; // roll > 0.9
+/** ~20% fewer placements than the previous base of 3. */
+const BASE_COLLECTIBLES_PER_CHUNK = 2.4;
+const BASE_SUPER_CHANCE = 0.08;
 const BOSS_PETRIFY_COST = 30;
 const BOSS_SCALE = 3;
 const REGULAR_HIT_RADIUS = 1.15;
@@ -127,7 +130,7 @@ export function getDifficulty(nightCount: number): DifficultyParams {
   }
   if (night >= 4) {
     maxDucks = BASE_MAX_DUCKS + 1;
-    petrifyCost = 12;
+    petrifyCost = 14;
   }
   if (night >= 5) {
     duckSpeed = BASE_DUCK_SPEED * 1.1;
@@ -135,7 +138,7 @@ export function getDifficulty(nightCount: number): DifficultyParams {
   }
   if (night >= 6) {
     maxDucks = BASE_MAX_DUCKS + 2;
-    petrifyCost = 15;
+    petrifyCost = 16;
     doubleSpawnChance = 0.28;
     const extra = Math.min(night - 6, 4);
     spawnInterval = Math.max(3.2, BASE_SPAWN_INTERVAL * 0.75 - extra * 0.15);
