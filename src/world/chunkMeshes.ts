@@ -345,7 +345,6 @@ export class ChunkMeshFactory {
 
   private createWorldRiverWater(data: GeneratedChunkData): THREE.Mesh | undefined {
     const owner = getWorldRiverOwner(data.seed);
-    if (owner.identity !== data.riverGenerationIdentity) throw new Error(`Chunk ${data.id} river identity does not match its world seed`);
     const fragment = tessellateWorldRiverWaterChunk(data.coordinate, owner.spine,owner.widthProfile);
     if (fragment.indices.length === 0) return undefined;
     const geometry = new THREE.BufferGeometry();

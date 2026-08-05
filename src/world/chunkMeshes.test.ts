@@ -3,135 +3,73 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   ChunkMeshFactory,
-  createRiverRibbonGeometry,
-  createRiverChannelGeometry,
 } from "./chunkMeshes";
 import { generateChunk } from "./generateChunk";
 import { SunlightDirection } from "../rendering/sunlightDirection";
+import { bridgeFixture, dryChunkOutsideRiverInfluence, riverChunkAtProgress, riverReachOutsideLegacyColumn, riverSeamCrossing } from "./riverProceduralFixtures";
 
 describe("river ribbon geometry", () => {
-  it("uses a bounded shared strip and leaves the water corridor out of base terrain", () => {
+  it("renders world water beyond legacy column zero and does not fill an absent column-zero chunk", () => {
     const factory = new ChunkMeshFactory();
-    const data = generateChunk("open-channel", { x: 0, z: 0 });
+    const curvedReach = factory.create(generateChunk("r4-column-audit", riverReachOutsideLegacyColumn("r4-column-audit").chunk));
+    const absentReach = factory.create(generateChunk("r4-column-audit", dryChunkOutsideRiverInfluence("r4-column-audit")));
+    const curvedWater = curvedReach.getObjectByName("world-river-water") as THREE.Mesh;
+    const absentWater = absentReach.getObjectByName("world-river-water");
+    expect(curvedWater.geometry.getAttribute("position").count).toBeGreaterThan(0);
+    expect(absentWater).toBeUndefined();
+    expect(curvedReach.getObjectByName("river")).toBeUndefined();
+    expect(curvedReach.getObjectByName("river-channel")).toBeUndefined();
+    factory.disposeChunk(curvedReach); factory.disposeChunk(absentReach); factory.dispose();
+  }, 15_000);
+
+  it("renders locally refined authoritative terrain and disables legacy presentation", () => {
+    const factory = new ChunkMeshFactory();
+    const coordinate = riverChunkAtProgress(.5, "open-channel"), data = generateChunk("open-channel", coordinate);
+    expect(data.irregularTerrain, `expected refined river chunk ${JSON.stringify(coordinate)}`).toBeDefined();
     const group = factory.create(data);
     const terrain = group.getObjectByName("terrain") as THREE.Mesh;
-    const channel = group.getObjectByName("river-channel") as THREE.Mesh;
-
-    expect(channel.geometry.getAttribute("position").count).toBe(data.river!.channelSections.length * 6);
-    expect(channel.geometry.getAttribute("position").count).toBeLessThan(64);
+    const water = group.getObjectByName("world-river-water") as THREE.Mesh;
+    expect(group.getObjectByName("river-channel")).toBeUndefined();
+    expect(group.getObjectByName("river")).toBeUndefined();
+    expect(water).toBeInstanceOf(THREE.Mesh);
     expect(terrain.geometry.getAttribute("position").count).toBe(data.irregularTerrain!.vertices.length);
-    expect(data.irregularTerrain!.indices).toHaveLength((data.river!.channelSections.length - 1) * 12);
-
-    // Every base-terrain triangle belongs entirely west or east of its
-    // section shoulders; none bridges across the channel/water corridor.
-    for (let index = 0; index < data.irregularTerrain!.indices.length; index += 3) {
-      const triangle = data.irregularTerrain!.indices.slice(index, index + 3);
-      const xs = triangle.map((vertex) => data.irregularTerrain!.vertices[vertex]!.x);
-      const centers = triangle.map((vertex) => {
-        const section = data.river!.channelSections[Math.floor(vertex / 4)]!;
-        return section.centerX;
-      });
-      expect(xs.every((x, vertex) => x <= centers[vertex]) || xs.every((x, vertex) => x >= centers[vertex])).toBe(true);
-    }
+    expect(data.irregularTerrain!.vertices.length).toBeGreaterThan(data.terrainHeights.length);
 
     factory.disposeChunk(group);
     factory.dispose();
   });
 
-  it("reuses each section boundary verbatim in adjacent channel triangles", () => {
-    const sections = generateChunk("shared-strip", { x: 0, z: 0 }).river!.channelSections;
-    const geometry = createRiverChannelGeometry(sections);
-    const positions = geometry.getAttribute("position");
-    for (let section = 1; section < sections.length - 1; section += 1) {
-      for (let cross = 0; cross < 6; cross += 1) {
-        const vertex = section * 6 + cross;
-        expect(positions.getZ(vertex)).toBeCloseTo(sections[section]!.z);
-      }
-    }
-    geometry.dispose();
-  });
 
-  it("renders banks through the same material and attribute pipeline as terrain", () => {
+  it("uses carved terrain itself as the visible bank", () => {
     const factory = new ChunkMeshFactory();
     const group = factory.create(generateChunk("visible-shoreline", { x: 0, z: 0 }));
-    const channel = group.getObjectByName("river-channel") as THREE.Mesh<
-      THREE.BufferGeometry,
-      THREE.MeshStandardMaterial
-    >;
-
     const terrain = group.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
-    expect(channel.material).toBe(terrain.material);
-    expect(channel.material.vertexColors).toBe(true);
-    for (const attribute of ["color", "baseTerrainColor", "terrainColor", "debugColor", "occlusionColor"]) {
-      expect(channel.geometry.getAttribute(attribute).count).toBe(channel.geometry.getAttribute("position").count);
-    }
+    expect(terrain.userData.isTerrainSurface).toBe(true);
+    expect(group.getObjectByName("river-channel")).toBeUndefined();
 
     factory.disposeChunk(group);
     factory.dispose();
   });
 
-  it("applies terrain debug modes to banks but not water", () => {
+  it("supports independently selectable water wireframe debug", () => {
     const factory = new ChunkMeshFactory();
-    const group = factory.create(generateChunk("river-debug-pipeline", { x: 0, z: 0 }));
+    const group = factory.create(generateChunk("river-debug-pipeline", riverChunkAtProgress(.5, "river-debug-pipeline")));
     factory.registerGroup(group);
     const terrain = group.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
-    const channel = group.getObjectByName("river-channel") as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
-    const water = group.getObjectByName("river") as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    const water = group.getObjectByName("world-river-water") as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
     const waterMaterial = water.material;
 
-    factory.setDebugView({ wireframe: true, biomeGuide: true, occlusionMap: true });
-    expect(channel.material).toBe(terrain.material);
-    expect(channel.material.wireframe).toBe(true);
-    expect(channel.geometry.getAttribute("color")).toBe(channel.geometry.getAttribute("debugColor"));
+    factory.setDebugView({ wireframe: false, waterWireframe: true, biomeGuide: true, occlusionMap: true });
     expect(terrain.geometry.getAttribute("color")).toBe(terrain.geometry.getAttribute("debugColor"));
     expect(water.material).toBe(waterMaterial);
-    expect(water.material).not.toBe(channel.material);
-    expect(water.material.wireframe).toBe(false);
+    expect(water.material).not.toBe(terrain.material);
+    expect(water.material.wireframe).toBe(true);
 
     factory.disposeChunk(group);
     factory.dispose();
   });
 
-  it("keeps terrain and bank presentation seamless at their shared shoulders", () => {
-    const factory = new ChunkMeshFactory();
-    const data = generateChunk("river-bank-seam", { x: 0, z: 0 });
-    const group = factory.create(data);
-    const terrainColors = (group.getObjectByName("terrain") as THREE.Mesh<THREE.BufferGeometry>).geometry
-      .getAttribute("terrainColor");
-    const bankColors = (group.getObjectByName("river-channel") as THREE.Mesh<THREE.BufferGeometry>).geometry
-      .getAttribute("terrainColor");
 
-    for (let section = 0; section < data.river!.channelSections.length; section += 1) {
-      // Irregular terrain stores west/east shoulders at slots 1/2; channel slots 0/5
-      // are the exact same world-space surface samples.
-      for (const [terrainOffset, bankOffset] of [[1, 0], [2, 5]] as const) {
-        const terrainIndex = section * 4 + terrainOffset;
-        const bankIndex = section * 6 + bankOffset;
-        expect([bankColors.getX(bankIndex), bankColors.getY(bankIndex), bankColors.getZ(bankIndex)])
-          .toEqual([terrainColors.getX(terrainIndex), terrainColors.getY(terrainIndex), terrainColors.getZ(terrainIndex)]);
-      }
-    }
-
-    factory.disposeChunk(group);
-    factory.dispose();
-  });
-
-  it("winds its triangles counter-clockwise from above", () => {
-    const geometry = createRiverRibbonGeometry([
-      { x: 0, z: 0, width: 2, surfaceElevation: 0 },
-      { x: 4, z: 1, width: 2, surfaceElevation: 0 },
-    ]);
-    const positions = geometry.getAttribute("position");
-    const indices = geometry.getIndex();
-    const triangle = new THREE.Triangle(
-      new THREE.Vector3().fromBufferAttribute(positions, indices!.getX(0)),
-      new THREE.Vector3().fromBufferAttribute(positions, indices!.getX(1)),
-      new THREE.Vector3().fromBufferAttribute(positions, indices!.getX(2)),
-    );
-
-    expect(triangle.getNormal(new THREE.Vector3()).y).toBeGreaterThan(0);
-    geometry.dispose();
-  });
 
   it("uses a front-sided production material", () => {
     const factory = new ChunkMeshFactory();
@@ -353,18 +291,22 @@ describe("terrain biome colors", () => {
 
   it("gives adjacent chunks exactly matching boundary colors", () => {
     const factory = new ChunkMeshFactory();
-    const left = terrainOf(factory, "color-continuity", 1, 2);
-    const right = terrainOf(factory, "color-continuity", 2, 2);
+    const seam = riverSeamCrossing("x");
+    const left = terrainOf(factory, "color-continuity", seam.a.x, seam.a.z);
+    const right = terrainOf(factory, "color-continuity", seam.b.x, seam.b.z);
     const leftColors = left.terrain.geometry.getAttribute("color");
     const rightColors = right.terrain.geometry.getAttribute("color");
-    const side = left.data.terrainVerticesPerSide;
-
-    for (let z = 0; z < side; z += 1) {
-      const leftIndex = z * side + side - 1;
-      const rightIndex = z * side;
-      expect([leftColors.getX(leftIndex), leftColors.getY(leftIndex), leftColors.getZ(leftIndex)])
-        .toEqual([rightColors.getX(rightIndex), rightColors.getY(rightIndex), rightColors.getZ(rightIndex)]);
-    }
+    const boundaryX = seam.edge;
+    const boundaryColors = (data: typeof left.data, colors: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) => {
+      const vertices = data.irregularTerrain?.vertices;
+      if (!vertices) throw new Error("expected refined river fixture");
+      return new Map(vertices.flatMap((vertex, index) => vertex.x === boundaryX
+        ? [[vertex.z, [colors.getX(index), colors.getY(index), colors.getZ(index)]] as const]
+        : []));
+    };
+    const leftBoundary = boundaryColors(left.data, leftColors);
+    const rightBoundary = boundaryColors(right.data, rightColors);
+    for (const [z, color] of leftBoundary) expect(rightBoundary.get(z)).toEqual(color);
 
     factory.disposeChunk(left.group);
     factory.disposeChunk(right.group);
@@ -551,6 +493,20 @@ describe("lazy POI debug presentation", () => {
 
     factory.disposeChunk(group);
     factory.dispose();
+  });
+
+  it("lazily creates and disposes world-river bridge diagnostics",()=>{
+    const coordinate=bridgeFixture(7).chunk;
+    const factory=new ChunkMeshFactory(),group=factory.create(generateChunk(7,coordinate,undefined,true));factory.registerGroup(group);
+    expect(group.getObjectByName("debug:bridge-crossings")).toBeUndefined();
+    factory.setDebugView(view("candidates"));
+    const debug=group.getObjectByName("debug:bridge-crossings")!;
+    expect(debug).toBeDefined();
+    expect(debug.getObjectByName("bridge-debug:axes-landings-approaches")).toBeDefined();
+    const line=debug.children[0] as THREE.LineSegments,dispose=vi.spyOn(line.geometry,"dispose");
+    factory.setDebugView(view("off"));
+    expect(group.getObjectByName("debug:bridge-crossings")).toBeUndefined();expect(dispose).toHaveBeenCalledOnce();
+    factory.unregisterGroup(group);factory.disposeChunk(group);factory.dispose();
   });
 
   it("disposes debug-owned geometry and does not accumulate objects across toggles", () => {
