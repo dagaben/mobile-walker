@@ -4,6 +4,10 @@ import { isVegetationExcluded, type PoiZone } from "./poi";
 import { hashFloat, normalizeSeed } from "./random";
 import { sampleTerrainHeight } from "./terrainSampling";
 import {
+  createWorldRiverEnvironmentContext,
+  decideWorldRiverObjectPlacement,
+} from "./worldRiverEnvironment";
+import {
   BASE_COLLECTIBLES_PER_CHUNK,
   getGarlicDensityPerChunk,
   getSuperGarlicChance,
@@ -42,6 +46,9 @@ export function placeCollectibles(
   // Candidate slots stay fixed so IDs remain stable; density decides which spawn.
   const candidates = BASE_COLLECTIBLES_PER_CHUNK;
   const superChance = getSuperGarlicChance(night);
+  const riverContext = createWorldRiverEnvironmentContext({
+    minX: origin.x, maxX: origin.x + CHUNK_SIZE, minZ: origin.z, maxZ: origin.z + CHUNK_SIZE,
+  });
   const placements: CollectiblePlacement[] = [];
 
   for (let index = 0; index < candidates; index += 1) {
@@ -51,7 +58,18 @@ export function placeCollectibles(
 
     const x = origin.x + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 101) * (CHUNK_SIZE - 4);
     const z = origin.z + 2 + hashFloat(seed, coordinate.x, coordinate.z, index, 211) * (CHUNK_SIZE - 4);
-    if (isVegetationExcluded(x, z, poiZones)) continue;
+    const structureExcluded = isVegetationExcluded(x, z, poiZones);
+    const riverDecision = decideWorldRiverObjectPlacement({
+      seed,
+      category: "collectible",
+      worldX: x,
+      worldZ: z,
+      identityX: coordinate.x * 16 + index,
+      identityZ: coordinate.z * 16 + index,
+      structureExcluded,
+      context: riverContext,
+    });
+    if (!riverDecision.accepted) continue;
 
     const roll = hashFloat(seed, coordinate.x, coordinate.z, index, 307);
     const isSuper = roll > 1 - superChance;
