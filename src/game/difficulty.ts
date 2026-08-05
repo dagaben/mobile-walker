@@ -4,9 +4,9 @@
  * Existing ramp (nights):
  *   Night 1–2: tutorial pace
  *   Night 3:   spawn ~15% faster
- *   Night 4:   +1 max duck, petrify cost 12
+ *   Night 4:   +1 max duck, petrify cost 14
  *   Night 5:   duck speed +10%, spawn ~25% faster
- *   Night 6+:  max ducks +2, cost 15, occasional double-spawn
+ *   Night 6+:  max ducks +2, cost 16, occasional double-spawn
  *
  * New layers:
  *   - Night length grows from night 3 (+15% compounding) and from garlic (+10%/300)
