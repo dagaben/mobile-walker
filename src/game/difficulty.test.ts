@@ -30,7 +30,7 @@ describe("getDifficulty ramp", () => {
     expect(n1.spawnInterval).toBeCloseTo(6.5);
     expect(n1.maxDucks).toBe(8);
     expect(n1.duckSpeed).toBeCloseTo(5.2);
-    expect(n1.petrifyCost).toBe(10);
+    expect(n1.petrifyCost).toBe(12);
     expect(n1.doubleSpawnChance).toBe(0);
     expect(n1.maxBosses).toBe(1);
     expect(n2.maxBosses).toBe(2);
@@ -45,7 +45,7 @@ describe("getDifficulty ramp", () => {
   it("night 4 raises max ducks and petrify cost", () => {
     const n4 = getDifficulty(4);
     expect(n4.maxDucks).toBe(9);
-    expect(n4.petrifyCost).toBe(12);
+    expect(n4.petrifyCost).toBe(14);
     expect(n4.maxBosses).toBe(8);
   });
 
@@ -58,7 +58,7 @@ describe("getDifficulty ramp", () => {
 
   it("night 6+ enables double spawn and harder caps", () => {
     const n6 = getDifficulty(6);
-    expect(n6.petrifyCost).toBe(15);
+    expect(n6.petrifyCost).toBe(16);
     expect(n6.maxDucks).toBeGreaterThanOrEqual(10);
     expect(n6.doubleSpawnChance).toBeGreaterThan(0);
     expect(n6.bossPetrifyCost).toBe(30);
@@ -106,7 +106,7 @@ describe("garlic density scaling", () => {
   });
 
   it("reduces super chance ~10% per night", () => {
-    expect(getSuperGarlicChance(1)).toBeCloseTo(0.1);
-    expect(getSuperGarlicChance(2)).toBeCloseTo(0.09);
+    expect(getSuperGarlicChance(1)).toBeCloseTo(0.08);
+    expect(getSuperGarlicChance(2)).toBeCloseTo(0.08 * 0.9);
   });
 });
