@@ -8,62 +8,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch world-river + landscape sources from upstream
-        run: |
-          set -euo pipefail
-          UPSTREAM=https://raw.githubusercontent.com/durrri/mobile-walker/main/src/world
-          for f in \
-            riverSpineGeometry.ts \
-            worldRiverGeneration.ts \
-            worldRiverWidth.ts \
-            worldRiverCarving.ts \
-            worldRiverWater.ts \
-            worldRiverEnvironment.ts \
-            worldRiverGameplay.ts \
-            worldRiverRelationship.ts \
-            worldRiverSpine.ts \
-            worldRiverOwner.ts \
-            worldRiverContextCache.ts \
-            terrainSampling.ts \
-            vegetation.ts \
-            chunkMeshes.ts
-          do
-            echo "Fetching $f"
-            curl -fsSL "$UPSTREAM/$f" -o "src/world/$f"
-          done
-          # Ensure WORLD_RIVER_CARVING is imported for compatibility helpers
-          if ! grep -q 'WORLD_RIVER_CARVING,' src/world/terrainSampling.ts; then
-            sed -i 's/WORLD_RIVER_MAX_CARVING_RADIUS,/WORLD_RIVER_CARVING,\n  WORLD_RIVER_MAX_CARVING_RADIUS,/' src/world/terrainSampling.ts
-          fi
-          # Append VD compatibility symbols if missing
-          if ! grep -q 'export function isRiverAt' src/world/terrainSampling.ts; then
-            printf '\n/** Compatibility aliases used by bridges, vegetation, and POI systems. */\n' >> src/world/terrainSampling.ts
-            printf 'export const RIVER_BANK_WIDTH = WORLD_RIVER_CARVING.bankWidth;\n' >> src/world/terrainSampling.ts
-            printf 'export const RIVER_TRANSITION_WIDTH = WORLD_RIVER_CARVING.falloffWidth;\n' >> src/world/terrainSampling.ts
-            printf 'export const RIVER_BED_DEPTH = WORLD_RIVER_CARVING.nominalBedDepth;\n\n' >> src/world/terrainSampling.ts
-            printf 'export interface RiverCrossSectionSample {\n' >> src/world/terrainSampling.ts
-            printf '  readonly centerX: number;\n' >> src/world/terrainSampling.ts
-            printf '  readonly waterWidth: number;\n' >> src/world/terrainSampling.ts
-            printf '  readonly surfaceElevation: number;\n' >> src/world/terrainSampling.ts
-            printf '  readonly normalizedLateralDistance: number;\n}\n\n' >> src/world/terrainSampling.ts
-            printf 'export function isRiverAt(seedInput: number | string, worldX: number, worldZ: number): boolean {\n' >> src/world/terrainSampling.ts
-            printf '  return sampleTerrain(seedInput, worldX, worldZ).surface === "river";\n}\n\n' >> src/world/terrainSampling.ts
-            printf 'export function sampleRiverCrossSection(\n' >> src/world/terrainSampling.ts
-            printf '  seedInput: number | string,\n' >> src/world/terrainSampling.ts
-            printf '  worldX: number,\n' >> src/world/terrainSampling.ts
-            printf '  worldZ: number,\n' >> src/world/terrainSampling.ts
-            printf '): RiverCrossSectionSample | undefined {\n' >> src/world/terrainSampling.ts
-            printf '  const owner = getWorldRiverOwner(seedInput);\n' >> src/world/terrainSampling.ts
-            printf '  const nearest = owner.spine.nearestPointToRiver(worldX, worldZ);\n' >> src/world/terrainSampling.ts
-            printf '  const halfWidth = sampleRiverWidth(owner.widthProfile, nearest.distanceAlongRiver, owner.spine).halfWidth;\n' >> src/world/terrainSampling.ts
-            printf '  if (nearest.distanceToRiver > halfWidth + WORLD_RIVER_MAX_CARVING_RADIUS) return undefined;\n' >> src/world/terrainSampling.ts
-            printf '  return {\n' >> src/world/terrainSampling.ts
-            printf '    centerX: nearest.position.x,\n' >> src/world/terrainSampling.ts
-            printf '    waterWidth: halfWidth * 2,\n' >> src/world/terrainSampling.ts
-            printf '    surfaceElevation: WORLD_RIVER_CARVING.surfaceElevation,\n' >> src/world/terrainSampling.ts
-            printf '    normalizedLateralDistance: nearest.distanceToRiver / Math.max(1e-6, halfWidth),\n' >> src/world/terrainSampling.ts
-            printf '  };\n}\n' >> src/world/terrainSampling.ts
-          fi
+      - name: Fetch and patch
+        run: bash scripts/import-world-river.sh
       - name: Commit if changed
         run: |
           git config user.name "github-actions[bot]"
