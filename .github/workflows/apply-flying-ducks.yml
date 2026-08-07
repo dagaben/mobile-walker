@@ -3,8 +3,11 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - scripts/flying_part_*.txt
-      - scripts/assemble-flying.sh
+      - scripts/ducks_a.txt
+      - scripts/ducks_b.txt
+      - scripts/assemble-ducks.sh
+      - scripts/landscape.css
+      - scripts/patch-landscape-main.py
       - .github/workflows/apply-flying-ducks.yml
 jobs:
   apply:
@@ -16,9 +19,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Assemble and apply files
+      - name: Assemble ducks + landscape
         run: |
-          bash scripts/assemble-flying.sh
+          bash scripts/assemble-ducks.sh
+          if ! grep -q "orientation: landscape" src/style.css; then
+            cat scripts/landscape.css >> src/style.css
+            echo "appended landscape CSS"
+          fi
+          if ! grep -q "requestLandscape" src/main.ts; then
+            python3 scripts/patch-landscape-main.py
+            echo "patched main.ts"
+          fi
       - name: Typecheck & build
         run: |
           npm ci
@@ -28,7 +39,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add src/game/ducks.ts src/style.css src/main.ts || true
           if git diff --staged --quiet; then
             echo "No changes"
           else
