@@ -3,7 +3,8 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - scripts/apply-flying-ducks.mjs
+      - scripts/flying_part_*.txt
+      - scripts/assemble-flying.sh
       - .github/workflows/apply-flying-ducks.yml
 jobs:
   apply:
@@ -15,8 +16,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Apply files
-        run: node scripts/apply-flying-ducks.mjs
+      - name: Assemble and apply files
+        run: |
+          bash scripts/assemble-flying.sh
       - name: Typecheck & build
         run: |
           npm ci
