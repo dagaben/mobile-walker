@@ -56,7 +56,10 @@ export interface DuckComponent {
   hitRadius?: number;
   /** Chase speed multiplier vs base difficulty duck speed. */
   speedScale?: number;
-  /** Current height above terrain (cruises high over trees, dives for attack). */
+  /**
+   * Current height above terrain (lerped between cruise and attack).
+   * Stored so height changes are smooth across fixed ticks.
+   */
   hoverHeight?: number;
 }
 
