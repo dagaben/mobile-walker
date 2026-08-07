@@ -82,7 +82,7 @@ export function createGameplay(
   const chunks = new ChunkStreamingSystem(renderer.scene, worldSeed, 1, {
     offsets: streamingOffsets,
     sunlightDirection: renderer.sunlightDirection,
-    prepareWorldObject: (object) => renderer.prepareWorldObject(object),
+    prepareWorldObject: (object: THREE.Object3D) => renderer.prepareWorldObject(object),
   });
   systems.addFixedSystem(new TreeCollisionSystem(worldSeed, chunks.repository));
   systems.addFixedSystem(new StructureCollisionSystem(chunks.repository));
@@ -100,12 +100,12 @@ export function createGameplay(
     audio.setPhase(isDay ? "day" : "night");
   }));
   systems.addFixedSystem(
-    new DuckSpawnSystem(renderer.scene, worldSeed, (object) => renderer.prepareWorldObject(object)),
+    new DuckSpawnSystem(renderer.scene, worldSeed, (object: THREE.Object3D) => renderer.prepareWorldObject(object)),
   );
   systems.addFixedSystem(new DuckAISystem(worldSeed, garlicCount, livesCount, scoreCount));
   systems.addFixedSystem(persistence);
   systems.addRenderSystem(chunks);
-  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, garlicCount, chunks.repository, (object) => renderer.prepareWorldObject(object));
+  const exploration = new ExplorationPresentationSystem(renderer.scene, worldSeed, 1, streamingOffsets, garlicCount, chunks.repository, (object: THREE.Object3D) => renderer.prepareWorldObject(object));
   systems.addRenderSystem(exploration);
   systems.addRenderSystem(new TransformInterpolationSystem());
   systems.addRenderSystem(new PlayerFogPresentationSystem((x, z) => renderer.playerCentredFog.update(x, z)));
