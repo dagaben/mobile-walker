@@ -1,0 +1,35 @@
+name: Apply flying ducks + landscape
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/apply-flying-ducks.mjs
+      - .github/workflows/apply-flying-ducks.yml
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Apply files
+        run: node scripts/apply-flying-ducks.mjs
+      - name: Typecheck & build
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Vampire flying ducks (cape, fangs, flapping wings, hover) + landscape orientation"
+            git push
+          fi
