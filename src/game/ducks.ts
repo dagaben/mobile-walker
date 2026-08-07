@@ -5,8 +5,18 @@ import { sampleTerrainHeight } from "../world/terrainSampling";
 import { getDifficulty } from "./difficulty";
 
 const INVULN_SECONDS = 1.6;
-const HOVER_BASE = 1.35;
-const HOVER_BOB = 0.28;
+
+/** Clear of pine tops (~3–4 world units). Ducks cruise here while far away. */
+const CRUISE_HEIGHT = 5.2;
+/** Dive target near player / character height. */
+const ATTACK_HEIGHT = 1.4;
+/** Start descending when this far from the player. */
+const DIVE_START_DIST = 18;
+/** Fully at attack height by this distance. */
+const DIVE_END_DIST = 5.5;
+/** How quickly hover height lerps toward the target (units/sec at scale 1). */
+const HOVER_LERP_SPEED = 3.2;
+const HOVER_BOB = 0.32;
 
 export interface GameCombatState {
   garlicCount: number;
@@ -21,6 +31,11 @@ export function createCombatState(): GameCombatState {
 }
 
 export const VD_GAME_OVER_EVENT = "vd-game-over";
+
+function smoothstep(t: number): number {
+  const x = Math.max(0, Math.min(1, t));
+  return x * x * (3 - 2 * x);
+}
 
 /** Vampire Flying Duck: rubber body, cape, fangs, flapping wings, hover. */
 function createDuckMesh(scale = 1, isBoss = false): THREE.Group {
@@ -129,15 +144,19 @@ function createDuckMesh(scale = 1, isBoss = false): THREE.Group {
   return group;
 }
 
-function animateDuckMesh(mesh: THREE.Object3D, deltaSeconds: number, speed: number): void {
+function animateDuckMesh(mesh: THREE.Object3D, deltaSeconds: number, speed: number, diving: number): void {
   const ud = mesh.userData;
   if (!ud.wingL || !ud.wingR) return;
-  ud.flapPhase = (ud.flapPhase ?? 0) + deltaSeconds * (6.5 + speed * 1.8);
-  const flap = Math.sin(ud.flapPhase) * 0.55;
+  // Flap harder while diving toward the player.
+  const flapRate = 6.5 + speed * 1.8 + diving * 4.5;
+  ud.flapPhase = (ud.flapPhase ?? 0) + deltaSeconds * flapRate;
+  const flapAmp = 0.55 + diving * 0.25;
+  const flap = Math.sin(ud.flapPhase) * flapAmp;
   ud.wingL.rotation.z = 0.35 + flap;
   ud.wingR.rotation.z = -0.35 - flap;
-  if (ud.cape) ud.cape.rotation.x = 0.25 + Math.sin(ud.flapPhase * 0.6) * 0.08;
+  if (ud.cape) ud.cape.rotation.x = 0.25 + Math.sin(ud.flapPhase * 0.6) * 0.08 + diving * 0.12;
 }
+
 export class DuckSpawnSystem implements FixedSystem {
   private timer = 0;
   private bossTimer = 0;
@@ -157,7 +176,9 @@ export class DuckSpawnSystem implements FixedSystem {
     const dist = (opts.isBoss ? 18 : 12) + Math.random() * (opts.isBoss ? 10 : 8);
     const x = px + Math.cos(angle) * dist;
     const z = pz + Math.sin(angle) * dist;
-    const y = sampleTerrainHeight(this.worldSeed, x, z) + HOVER_BASE * opts.scale;
+    // Spawn already above the canopy so they appear flying over trees.
+    const hoverHeight = CRUISE_HEIGHT * opts.scale;
+    const y = sampleTerrainHeight(this.worldSeed, x, z) + hoverHeight;
     const mesh = createDuckMesh(opts.scale, opts.isBoss);
     mesh.position.set(x, y, z);
     this.scene.add(mesh);
@@ -173,6 +194,7 @@ export class DuckSpawnSystem implements FixedSystem {
         petrifyCost: opts.petrifyCost,
         hitRadius: opts.hitRadius,
         speedScale: opts.speedScale,
+        hoverHeight,
       },
       renderable: mesh,
     });
@@ -237,6 +259,7 @@ export class DuckSpawnSystem implements FixedSystem {
     }
   }
 }
+
 export class DuckAISystem implements FixedSystem {
   private readonly worldSeed: string | number;
   private animTime = 0;
@@ -285,7 +308,15 @@ export class DuckAISystem implements FixedSystem {
       const dx = player.transform.x - entity.transform.x;
       const dz = player.transform.z - entity.transform.z;
       const dist = Math.hypot(dx, dz) || 1;
-      const speed = difficulty.duckSpeed * (entity.duck.speedScale ?? 1);
+
+      // 0 while high/far, 1 when fully diving on the player.
+      const diveT = smoothstep(
+        (DIVE_START_DIST - dist) / (DIVE_START_DIST - DIVE_END_DIST),
+      );
+
+      // Drift slowly while cruising above the canopy; speed up as they dive.
+      const approachFactor = 0.42 + 0.58 * diveT;
+      const speed = difficulty.duckSpeed * (entity.duck.speedScale ?? 1) * approachFactor;
       entity.velocity.x = (dx / dist) * speed;
       entity.velocity.z = (dz / dist) * speed;
       entity.transform.x += entity.velocity.x * deltaSeconds;
@@ -293,11 +324,27 @@ export class DuckAISystem implements FixedSystem {
 
       const scale = entity.duck.isBoss ? difficulty.bossScale : 1;
       const terrainY = sampleTerrainHeight(this.worldSeed, entity.transform.x, entity.transform.z);
-      const bob = Math.sin(this.animTime * 2.8 + entity.transform.x * 0.3) * HOVER_BOB * scale;
-      entity.transform.y = terrainY + HOVER_BASE * scale + bob;
+
+      // Target height: high over trees when far, low near the character when attacking.
+      const targetHover = (CRUISE_HEIGHT + (ATTACK_HEIGHT - CRUISE_HEIGHT) * diveT) * scale;
+      let currentHover = entity.duck.hoverHeight ?? targetHover;
+      const maxStep = HOVER_LERP_SPEED * deltaSeconds * scale;
+      if (Math.abs(targetHover - currentHover) <= maxStep) {
+        currentHover = targetHover;
+      } else {
+        currentHover += Math.sign(targetHover - currentHover) * maxStep;
+      }
+      entity.duck.hoverHeight = currentHover;
+
+      // Stronger bob while circling high above the canopy.
+      const bobAmp = HOVER_BOB * (1.15 - diveT * 0.55);
+      const bob = Math.sin(this.animTime * 2.6 + entity.transform.x * 0.28) * bobAmp * scale;
+      entity.transform.y = terrainY + currentHover + bob;
       entity.transform.yaw = Math.atan2(dx, dz);
 
-      if (entity.renderable) animateDuckMesh(entity.renderable, deltaSeconds, speed);
+      if (entity.renderable) {
+        animateDuckMesh(entity.renderable, deltaSeconds, speed, diveT);
+      }
 
       if (combat.invulnTimer > 0) continue;
       const hitRadius = entity.duck.hitRadius ?? difficulty.regularHitRadius;
