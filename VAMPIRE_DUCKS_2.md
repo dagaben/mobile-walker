@@ -13,15 +13,18 @@ Used with permission from the Mobile Walker author.
 - [x] Solid **garlic** collectibles (4/chunk, ~10% super garlic worth 10)
 - [x] **Day/night cycle** (~75s day / ~50s night) with sky, fog, and sun blend
 - [x] **Vampire rubber ducks** spawn at night, chase player, clear at dawn
-- [x] Petrify costs **10 garlic**; otherwise lose a life (5 lives, invuln blink)
-- [x] HUD: garlic (top-right), lives + day/night (top-left)
+- [x] **Flying vampire ducks**: cape, fangs, flapping wings, hover/bob animation
+- [x] Petrify costs garlic (scales with difficulty); otherwise lose a life (5 lives, invuln blink)
+- [x] HUD: garlic (top-right), lives + day/night + score (top-left)
+- [x] Pause button + mute button + procedural day/night audio
+- [x] **Landscape orientation**: lock on PLAY (Screen Orientation API), CSS adaptations for HUD/toolbar/start screen, resize on orientationchange
 - [x] Deploy workflow (GitHub Actions → Pages)
 
 ## Still optional polish
 
-- [ ] CatDog player mesh (currently pink walker capsule)
-- [ ] Arcade leaderboard from v1
-- [ ] Title / start screen poster from v1
+- [ ] CatDog player mesh refinements (currently present)
+- [ ] Arcade leaderboard from v1 (already wired)
+- [ ] Title / start screen poster from v1 (present)
 - [ ] Full upstream CSS for every debug control (core UI works)
 
 ## Play
@@ -39,9 +42,10 @@ npm run dev
 ## How it plays
 
 - **Day:** walk the biomes, collect garlic (golden = super / +10).
-- **Night:** sky darkens; rubber vampire ducks spawn and chase you.
-- Touch a duck with **≥10 garlic** → petrify (duck turns blue, disappears).
-- Touch a duck with **&lt;10 garlic** → lose a life (brief invulnerability).
+- **Night:** sky darkens; flying rubber vampire ducks (cape, fangs, flapping wings) spawn and chase you with hover bob.
+- Touch a duck with enough garlic → petrify (duck turns blue, disappears).
+- Touch a duck without enough garlic → lose a life (brief invulnerability).
+- On mobile, tapping PLAY requests landscape lock; HUD and start screen adapt to landscape.
 
 ## Attribution
 
