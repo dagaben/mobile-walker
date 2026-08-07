@@ -1,0 +1,132 @@
+export class DuckAISystem implements FixedSystem {
+  private readonly worldSeed: string | number;
+  private animTime = 0;
+  constructor(
+    worldSeed: string | number,
+    private readonly garlicLabel?: HTMLElement | null,
+    private readonly livesLabel?: HTMLElement | null,
+    private readonly scoreLabel?: HTMLElement | null,
+  ) {
+    this.worldSeed = worldSeed;
+  }
+
+  fixedUpdate(world: EcsWorld, deltaSeconds: number): void {
+    const combat = world.entities.find((e) => e.combat)?.combat;
+    const player = world.entities.find((e) => e.playerControl && e.transform);
+    if (!combat || !player?.transform || combat.gameOver) return;
+
+    const dayNight = world.entities.find((e) => e.dayNight)?.dayNight;
+    const difficulty = getDifficulty(dayNight?.nightCount || 1);
+
+    this.animTime += deltaSeconds;
+    combat.score += deltaSeconds * 2;
+    this.syncHud(combat);
+
+    if (combat.invulnTimer > 0) {
+      combat.invulnTimer = Math.max(0, combat.invulnTimer - deltaSeconds);
+      if (player.renderable) {
+        player.renderable.visible = Math.floor(combat.invulnTimer * 10) % 2 === 0;
+      }
+    } else if (player.renderable) {
+      player.renderable.visible = true;
+    }
+
+    for (const entity of world.entities) {
+      if (!entity.duck || !entity.transform || !entity.velocity) continue;
+      if (entity.duck.state === "petrified") {
+        entity.duck.petrifyTimer -= deltaSeconds;
+        if (entity.duck.petrifyTimer <= 0) {
+          if (entity.renderable) entity.renderable.removeFromParent();
+          world.remove(entity);
+        }
+        continue;
+      }
+      if (entity.previousTransform) Object.assign(entity.previousTransform, entity.transform);
+
+      const dx = player.transform.x - entity.transform.x;
+      const dz = player.transform.z - entity.transform.z;
+      const dist = Math.hypot(dx, dz) || 1;
+      const speed = difficulty.duckSpeed * (entity.duck.speedScale ?? 1);
+      entity.velocity.x = (dx / dist) * speed;
+      entity.velocity.z = (dz / dist) * speed;
+      entity.transform.x += entity.velocity.x * deltaSeconds;
+      entity.transform.z += entity.velocity.z * deltaSeconds;
+
+      const scale = entity.duck.isBoss ? difficulty.bossScale : 1;
+      const terrainY = sampleTerrainHeight(this.worldSeed, entity.transform.x, entity.transform.z);
+      const bob = Math.sin(this.animTime * 2.8 + entity.transform.x * 0.3) * HOVER_BOB * scale;
+      entity.transform.y = terrainY + HOVER_BASE * scale + bob;
+      entity.transform.yaw = Math.atan2(dx, dz);
+
+      if (entity.renderable) animateDuckMesh(entity.renderable, deltaSeconds, speed);
+
+      if (combat.invulnTimer > 0) continue;
+      const hitRadius = entity.duck.hitRadius ?? difficulty.regularHitRadius;
+      if (dist < hitRadius) {
+        const cost = entity.duck.petrifyCost
+          ?? (entity.duck.isBoss ? difficulty.bossPetrifyCost : difficulty.petrifyCost);
+        if (combat.garlicCount >= cost) {
+          combat.garlicCount -= cost;
+          combat.score += entity.duck.isBoss ? 250 : 50;
+          entity.duck.state = "petrified";
+          entity.duck.petrifyTimer = entity.duck.isBoss ? 12 : 8;
+          if (entity.renderable) {
+            entity.renderable.traverse((child) => {
+              if ((child as THREE.Mesh).isMesh) {
+                const mesh = child as THREE.Mesh;
+                if (mesh.material && !Array.isArray(mesh.material)) {
+                  (mesh.material as THREE.MeshStandardMaterial).color?.set(0x6688cc);
+                  (mesh.material as THREE.MeshStandardMaterial).emissive?.set(0x000000);
+                }
+              }
+            });
+          }
+          this.syncHud(combat);
+        } else {
+          combat.lives -= entity.duck.isBoss ? 2 : 1;
+          combat.invulnTimer = INVULN_SECONDS;
+          this.syncHud(combat);
+          if (combat.lives <= 0) {
+            combat.lives = 0;
+            combat.gameOver = true;
+            this.syncHud(combat);
+            window.dispatchEvent(
+              new CustomEvent(VD_GAME_OVER_EVENT, { detail: { score: Math.floor(combat.score) } }),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  private syncHud(combat: GameCombatState): void {
+    const garlicText = String(combat.garlicCount);
+    if (this.garlicLabel) this.garlicLabel.textContent = garlicText;
+    const garlicHud = document.getElementById("garlic-count");
+    if (garlicHud) garlicHud.textContent = garlicText;
+    const mushroomHud = document.getElementById("mushroom-count");
+    if (mushroomHud && mushroomHud !== this.garlicLabel) mushroomHud.textContent = garlicText;
+    if (this.livesLabel) this.livesLabel.textContent = String(combat.lives);
+    if (this.scoreLabel) this.scoreLabel.textContent = String(Math.floor(combat.score));
+  }
+}
+
+export class GarlicScoreSystem implements FixedSystem {
+  private lastDiscovered = 0;
+  constructor(
+    private readonly garlicLabel?: HTMLElement | null,
+    private readonly onCollect?: (gained: number, isSuper: boolean) => void,
+  ) {}
+
+  fixedUpdate(world: EcsWorld): void {
+    const state = world.entities.find((e) => e.collectionState)?.collectionState;
+    const combat = world.entities.find((e) => e.combat)?.combat;
+    if (!state || !combat) return;
+    if (state.discovered > this.lastDiscovered) {
+      const gained = state.discovered - this.lastDiscovered;
+      this.lastDiscovered = state.discovered;
+      if (this.garlicLabel) this.garlicLabel.textContent = String(combat.garlicCount);
+      this.onCollect?.(gained, false);
+    }
+  }
+}
