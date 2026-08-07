@@ -212,10 +212,20 @@ async function loadHomeLeaderboard(): Promise<void> {
   }
 }
 
+function requestLandscape(): void {
+  try {
+    const orient = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+    if (orient && typeof orient.lock === "function") {
+      void orient.lock("landscape").catch(() => undefined);
+    }
+  } catch { /* unsupported */ }
+}
+
 function beginPlay(): void {
   if (startScreen) startScreen.hidden = true;
   // Block ghost-clicks on the pause toolbar under the PLAY button (mobile).
   armPausePlayGuard();
+  requestLandscape();
   updateNeighborhood();
   updateResponsiveness(followResponsiveness);
   updateOrientation(orientationMode);
@@ -249,6 +259,10 @@ sunlightVerticalInput.addEventListener("input", updateSunlight);
 sunlightHorizontalInput.addEventListener("input", updateSunlight);
 for (const button of offsetButtons) button.addEventListener("click", changeNeighborhoodOffset);
 playButton.addEventListener("click", beginPlay);
+window.addEventListener("orientationchange", () => {
+  window.setTimeout(() => window.dispatchEvent(new Event("resize")), 120);
+  window.setTimeout(() => window.dispatchEvent(new Event("resize")), 320);
+});
 const muteButton = document.querySelector<HTMLButtonElement>("#mute-button");
 if (muteButton) {
   muteButton.addEventListener("click", () => {
