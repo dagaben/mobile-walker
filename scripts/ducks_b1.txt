@@ -1,0 +1,99 @@
+export class DuckSpawnSystem implements FixedSystem {
+  private timer = 0;
+  private bossTimer = 0;
+  constructor(
+    private readonly scene: THREE.Scene,
+    private readonly worldSeed: string | number,
+    private readonly prepareWorldObject: (object: THREE.Object3D) => void = () => undefined,
+  ) {}
+
+  private spawnOne(
+    world: EcsWorld,
+    px: number,
+    pz: number,
+    opts: { isBoss: boolean; scale: number; petrifyCost: number; hitRadius: number; speedScale: number },
+  ): void {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = (opts.isBoss ? 18 : 12) + Math.random() * (opts.isBoss ? 10 : 8);
+    const x = px + Math.cos(angle) * dist;
+    const z = pz + Math.sin(angle) * dist;
+    const y = sampleTerrainHeight(this.worldSeed, x, z) + HOVER_BASE * opts.scale;
+    const mesh = createDuckMesh(opts.scale, opts.isBoss);
+    mesh.position.set(x, y, z);
+    this.scene.add(mesh);
+    this.prepareWorldObject(mesh);
+    world.add({
+      transform: { x, y, z, yaw: 0 },
+      previousTransform: { x, y, z, yaw: 0 },
+      velocity: { x: 0, y: 0, z: 0 },
+      duck: {
+        state: "alive",
+        petrifyTimer: 0,
+        isBoss: opts.isBoss,
+        petrifyCost: opts.petrifyCost,
+        hitRadius: opts.hitRadius,
+        speedScale: opts.speedScale,
+      },
+      renderable: mesh,
+    });
+  }
+
+  fixedUpdate(world: EcsWorld, deltaSeconds: number): void {
+    const dayNight = world.entities.find((e) => e.dayNight)?.dayNight;
+    if (!dayNight || dayNight.isDay) {
+      this.timer = 0;
+      this.bossTimer = 0;
+      for (const entity of [...world.entities]) {
+        if (entity.duck && entity.duck.state !== "petrified") {
+          if (entity.renderable) entity.renderable.removeFromParent();
+          world.remove(entity);
+        }
+      }
+      return;
+    }
+    const difficulty = getDifficulty(dayNight.nightCount || 1);
+    const player = world.entities.find((e) => e.playerControl && e.transform);
+    if (!player?.transform) return;
+
+    const liveRegular = world.entities.filter(
+      (e) => e.duck && e.duck.state !== "petrified" && !e.duck.isBoss,
+    ).length;
+    const liveBosses = world.entities.filter(
+      (e) => e.duck && e.duck.state !== "petrified" && e.duck.isBoss,
+    ).length;
+
+    if (liveRegular < difficulty.maxDucks) {
+      this.timer += deltaSeconds;
+      if (this.timer >= difficulty.spawnInterval) {
+        this.timer = 0;
+        this.spawnOne(world, player.transform.x, player.transform.z, {
+          isBoss: false, scale: 1, petrifyCost: difficulty.petrifyCost,
+          hitRadius: difficulty.regularHitRadius, speedScale: 1,
+        });
+        if (
+          difficulty.doubleSpawnChance > 0
+          && Math.random() < difficulty.doubleSpawnChance
+          && world.entities.filter((e) => e.duck && e.duck.state !== "petrified" && !e.duck.isBoss).length
+            < difficulty.maxDucks
+        ) {
+          this.spawnOne(world, player.transform.x, player.transform.z, {
+            isBoss: false, scale: 1, petrifyCost: difficulty.petrifyCost,
+            hitRadius: difficulty.regularHitRadius, speedScale: 1,
+          });
+        }
+      }
+    }
+
+    if (liveBosses < difficulty.maxBosses) {
+      this.bossTimer += deltaSeconds;
+      const bossInterval = Math.max(8, difficulty.spawnInterval * 2.2);
+      if (this.bossTimer >= bossInterval) {
+        this.bossTimer = 0;
+        this.spawnOne(world, player.transform.x, player.transform.z, {
+          isBoss: true, scale: difficulty.bossScale, petrifyCost: difficulty.bossPetrifyCost,
+          hitRadius: difficulty.bossHitRadius, speedScale: 0.78,
+        });
+      }
+    }
+  }
+}
