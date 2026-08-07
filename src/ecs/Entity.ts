@@ -50,6 +50,11 @@ export interface DuckComponent {
   petrifyTimer: number;
   /** Super Boss rubber duck (3× size, high petrify cost). */
   isBoss?: boolean;
+  /**
+   * High-altitude flyer: cruises above tree canopies then dives to attack.
+   * Distinct from regular (low hover) and boss ducks.
+   */
+  isFlyer?: boolean;
   /** Override petrify garlic cost (bosses use 30). */
   petrifyCost?: number;
   /** Hit radius override (bosses are larger). */
@@ -57,7 +62,7 @@ export interface DuckComponent {
   /** Chase speed multiplier vs base difficulty duck speed. */
   speedScale?: number;
   /**
-   * Current height above terrain (lerped between cruise and attack).
+   * Current height above terrain (lerped between cruise and attack for flyers).
    * Stored so height changes are smooth across fixed ticks.
    */
   hoverHeight?: number;
