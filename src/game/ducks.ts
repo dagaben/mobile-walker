@@ -1,1 +1,2 @@
-PLACEHOLDER_WILL_FAIL
+// test restore
+export const X = 1;
