@@ -39,6 +39,14 @@ export interface DifficultyParams {
   bossHitRadius: number;
   /** Regular duck hit radius. */
   regularHitRadius: number;
+  /** Max concurrent high-altitude flyer ducks this night. */
+  maxFlyers: number;
+  /** Seconds between flyer spawns. */
+  flyerSpawnInterval: number;
+  /** Garlic cost to petrify a flyer. */
+  flyerPetrifyCost: number;
+  /** Flyer hit radius. */
+  flyerHitRadius: number;
 }
 
 const BASE_SPAWN_INTERVAL = 6.5;
@@ -149,6 +157,13 @@ export function getDifficulty(nightCount: number): DifficultyParams {
   // Super Boss count doubles each night: 1, 2, 4, 8… soft-capped
   const maxBosses = Math.min(8, Math.pow(2, night - 1));
 
+  // Flyers: rarer canopy threats. 1 from night 1, +1 every 2 nights, soft-cap 4.
+  const maxFlyers = Math.min(4, 1 + Math.floor((night - 1) / 2));
+  // Slower spawn than regulars so the high cruise stays readable.
+  const flyerSpawnInterval = Math.max(9, spawnInterval * 1.7);
+  const flyerPetrifyCost = petrifyCost + 2;
+  const flyerHitRadius = REGULAR_HIT_RADIUS * 1.05;
+
   return {
     spawnInterval,
     maxDucks,
@@ -161,6 +176,10 @@ export function getDifficulty(nightCount: number): DifficultyParams {
     bossScale: BOSS_SCALE,
     bossHitRadius: BOSS_HIT_RADIUS,
     regularHitRadius: REGULAR_HIT_RADIUS,
+    maxFlyers,
+    flyerSpawnInterval,
+    flyerPetrifyCost,
+    flyerHitRadius,
   };
 }
 
