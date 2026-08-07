@@ -11,7 +11,7 @@ old = """function beginPlay(): void {
 """
 new = """function requestLandscape(): void {
   try {
-    const orient = (screen as Screen & { orientation?: ScreenOrientation }).orientation;
+    const orient = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
     if (orient && typeof orient.lock === "function") {
       void orient.lock("landscape").catch(() => undefined);
     }
