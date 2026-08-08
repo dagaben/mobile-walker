@@ -80,9 +80,6 @@ export class ThreeRenderer {
 
   getDayNightBlend(): number { return this.dayNightBlend; }
 
-  /**
-   * 1 = full day, 0 = deep night. Smoothly blends sky, fog, and light intensities.
-   */
   setDayNightBlend(blend: number): void {
     const t = Math.min(1, Math.max(0, blend));
     this.dayNightBlend = t;
@@ -137,6 +134,12 @@ export class ThreeRenderer {
       for (const material of materials) material.dispose();
     });
     this.renderer.dispose();
+  }
+
+  /** Force next resize even if client size looks unchanged (device tilt). */
+  invalidateSize(): void {
+    this.appliedWidth = -1;
+    this.appliedHeight = -1;
   }
 
   private readonly resize = (): void => {
