@@ -127,6 +127,15 @@ export class Game {
     this.cameraPresentation.setFollowResponsiveness(responsiveness);
   }
 
+  /**
+   * Re-measure the canvas after device tilt / orientation change.
+   * Clears the cached size so a same-pixel read still re-applies aspect.
+   */
+  forceViewportSync(): void {
+    this.renderer.invalidateSize();
+    window.dispatchEvent(new Event("resize"));
+  }
+
   resumeAudio(): void {
     this.audio.resume();
   }
