@@ -4,9 +4,11 @@ export * from "./chunkId";
 export * from "./generateChunk";
 export * from "./forest";
 export * from "./random";
-export * from "./river";
+// Legacy fixed-column river (src/world/river.ts) is quarantined — do not re-export.
+// Production code uses worldRiver* + sampleHydrology.
 export * from "./terrainSampling";
 export * from "./terrainOcclusion";
+export * from "./hydrology";
 export * from "./vegetation";
 export * from "./poi";
 export * from "./poiMeshes";
