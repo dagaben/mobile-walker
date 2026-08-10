@@ -1,7 +1,8 @@
 import { CHUNK_SIZE, type ChunkCoordinate } from "./chunkCoordinates";
 import { sampleBiome } from "./biomes";
 import { hashFloat, normalizeSeed } from "./random";
-import { isLakeAt, isRiverAt, sampleTerrainHeight } from "./terrainSampling";
+import { isOpenWaterAt } from "./hydrology";
+import { sampleTerrainHeight } from "./terrainSampling";
 
 export interface WetlandPoolPlacement {
   readonly x: number;
@@ -52,7 +53,7 @@ export function generateWetlandPools(
     const wetlandWeight = sampleBiome(seed, x, z).weights.wetland;
     if (wetlandWeight < 0.32) continue;
     if (hashFloat(seed, coordinate.x, coordinate.z, 8102 + index * 6) > wetlandWeight * 1.15) continue;
-    if (isRiverAt(seed, x, z) || isLakeAt(seed, x, z)) continue;
+    if (isOpenWaterAt(seed, x, z)) continue;
 
     const radius = 0.22 + hashFloat(seed, coordinate.x, coordinate.z, 8103 + index * 6) * 0.48;
     pools.push({
