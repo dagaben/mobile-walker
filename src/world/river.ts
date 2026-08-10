@@ -10,8 +10,10 @@ import { hashFloat } from "./random";
 
 export interface RiverBoundary {
   readonly edge: "north" | "south";
+  /** World-space x coordinate, shared verbatim by the chunks touching this boundary. */
   readonly x: number;
   readonly width: number;
+  /** World-space water elevation, shared by both chunks at this boundary. */
   readonly surfaceElevation: number;
 }
 
@@ -22,10 +24,15 @@ export interface RiverPoint {
   readonly surfaceElevation: number;
 }
 
+/** The single chunk column that carries the world's continuous north-to-south river. */
 export function isRiverColumn(coordinate: Pick<ChunkCoordinate, "x">): boolean {
   return coordinate.x === 0;
 }
 
+/**
+ * Samples a boundary from its world-grid identity, not from either owning chunk.
+ * Thus (x,z).south is exactly (x,z+1).north, including at negative coordinates.
+ */
 export function sampleRiverBoundary(seed: number, coordinate: ChunkCoordinate, edge: "north" | "south"): RiverBoundary {
   const boundaryZ = coordinate.z + (edge === "south" ? 1 : 0);
   const column = coordinate.x;
