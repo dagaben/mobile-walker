@@ -21,7 +21,6 @@ const DIVE_END_DIST = 5.5;
 /** How quickly hover height lerps toward the target (units/sec at scale 1). */
 const HOVER_LERP_SPEED = 3.2;
 const HOVER_BOB = 0.32;
-/** Reject spawn points this deep into river water. */
 
 export interface GameCombatState {
   garlicCount: number;
@@ -76,7 +75,7 @@ function createDuckMesh(scale = 1, kind: DuckKind = "regular"): THREE.Group {
 
   const beak = new THREE.Mesh(
     new THREE.ConeGeometry(0.13 * s, 0.3 * s, 7),
-    new THREE.MeshStandardMaterial({ color: 0xff8800, roughness: 0.75, flatShading: true }),
+    new THREE.MeshStandardMaterial({ color: 0xff8800, metalness: 0.75, flatShading: true }),
   );
   beak.rotation.x = Math.PI / 2;
   beak.position.set(0, 0.88 * s, 0.55 * s);
@@ -121,7 +120,7 @@ function createDuckMesh(scale = 1, kind: DuckKind = "regular"): THREE.Group {
   if (isBoss) {
     const crest = new THREE.Mesh(
       new THREE.ConeGeometry(0.12 * s, 0.28 * s, 5),
-      new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.4, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0xffaa00, metalness: 0.4, flatShading: true }),
     );
     crest.position.set(0, 1.28 * s, 0.1 * s);
     group.add(crest);
@@ -132,7 +131,7 @@ function createDuckMesh(scale = 1, kind: DuckKind = "regular"): THREE.Group {
     const glow = new THREE.Mesh(
       new THREE.SphereGeometry(0.22 * s, 8, 6),
       new THREE.MeshStandardMaterial({
-        color: 0x4ad4ff, emissive: 0x4ad4ff, emissiveIntensity: 0.35, transparent: true, opacity: 0.45, roughness: 0.2,
+        color: 0x4ad4ff, emissive: 0x4ad4ff, emissiveIntensity: 0.35, transparent: true, opacity: 0.45, metalness: 0.2,
       }),
     );
     glow.position.set(0, 0.2 * s, 0);
@@ -319,6 +318,9 @@ export class DuckSpawnSystem implements FixedSystem {
 }
 
 export class DuckAISystem implements FixedSystem {
+  /** Accumulated sim time for stable bob (avoids performance.now jitter vs fixed step). */
+  private animTime = 0;
+
   constructor(
     private readonly worldSeed: string,
     private readonly garlicEl: HTMLElement | null,
@@ -329,7 +331,7 @@ export class DuckAISystem implements FixedSystem {
   private syncHud(combat: GameCombatState): void {
     if (this.garlicEl) this.garlicEl.textContent = String(combat.garlicCount);
     if (this.livesEl) this.livesEl.textContent = String(combat.lives);
-    if (this.scoreEl) this.scoreEl.textContent = String(combat.score);
+    if (this.scoreEl) this.scoreEl.textContent = String(Math.floor(combat.score));
   }
 
   fixedUpdate(world: EcsWorld, deltaSeconds: number): void {
@@ -339,6 +341,8 @@ export class DuckAISystem implements FixedSystem {
     const combatEntity = world.entities.find((e) => e.combat);
     if (!player?.transform || !combatEntity?.combat) return;
     const combat = combatEntity.combat;
+
+    this.animTime += deltaSeconds;
 
     if (combat.invulnTimer > 0) {
       combat.invulnTimer = Math.max(0, combat.invulnTimer - deltaSeconds);
@@ -357,6 +361,15 @@ export class DuckAISystem implements FixedSystem {
         continue;
       }
 
+      // Required for TransformInterpolationSystem — without this, meshes lerp from
+      // the spawn pose every frame and flicker.
+      if (entity.previousTransform) {
+        entity.previousTransform.x = entity.transform.x;
+        entity.previousTransform.y = entity.transform.y;
+        entity.previousTransform.z = entity.transform.z;
+        entity.previousTransform.yaw = entity.transform.yaw;
+      }
+
       const scale = duck.isBoss ? difficulty.bossScale : duck.isFlyer ? 1.05 : 1;
       const dx = player.transform.x - entity.transform.x;
       const dz = player.transform.z - entity.transform.z;
@@ -371,6 +384,8 @@ export class DuckAISystem implements FixedSystem {
       entity.transform.yaw = Math.atan2(dx, dz);
 
       const terrainY = sampleTerrainHeight(this.worldSeed, entity.transform.x, entity.transform.z);
+      // Phase offset per entity so flocks don't bob in lockstep.
+      const bobPhase = this.animTime * 2.6 + entity.transform.x * 0.28 + entity.transform.z * 0.19;
 
       if (duck.isFlyer) {
         // Visible canopy cruise while far, then smooth dive toward the character.
@@ -382,7 +397,7 @@ export class DuckAISystem implements FixedSystem {
         const next = current + Math.max(-maxStep, Math.min(maxStep, targetHover - current));
         duck.hoverHeight = next;
         const bobAmp = HOVER_BOB * (1.15 - diveT * 0.55);
-        const bob = Math.sin((entity.transform.x + entity.transform.z) * 0.35 + performance.now() * 0.002) * bobAmp * scale;
+        const bob = Math.sin(bobPhase) * bobAmp * scale;
         entity.transform.y = terrainY + next + bob;
         if (entity.renderable) {
           animateDuckMesh(entity.renderable, deltaSeconds, speed, diveT);
@@ -394,7 +409,7 @@ export class DuckAISystem implements FixedSystem {
         const maxStep = HOVER_LERP_SPEED * deltaSeconds * scale;
         const next = current + Math.max(-maxStep, Math.min(maxStep, targetHover - current));
         duck.hoverHeight = next;
-        const bob = Math.sin((entity.transform.x + entity.transform.z) * 0.4 + performance.now() * 0.0025) * HOVER_BOB * 0.7 * scale;
+        const bob = Math.sin(bobPhase) * HOVER_BOB * 0.7 * scale;
         entity.transform.y = terrainY + next + bob;
         if (entity.renderable) {
           animateDuckMesh(entity.renderable, deltaSeconds, speed, 0.15);
