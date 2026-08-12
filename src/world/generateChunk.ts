@@ -3,14 +3,8 @@ import { chunkId, type ChunkId } from "./chunkId";
 import { sampleBiome, type BiomeWeights } from "./biomes";
 import { generateTrees, type TreePlacement } from "./forest";
 import { normalizeSeed } from "./random";
-import { isRiverColumn, sampleRiverBoundary, sampleRiverSpine, type RiverBoundary, type RiverPoint } from "./river";
 import {
-  RIVER_BANK_WIDTH,
-  RIVER_BED_DEPTH,
-  RIVER_TRANSITION_WIDTH,
   sampleChannelTerrainHeight,
-  sampleNaturalTerrainHeight,
-  sampleRiverCrossSection,
   TERRAIN_SEGMENTS,
 } from "./terrainSampling";
 import { generateVegetation, type GeneratedVegetation } from "./vegetation";
@@ -26,18 +20,6 @@ import {
 } from "./terrainOcclusion";
 
 export { TERRAIN_SEGMENTS } from "./terrainSampling";
-
-export interface RiverChannelSection {
-  readonly z: number;
-  readonly centerX: number;
-  readonly waterHalfWidth: number;
-  readonly bankWidth: number;
-  readonly surfaceElevation: number;
-  readonly westShoulderHeight: number;
-  readonly eastShoulderHeight: number;
-  /** Terrain presentation inputs for the six channel cross-section vertices. */
-  readonly terrainVertices: readonly Pick<IrregularTerrainVertex, "biomeWeights" | "occlusion">[];
-}
 
 export interface IrregularTerrainVertex {
   readonly x: number;
@@ -61,7 +43,10 @@ export interface GeneratedChunkData {
   readonly terrainMesh: { readonly positions: Float32Array; readonly indices: Uint16Array; readonly normals: Float32Array };
   readonly terrainMaximumDarkening: number;
   readonly terrainVerticesPerSide: number;
-  /** Explicit coarse regions used when a rectangular grid would overlap the river channel. */
+  /**
+   * Optional refined terrain (unused after legacy column-river removal).
+   * World-river carving is applied in sampleChannelTerrainHeight on the coarse lattice.
+   */
   readonly irregularTerrain?: {
     readonly vertices: readonly IrregularTerrainVertex[];
     readonly indices: readonly number[];
@@ -75,106 +60,13 @@ export interface GeneratedChunkData {
   readonly collectibles: readonly CollectiblePlacement[];
   readonly vegetation: GeneratedVegetation;
   readonly wetlandPools: readonly WetlandPoolPlacement[];
-  readonly river?: {
-    readonly entry: RiverBoundary;
-    readonly exit: RiverBoundary;
-    readonly spine: readonly RiverPoint[];
-    readonly channelSections: readonly RiverChannelSection[];
-  };
 }
 
-function generateRiverChannel(
-  seed: number,
-  coordinate: ChunkCoordinate,
-  occlusionOptions: Readonly<TerrainOcclusionOptions>,
-): {
-  spine: readonly RiverPoint[];
-  sections: readonly RiverChannelSection[];
-} {
-  // Eight longitudinal spans match the surrounding coarse terrain. The points
-  // are only one-dimensional; no refined river-column terrain lattice is created.
-  const sourceSpine = sampleRiverSpine(seed, coordinate, TERRAIN_SEGMENTS);
-  const points: RiverPoint[] = [];
-  const sections: RiverChannelSection[] = [];
-  for (const { z } of sourceSpine) {
-    // Any x in column zero selects the same cross-section; centerX is returned by
-    // the sampler and becomes the actual ribbon position.
-    const section = sampleRiverCrossSection(seed, CHUNK_SIZE / 2, z);
-    if (!section) continue;
-    const waterHalfWidth = section.waterWidth / 2;
-    const bankWidth = RIVER_BANK_WIDTH + RIVER_TRANSITION_WIDTH;
-    const westShoulderHeight = sampleNaturalTerrainHeight(seed, section.centerX - waterHalfWidth - bankWidth, z);
-    const eastShoulderHeight = sampleNaturalTerrainHeight(seed, section.centerX + waterHalfWidth + bankWidth, z);
-    points.push({ x: section.centerX, z, width: section.waterWidth, surfaceElevation: section.surfaceElevation });
-    const crossSection = [
-      [section.centerX - waterHalfWidth - bankWidth, westShoulderHeight],
-      [section.centerX - waterHalfWidth, section.surfaceElevation + 0.04],
-      [section.centerX - waterHalfWidth + waterHalfWidth * 0.1, section.surfaceElevation - RIVER_BED_DEPTH],
-      [section.centerX + waterHalfWidth - waterHalfWidth * 0.1, section.surfaceElevation - RIVER_BED_DEPTH],
-      [section.centerX + waterHalfWidth, section.surfaceElevation + 0.04],
-      [section.centerX + waterHalfWidth + bankWidth, eastShoulderHeight],
-    ] as const;
-    sections.push({
-      z,
-      centerX: section.centerX,
-      waterHalfWidth,
-      bankWidth,
-      surfaceElevation: section.surfaceElevation,
-      westShoulderHeight,
-      eastShoulderHeight,
-      terrainVertices: crossSection.map(([x, height]) => ({
-        biomeWeights: sampleBiome(seed, x, z).weights,
-        occlusion: sampleTerrainOcclusion(
-          x, z, height,
-          (sampleX, sampleZ) => sampleChannelTerrainHeight(seed, sampleX, sampleZ),
-          occlusionOptions,
-        ),
-      })),
-    });
-  }
-  return { spine: points, sections };
-}
-
-function generateIrregularTerrain(
-  seed: number,
-  coordinate: ChunkCoordinate,
-  sections: readonly RiverChannelSection[],
-  occlusionOptions: Readonly<TerrainOcclusionOptions>,
-): GeneratedChunkData["irregularTerrain"] {
-  const vertices: IrregularTerrainVertex[] = [];
-  const indices: number[] = [];
-  const westEdge = coordinate.x * CHUNK_SIZE;
-  const eastEdge = westEdge + CHUNK_SIZE;
-  for (const section of sections) {
-    const westShoulderX = section.centerX - section.waterHalfWidth - section.bankWidth;
-    const eastShoulderX = section.centerX + section.waterHalfWidth + section.bankWidth;
-    for (const [x, height] of [
-      [westEdge, sampleNaturalTerrainHeight(seed, westEdge, section.z)],
-      [westShoulderX, section.westShoulderHeight],
-      [eastShoulderX, section.eastShoulderHeight],
-      [eastEdge, sampleNaturalTerrainHeight(seed, eastEdge, section.z)],
-    ] as const) {
-      vertices.push({
-        x, z: section.z, height,
-        biomeWeights: sampleBiome(seed, x, section.z).weights,
-        occlusion: sampleTerrainOcclusion(
-          x, section.z, height,
-          (sampleX, sampleZ) => sampleChannelTerrainHeight(seed, sampleX, sampleZ),
-          occlusionOptions,
-        ),
-      });
-    }
-  }
-  for (let z = 0; z < sections.length - 1; z += 1) {
-    const start = z * 4;
-    // West edge-to-shoulder and east shoulder-to-edge are separate quads.
-    indices.push(start, start + 4, start + 1, start + 1, start + 4, start + 5);
-    indices.push(start + 2, start + 6, start + 3, start + 3, start + 6, start + 7);
-  }
-  return { vertices, indices };
-}
-
-/** Pure, random-access generation: output is solely a function of seed and coordinate. */
+/**
+ * Pure, random-access generation: output is solely a function of seed and coordinate.
+ * Terrain heights include world-river carving and R10 lake–river attachment via
+ * sampleChannelTerrainHeight. Legacy fixed-column river data is not produced.
+ */
 export function generateChunk(
   seedInput: number | string,
   coordinate: ChunkCoordinate,
@@ -203,7 +95,6 @@ export function generateChunk(
     }
   }
 
-  const channel = isRiverColumn(coordinate) ? generateRiverChannel(seed, coordinate, occlusionOptions) : undefined;
   // POIs deliberately precede every placed-object pass. Their global zones may
   // cross this chunk even when the owning origin is in a neighbor.
   const poiNeighborhood = [] as GeneratedPoi[];
@@ -214,37 +105,62 @@ export function generateChunk(
     if (dx === 0 && dz === 0) ownedCandidates = generated.candidates;
   }
   const pois = poiNeighborhood.filter(poi => poi.ownerChunk.x === coordinate.x && poi.ownerChunk.z === coordinate.z);
-  const bridgeNeighborhood:GeneratedBridge[]=[];
-  let ownedBridgeCandidates:readonly BridgeCrossingCandidate[]=[];
-  for(let dz=-1;dz<=1;dz++){const generated=generateBridges(seed,{x:coordinate.x,z:coordinate.z+dz},poiNeighborhood);bridgeNeighborhood.push(...generated.bridges);if(dz===0)ownedBridgeCandidates=generated.candidates;}
-  const bridges=bridgeNeighborhood.filter(bridge=>bridge.ownerChunk.x===coordinate.x&&bridge.ownerChunk.z===coordinate.z);
+  const bridgeNeighborhood: GeneratedBridge[] = [];
+  let ownedBridgeCandidates: readonly BridgeCrossingCandidate[] = [];
+  for (let dz = -1; dz <= 1; dz++) {
+    const generated = generateBridges(seed, { x: coordinate.x, z: coordinate.z + dz }, poiNeighborhood);
+    bridgeNeighborhood.push(...generated.bridges);
+    if (dz === 0) ownedBridgeCandidates = generated.candidates;
+  }
+  const bridges = bridgeNeighborhood.filter(
+    bridge => bridge.ownerChunk.x === coordinate.x && bridge.ownerChunk.z === coordinate.z,
+  );
   // Structural parity is checked once as records enter the generated repository,
   // never during rendering or a movement query.
-  for(const definition of [...pois.map(poi=>poi.structure),...bridges.map(bridge=>bridge.collision)])validateStructureDefinition(definition);
-  const exclusionZones = [...poiNeighborhood.flatMap(poi => poi.zones),...bridgeNeighborhood.flatMap(bridge=>bridge.zones)];
-  const irregularTerrain = channel ? generateIrregularTerrain(seed, coordinate, channel.sections, occlusionOptions) : undefined;
-  const meshVertices = irregularTerrain?.vertices ?? terrainHeights.map((height, vertexIndex) => ({
-    x: coordinate.x * CHUNK_SIZE + vertexIndex % verticesPerSide * CHUNK_SIZE / terrainSegments,
+  for (const definition of [...pois.map(poi => poi.structure), ...bridges.map(bridge => bridge.collision)]) {
+    validateStructureDefinition(definition);
+  }
+  const exclusionZones = [
+    ...poiNeighborhood.flatMap(poi => poi.zones),
+    ...bridgeNeighborhood.flatMap(bridge => bridge.zones),
+  ];
+
+  const meshVertices = terrainHeights.map((height, vertexIndex) => ({
+    x: coordinate.x * CHUNK_SIZE + (vertexIndex % verticesPerSide) * CHUNK_SIZE / terrainSegments,
     z: coordinate.z * CHUNK_SIZE + Math.floor(vertexIndex / verticesPerSide) * CHUNK_SIZE / terrainSegments,
     height,
   }));
-  const meshIndices = irregularTerrain?.indices ? [...irregularTerrain.indices] : [];
-  if (!irregularTerrain) for (let z = 0; z < terrainSegments; z++) for (let x = 0; x < terrainSegments; x++) {
-    const topLeft = z * verticesPerSide + x;
-    meshIndices.push(topLeft, topLeft + verticesPerSide, topLeft + 1, topLeft + 1, topLeft + verticesPerSide, topLeft + verticesPerSide + 1);
+  const meshIndices: number[] = [];
+  for (let z = 0; z < terrainSegments; z++) {
+    for (let x = 0; x < terrainSegments; x++) {
+      const topLeft = z * verticesPerSide + x;
+      meshIndices.push(
+        topLeft, topLeft + verticesPerSide, topLeft + 1,
+        topLeft + 1, topLeft + verticesPerSide, topLeft + verticesPerSide + 1,
+      );
+    }
   }
   const positions = new Float32Array(meshVertices.length * 3);
   meshVertices.forEach((vertex, index) => positions.set([vertex.x, vertex.height, vertex.z], index * 3));
   const indices = new Uint16Array(meshIndices);
   const normals = new Float32Array(positions.length);
   for (let i = 0; i < indices.length; i += 3) {
-    const a=indices[i]!*3,b=indices[i+1]!*3,c=indices[i+2]!*3;
-    const abx=positions[b]!-positions[a]!,aby=positions[b+1]!-positions[a+1]!,abz=positions[b+2]!-positions[a+2]!;
-    const acx=positions[c]!-positions[a]!,acy=positions[c+1]!-positions[a+1]!,acz=positions[c+2]!-positions[a+2]!;
-    const nx=aby*acz-abz*acy,ny=abz*acx-abx*acz,nz=abx*acy-aby*acx;
-    for(const offset of [a,b,c]) { normals[offset]!+=nx;normals[offset+1]!+=ny;normals[offset+2]!+=nz; }
+    const a = indices[i]! * 3, b = indices[i + 1]! * 3, c = indices[i + 2]! * 3;
+    const abx = positions[b]! - positions[a]!, aby = positions[b + 1]! - positions[a + 1]!, abz = positions[b + 2]! - positions[a + 2]!;
+    const acx = positions[c]! - positions[a]!, acy = positions[c + 1]! - positions[a + 1]!, acz = positions[c + 2]! - positions[a + 2]!;
+    const nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx;
+    for (const offset of [a, b, c]) {
+      normals[offset]! += nx;
+      normals[offset + 1]! += ny;
+      normals[offset + 2]! += nz;
+    }
   }
-  for(let i=0;i<normals.length;i+=3){const length=Math.hypot(normals[i]!,normals[i+1]!,normals[i+2]!)||1;normals[i]!/=length;normals[i+1]!/=length;normals[i+2]!/=length;}
+  for (let i = 0; i < normals.length; i += 3) {
+    const length = Math.hypot(normals[i]!, normals[i + 1]!, normals[i + 2]!) || 1;
+    normals[i]! /= length;
+    normals[i + 1]! /= length;
+    normals[i + 2]! /= length;
+  }
   return {
     seed,
     id: chunkId(coordinate),
@@ -256,20 +172,15 @@ export function generateChunk(
     terrainMesh: { positions, indices, normals },
     terrainMaximumDarkening: occlusionOptions.maximumDarkening,
     terrainVerticesPerSide: verticesPerSide,
-    irregularTerrain,
     pines: generateTrees(seed, coordinate).filter(tree => !isVegetationExcluded(tree.x, tree.z, exclusionZones)),
     pois,
     bridges,
     poiCandidates: includeDebugData ? ownedCandidates : undefined,
-    bridgeCandidates:includeDebugData?ownedBridgeCandidates:undefined,
+    bridgeCandidates: includeDebugData ? ownedBridgeCandidates : undefined,
     collectibles: placeCollectibles(seed, coordinate, exclusionZones),
     vegetation: generateVegetation(seed, coordinate, exclusionZones),
-    wetlandPools: generateWetlandPools(seed, coordinate).filter(pool => !isVegetationExcluded(pool.x, pool.z, exclusionZones)),
-    river: channel ? {
-      entry: sampleRiverBoundary(seed, coordinate, "north"),
-      exit: sampleRiverBoundary(seed, coordinate, "south"),
-      spine: channel.spine,
-      channelSections: channel.sections,
-    } : undefined,
+    wetlandPools: generateWetlandPools(seed, coordinate).filter(
+      pool => !isVegetationExcluded(pool.x, pool.z, exclusionZones),
+    ),
   };
 }
