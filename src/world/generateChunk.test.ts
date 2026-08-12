@@ -3,8 +3,13 @@ import { describe, expect, it } from "vitest";
 import { generateChunk } from "./generateChunk";
 import { worldToChunk } from "./chunkCoordinates";
 import {
+  isRiverAt,
+  sampleTerrainHeight,
   TERRAIN_SEGMENTS,
 } from "./terrainSampling";
+import { WORLD_RIVER_CARVING } from "./worldRiverCarving";
+import { getWorldRiverOwner } from "./worldRiverOwner";
+import { sampleHydrology } from "./hydrology";
 
 describe("deterministic chunk generation", () => {
   it("repeats exactly for the same seed and coordinate", () => {
@@ -27,23 +32,19 @@ describe("deterministic chunk generation", () => {
     expect(forward).toEqual(reverse);
   });
 
-  it("shares exact river and terrain conditions across north-south boundaries", () => {
+  it("shares exact terrain vertices on north-south boundaries", () => {
     const north = generateChunk("continuity", { x: 0, z: -1 });
     const south = generateChunk("continuity", { x: 0, z: 0 });
-    expect(north.river!.exit.x).toBe(south.river!.entry.x);
-    expect(north.river!.exit.width).toBe(south.river!.entry.width);
-    expect(north.river!.exit.surfaceElevation).toBe(south.river!.entry.surfaceElevation);
-    expect(north.river!.spine.at(-1)).toEqual(south.river!.spine[0]);
     const side = north.terrainVerticesPerSide;
     for (let x = 0; x < side; x += 1) {
       expect(north.terrainHeights[(side - 1) * side + x]).toBe(south.terrainHeights[x]);
     }
   });
 
-  it("only includes river data in chunk column zero", () => {
-    expect(generateChunk("one-river", { x: 0, z: 8 }).river).toBeDefined();
-    expect(generateChunk("one-river", { x: -1, z: 8 }).river).toBeUndefined();
-    expect(generateChunk("one-river", { x: 1, z: 8 }).river).toBeUndefined();
+  it("no longer emits legacy fixed-column river records", () => {
+    const chunk = generateChunk("one-river", { x: 0, z: 8 }) as { river?: unknown };
+    expect(chunk.river).toBeUndefined();
+    expect(generateChunk("one-river", { x: 1, z: 8 })).not.toHaveProperty("river");
   });
 
   it("shares exact terrain vertices on every edge of adjacent chunks", () => {
@@ -61,58 +62,43 @@ describe("deterministic chunk generation", () => {
     }
   });
 
-  it("carves terrain below the generated water surface along the river", () => {
-    const chunk = generateChunk("channel", { x: 0, z: 2 });
-    const side = chunk.terrainVerticesPerSide;
-    for (const point of chunk.river!.spine) {
-      const x = Math.round((point.x - chunk.coordinate.x * chunk.size) / chunk.size * (side - 1));
-      const z = Math.round((point.z - chunk.coordinate.z * chunk.size) / chunk.size * (side - 1));
-      expect(chunk.terrainHeights[z * side + x]).toBeLessThan(point.surfaceElevation);
-    }
+  it("carves terrain below the world-river water surface where the spine crosses", () => {
+    const seed = "channel";
+    const owner = getWorldRiverOwner(seed);
+    const sample = owner.spine.sampleFrame(0.4);
+    const height = sampleTerrainHeight(seed, sample.position.x, sample.position.z);
+    expect(height).toBeLessThan(WORLD_RIVER_CARVING.surfaceElevation);
+    expect(isRiverAt(seed, sample.position.x, sample.position.z)).toBe(true);
   });
 
-  it("builds a compact longitudinal channel from the collision cross-section", () => {
-    const seed = "rendered-channel-agreement";
-    const chunk = generateChunk(seed, { x: 0, z: 0 });
-    expect(chunk.terrainVerticesPerSide).toBe(TERRAIN_SEGMENTS + 1);
-    // Legacy channel is optional under world-river; when present it stays compact.
-    if (chunk.river) {
-      expect(chunk.river.channelSections.length).toBeGreaterThan(0);
-      expect(chunk.river.channelSections.length * 6).toBeLessThan(64);
-    }
-  });
-
-  it("keeps the base terrain resolution outside the river column", () => {
+  it("keeps uniform coarse resolution for all chunks (world-river carving is height-field based)", () => {
     const dryChunk = generateChunk("local-river-detail", { x: 1, z: 0 });
     const riverChunk = generateChunk("local-river-detail", { x: 0, z: 0 });
 
     expect(dryChunk.terrainVerticesPerSide).toBe(TERRAIN_SEGMENTS + 1);
     expect(riverChunk.terrainVerticesPerSide).toBe(TERRAIN_SEGMENTS + 1);
     expect(dryChunk.terrainHeights).toHaveLength((TERRAIN_SEGMENTS + 1) ** 2);
-    expect(riverChunk.terrainHeights.length).toBeLessThanOrEqual(dryChunk.terrainHeights.length);
-    expect(riverChunk.irregularTerrain!.vertices.length).toBeLessThan(dryChunk.terrainHeights.length);
+    expect(riverChunk.terrainHeights).toHaveLength((TERRAIN_SEGMENTS + 1) ** 2);
+    expect(riverChunk.irregularTerrain).toBeUndefined();
   });
 
-  it("keeps river-column edges on the neighboring coarse edge", () => {
-    const riverChunk = generateChunk("local-edge-continuity", { x: 0, z: 0 });
+  it("keeps east-west edge continuity after legacy-column removal", () => {
+    const westChunk = generateChunk("local-edge-continuity", { x: 0, z: 0 });
     const eastChunk = generateChunk("local-edge-continuity", { x: 1, z: 0 });
-    const riverSide = riverChunk.terrainVerticesPerSide;
-    const coarseSide = eastChunk.terrainVerticesPerSide;
-
-    for (let coarseZ = 0; coarseZ < coarseSide; coarseZ += 1) {
-      expect(riverChunk.terrainHeights[coarseZ * riverSide + riverSide - 1])
-        .toBe(eastChunk.terrainHeights[coarseZ * coarseSide]);
+    const side = westChunk.terrainVerticesPerSide;
+    for (let z = 0; z < side; z += 1) {
+      expect(westChunk.terrainHeights[z * side + side - 1])
+        .toBe(eastChunk.terrainHeights[z * side]);
     }
   });
 
-  it("shares river presence across neighboring column-zero chunks when both have legacy channel data", () => {
-    const north = generateChunk("channel-seams", { x: 0, z: -1 });
-    const south = generateChunk("channel-seams", { x: 0, z: 0 });
-    if (north.river && south.river && north.river.channelSections.length && south.river.channelSections.length) {
-      expect(north.river.channelSections.at(-1)).toEqual(south.river.channelSections[0]);
-    } else {
-      // World river owns continuous water; legacy channel may be empty.
-      expect(true).toBe(true);
-    }
+  it("agrees with sampleHydrology on flooded river cells", () => {
+    const seed = "hydro-agree";
+    const owner = getWorldRiverOwner(seed);
+    const frame = owner.spine.sampleFrame(0.35);
+    const hydro = sampleHydrology(seed, frame.position.x, frame.position.z);
+    expect(hydro.kind).toBe("river");
+    expect(hydro.depth).toBeGreaterThan(0);
+    expect(hydro.bedY).toBeLessThan(hydro.surfaceY);
   });
 });
