@@ -38,7 +38,12 @@ export const LAKE_SURFACE_ELEVATION = -0.08;
 export const LAKE_BED_DEPTH = 0.72;
 export const LAKE_WATER_WEIGHT = 0.34;
 const LAKE_BANK_WEIGHT = 0.18;
-/** Horizontal distances beyond the water edge occupied by each bank region. */
+/**
+ * R10: when a lake basin sits within this margin of the river water edge,
+ * lake bed/surface elevations are pulled toward the river datum so the two
+ * read as one continuous hydrology system.
+ */
+export const LAKE_RIVER_ATTACHMENT_MARGIN = 3.5;
 /** Only the highest mountain summits reach the permanent snow line. */
 export const MOUNTAIN_SNOW_LINE = 12.5;
 export const MOUNTAIN_SNOW_BLEND_DEPTH = 0.65;
@@ -134,17 +139,47 @@ export function sampleChannelTerrainLatticeHeight(
   return sampleChannelTerrainHeight(seed, worldX, worldZ);
 }
 
+/**
+ * Shapes a lake basin, optionally attaching it to the nearby river (R10).
+ * When the basin is close to the river water edge the bed and surface datums
+ * interpolate toward WORLD_RIVER_CARVING so channels and lakes meet cleanly.
+ */
+function shapeLakeBasinHeight(
+  naturalHeight: number,
+  lakeWeight: number,
+  riverSample: ReturnType<typeof sampleWorldRiverCarving>,
+): number {
+  if (lakeWeight <= LAKE_BANK_WEIGHT) return naturalHeight;
+
+  const basinBlend = smoothstep((lakeWeight - LAKE_BANK_WEIGHT) / (LAKE_WATER_WEIGHT - LAKE_BANK_WEIGHT));
+  let surfaceY = LAKE_SURFACE_ELEVATION;
+  let bedDepth = LAKE_BED_DEPTH;
+
+  if (riverSample) {
+    const attachRadius = riverSample.waterHalfWidth + LAKE_RIVER_ATTACHMENT_MARGIN
+      + WORLD_RIVER_CARVING.falloffWidth;
+    if (riverSample.distanceToCentreline <= attachRadius) {
+      const attachT = 1 - smoothstep(riverSample.distanceToCentreline / Math.max(1e-6, attachRadius));
+      // Stronger attachment near the river edge; full blend inside the corridor.
+      const strength = attachT * attachT;
+      surfaceY = LAKE_SURFACE_ELEVATION
+        + (WORLD_RIVER_CARVING.surfaceElevation - LAKE_SURFACE_ELEVATION) * strength;
+      bedDepth = LAKE_BED_DEPTH
+        + (WORLD_RIVER_CARVING.nominalBedDepth - LAKE_BED_DEPTH) * strength * 0.65;
+    }
+  }
+
+  const bedHeight = surfaceY - bedDepth;
+  return naturalHeight + (Math.min(naturalHeight, bedHeight) - naturalHeight) * basinBlend;
+}
+
 /** Height at any world position after applying the authoritative channel profile. */
 export function sampleChannelTerrainHeight(seed: number, worldX: number, worldZ: number): number {
   const naturalHeight = sampleNaturalTerrainHeight(seed, worldX, worldZ);
   const lakeWeight = sampleBiome(seed, worldX, worldZ).weights.lake;
-  let shapedHeight = naturalHeight;
-  if (lakeWeight > LAKE_BANK_WEIGHT) {
-    const basinBlend = smoothstep((lakeWeight - LAKE_BANK_WEIGHT) / (LAKE_WATER_WEIGHT - LAKE_BANK_WEIGHT));
-    const bedHeight = LAKE_SURFACE_ELEVATION - LAKE_BED_DEPTH;
-    shapedHeight = naturalHeight + (Math.min(naturalHeight, bedHeight) - naturalHeight) * basinBlend;
-  }
-  return applyWorldRiverCarving(shapedHeight, sampleWorldRiverCarving(worldX, worldZ,riverContextForSeed(seed,worldX,worldZ)));
+  const riverSample = sampleWorldRiverCarving(worldX, worldZ, riverContextForSeed(seed, worldX, worldZ));
+  const shapedHeight = shapeLakeBasinHeight(naturalHeight, lakeWeight, riverSample);
+  return applyWorldRiverCarving(shapedHeight, riverSample);
 }
 
 /** Bounded variant used by chunk generation; it never invokes the global diagnostic scan. */
@@ -156,11 +191,9 @@ export function sampleChannelTerrainHeightInContext(
 ): number {
   const naturalHeight = sampleNaturalTerrainHeight(seed, worldX, worldZ);
   const lakeWeight = sampleBiome(seed, worldX, worldZ).weights.lake;
-  const shapedHeight = lakeWeight > LAKE_BANK_WEIGHT
-    ? naturalHeight + (Math.min(naturalHeight, LAKE_SURFACE_ELEVATION - LAKE_BED_DEPTH) - naturalHeight)
-      * smoothstep((lakeWeight - LAKE_BANK_WEIGHT) / (LAKE_WATER_WEIGHT - LAKE_BANK_WEIGHT))
-    : naturalHeight;
-  return applyWorldRiverCarving(shapedHeight, sampleWorldRiverCarving(worldX, worldZ, riverContext));
+  const riverSample = sampleWorldRiverCarving(worldX, worldZ, riverContext);
+  const shapedHeight = shapeLakeBasinHeight(naturalHeight, lakeWeight, riverSample);
+  return applyWorldRiverCarving(shapedHeight, riverSample);
 }
 
 /**
