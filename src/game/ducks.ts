@@ -1,22 +1,27 @@
 import * as THREE from "three";
 import type { EcsWorld } from "../ecs/createEcsWorld";
 import type { FixedSystem } from "../ecs/System";
+import { sampleBiome } from "../world/biomes";
+import { isOpenWaterAt } from "../world/hydrology";
 import { sampleTerrainHeight } from "../world/terrainSampling";
 import { getDifficulty } from "./difficulty";
 
 const INVULN_SECONDS = 1.6;
 
-/** Clear of pine tops (~3–4 world units). Ducks cruise here while far away. */
+/** Low hover for regular + boss ducks (just above small vegetation). */
+const HOVER_BASE = 1.85;
+/** Clear of pine/leaf tops (~3–4 world units). Flyers cruise here while far away. */
 const CRUISE_HEIGHT = 5.2;
 /** Dive target near player / character height. */
 const ATTACK_HEIGHT = 1.4;
-/** Start descending when this far from the player. */
+/** Start descending when this far from the player (flyers only). */
 const DIVE_START_DIST = 18;
-/** Fully at attack height by this distance. */
+/** Fully at attack height by this distance (flyers only). */
 const DIVE_END_DIST = 5.5;
 /** How quickly hover height lerps toward the target (units/sec at scale 1). */
 const HOVER_LERP_SPEED = 3.2;
 const HOVER_BOB = 0.32;
+/** Reject spawn points this deep into river water. */
 
 export interface GameCombatState {
   garlicCount: number;
@@ -37,15 +42,20 @@ function smoothstep(t: number): number {
   return x * x * (3 - 2 * x);
 }
 
-/** Vampire Flying Duck: rubber body, cape, fangs, flapping wings, hover. */
-function createDuckMesh(scale = 1, isBoss = false): THREE.Group {
+type DuckKind = "regular" | "boss" | "flyer";
+
+/** Vampire duck mesh: regular (gold), boss (red), flyer (purple/cyan canopy threat). */
+function createDuckMesh(scale = 1, kind: DuckKind = "regular"): THREE.Group {
   const s = scale;
   const group = new THREE.Group();
-  const bodyColor = isBoss ? 0xff3333 : 0xffdd44;
-  const headColor = isBoss ? 0xff5555 : 0xffe066;
-  const wingColor = isBoss ? 0xcc1111 : 0xe8c020;
-  const capeColor = isBoss ? 0x4a0a0a : 0x2a0a2a;
-  const eyeColor = isBoss ? 0xaa00ff : 0xff2222;
+  const isBoss = kind === "boss";
+  const isFlyer = kind === "flyer";
+
+  const bodyColor = isBoss ? 0xff3333 : isFlyer ? 0x7b5cff : 0xffdd44;
+  const headColor = isBoss ? 0xff5555 : isFlyer ? 0x9b7cff : 0xffe066;
+  const wingColor = isBoss ? 0xcc1111 : isFlyer ? 0x4ad4ff : 0xe8c020;
+  const capeColor = isBoss ? 0x4a0a0a : isFlyer ? 0x1a0a3a : 0x2a0a2a;
+  const eyeColor = isBoss ? 0xaa00ff : isFlyer ? 0x00ffcc : 0xff2222;
 
   const body = new THREE.Mesh(
     new THREE.SphereGeometry(0.48 * s, 12, 10),
@@ -81,72 +91,63 @@ function createDuckMesh(scale = 1, isBoss = false): THREE.Group {
   }
 
   const eyeMat = new THREE.MeshStandardMaterial({
-    color: eyeColor, roughness: 0.25, emissive: eyeColor, emissiveIntensity: isBoss ? 0.55 : 0.35,
+    color: eyeColor, roughness: 0.25, emissive: eyeColor, emissiveIntensity: isBoss ? 0.55 : isFlyer ? 0.5 : 0.35,
   });
-  for (const x of [-0.13, 0.13]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.075 * s, 8, 6), eyeMat);
-    eye.position.set(x * s, 0.98 * s, 0.48 * s);
+  for (const x of [-0.12, 0.12]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07 * s, 8, 6), eyeMat);
+    eye.position.set(x * s, 1.0 * s, 0.4 * s);
     group.add(eye);
   }
 
-  const wingMat = new THREE.MeshStandardMaterial({
-    color: wingColor, roughness: 0.7, flatShading: true, side: THREE.DoubleSide,
-  });
   const wingGeo = new THREE.BoxGeometry(0.55 * s, 0.08 * s, 0.32 * s);
-
-  const wingL = new THREE.Group();
-  const wingLMesh = new THREE.Mesh(wingGeo, wingMat);
-  wingLMesh.position.x = -0.25 * s;
-  wingLMesh.castShadow = true;
-  wingL.add(wingLMesh);
-  wingL.position.set(-0.42 * s, 0.55 * s, 0);
-  wingL.rotation.z = 0.35;
+  const wingMat = new THREE.MeshStandardMaterial({ color: wingColor, roughness: 0.7, flatShading: true });
+  const wingL = new THREE.Mesh(wingGeo, wingMat);
+  wingL.position.set(-0.55 * s, 0.5 * s, 0);
+  wingL.castShadow = true;
   group.add(wingL);
-
-  const wingR = new THREE.Group();
-  const wingRMesh = new THREE.Mesh(wingGeo, wingMat);
-  wingRMesh.position.x = 0.25 * s;
-  wingRMesh.castShadow = true;
-  wingR.add(wingRMesh);
-  wingR.position.set(0.42 * s, 0.55 * s, 0);
-  wingR.rotation.z = -0.35;
+  const wingR = new THREE.Mesh(wingGeo, wingMat);
+  wingR.position.set(0.55 * s, 0.5 * s, 0);
+  wingR.castShadow = true;
   group.add(wingR);
 
-  const capeMat = new THREE.MeshStandardMaterial({
-    color: capeColor, roughness: 0.8, flatShading: true, side: THREE.DoubleSide,
-  });
-  const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.9 * s, 0.85 * s), capeMat);
-  cape.position.set(0, 0.35 * s, -0.4 * s);
+  const cape = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7 * s, 0.55 * s, 0.08 * s),
+    new THREE.MeshStandardMaterial({ color: capeColor, roughness: 0.85, flatShading: true, side: THREE.DoubleSide }),
+  );
+  cape.position.set(0, 0.35 * s, -0.35 * s);
   cape.rotation.x = 0.25;
-  cape.castShadow = true;
   group.add(cape);
 
   if (isBoss) {
-    const crown = new THREE.Mesh(
-      new THREE.ConeGeometry(0.22 * s, 0.38 * s, 5),
-      new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.55, roughness: 0.3, flatShading: true }),
+    const crest = new THREE.Mesh(
+      new THREE.ConeGeometry(0.12 * s, 0.28 * s, 5),
+      new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.4, flatShading: true }),
     );
-    crown.position.set(0, 1.28 * s, 0.1 * s);
-    crown.castShadow = true;
-    group.add(crown);
-    const jewel = new THREE.Mesh(
-      new THREE.SphereGeometry(0.06 * s, 6, 6),
-      new THREE.MeshStandardMaterial({ color: 0xff0044, emissive: 0xaa0022, emissiveIntensity: 0.4 }),
-    );
-    jewel.position.set(0, 1.42 * s, 0.18 * s);
-    group.add(jewel);
+    crest.position.set(0, 1.28 * s, 0.1 * s);
+    group.add(crest);
   }
 
-  group.userData.wingL = wingL;
-  group.userData.wingR = wingR;
-  group.userData.cape = cape;
-  group.userData.flapPhase = Math.random() * Math.PI * 2;
+  if (isFlyer) {
+    // Subtle cyan under-glow so canopy flyers read against dark foliage.
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22 * s, 8, 6),
+      new THREE.MeshStandardMaterial({
+        color: 0x4ad4ff, emissive: 0x4ad4ff, emissiveIntensity: 0.35, transparent: true, opacity: 0.45, roughness: 0.2,
+      }),
+    );
+    glow.position.set(0, 0.2 * s, 0);
+    group.add(glow);
+  }
+
+  (group as THREE.Group & { userData: Record<string, unknown> }).userData = {
+    wingL, wingR, cape, flapPhase: Math.random() * Math.PI * 2, kind,
+  };
   return group;
 }
 
 function animateDuckMesh(mesh: THREE.Object3D, deltaSeconds: number, speed: number, diving: number): void {
-  const ud = mesh.userData;
-  if (!ud.wingL || !ud.wingR) return;
+  const ud = (mesh as THREE.Group & { userData: Record<string, any> }).userData;
+  if (!ud?.wingL || !ud?.wingR) return;
   const flapRate = 6.5 + speed * 1.8 + diving * 4.5;
   ud.flapPhase = (ud.flapPhase ?? 0) + deltaSeconds * flapRate;
   const flapAmp = 0.55 + diving * 0.25;
@@ -156,28 +157,71 @@ function animateDuckMesh(mesh: THREE.Object3D, deltaSeconds: number, speed: numb
   if (ud.cape) ud.cape.rotation.x = 0.25 + Math.sin(ud.flapPhase * 0.6) * 0.08 + diving * 0.12;
 }
 
+/** Biome-aware cruise offset: slightly higher over forest / mountain canopies. */
+function cruiseHeightForPosition(seed: number | string, x: number, z: number): number {
+  const biome = sampleBiome(seed, x, z);
+  const forestBoost = (biome.weights.forest ?? 0) * 0.55;
+  const mountainBoost = (biome.weights.mountain ?? 0) * 0.7 + (biome.weights.highlands ?? 0) * 0.35;
+  return CRUISE_HEIGHT + forestBoost + mountainBoost;
+}
+
+/** Find a spawn point that is not deep inside the river channel. */
+function pickSpawnXZ(
+  seed: number | string,
+  px: number,
+  pz: number,
+  baseDist: number,
+  extra: number,
+  attempts = 8,
+): { x: number; z: number } {
+  for (let i = 0; i < attempts; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = baseDist + Math.random() * extra;
+    const x = px + Math.cos(angle) * dist;
+    const z = pz + Math.sin(angle) * dist;
+    if (!isOpenWaterAt(seed, x, z)) return { x, z };
+    // Soft reject: still accept after last attempts so spawns never stall.
+    if (i >= attempts - 2) return { x, z };
+  }
+  const angle = Math.random() * Math.PI * 2;
+  const dist = baseDist + Math.random() * extra;
+  return { x: px + Math.cos(angle) * dist, z: pz + Math.sin(angle) * dist };
+}
+
 export class DuckSpawnSystem implements FixedSystem {
   private timer = 0;
   private bossTimer = 0;
+  private flyerTimer = 0;
+
   constructor(
     private readonly scene: THREE.Scene,
-    private readonly worldSeed: string | number,
-    private readonly prepareWorldObject: (object: THREE.Object3D) => void = () => undefined,
+    private readonly worldSeed: string,
+    private readonly prepareWorldObject: (object: THREE.Object3D) => void,
   ) {}
 
   private spawnOne(
     world: EcsWorld,
     px: number,
     pz: number,
-    opts: { isBoss: boolean; scale: number; petrifyCost: number; hitRadius: number; speedScale: number },
+    opts: {
+      kind: DuckKind;
+      scale: number;
+      petrifyCost: number;
+      hitRadius: number;
+      speedScale: number;
+    },
   ): void {
-    const angle = Math.random() * Math.PI * 2;
-    const dist = (opts.isBoss ? 18 : 12) + Math.random() * (opts.isBoss ? 10 : 8);
-    const x = px + Math.cos(angle) * dist;
-    const z = pz + Math.sin(angle) * dist;
-    const hoverHeight = CRUISE_HEIGHT * opts.scale;
+    const isFlyer = opts.kind === "flyer";
+    const isBoss = opts.kind === "boss";
+    const baseDist = isFlyer ? 22 : isBoss ? 18 : 12;
+    const extra = isFlyer ? 14 : isBoss ? 10 : 8;
+    const { x, z } = pickSpawnXZ(this.worldSeed, px, pz, baseDist, extra);
+
+    const hoverHeight = isFlyer
+      ? cruiseHeightForPosition(this.worldSeed, x, z) * opts.scale
+      : HOVER_BASE * opts.scale;
     const y = sampleTerrainHeight(this.worldSeed, x, z) + hoverHeight;
-    const mesh = createDuckMesh(opts.scale, opts.isBoss);
+    const mesh = createDuckMesh(opts.scale, opts.kind);
     mesh.position.set(x, y, z);
     this.scene.add(mesh);
     this.prepareWorldObject(mesh);
@@ -188,7 +232,8 @@ export class DuckSpawnSystem implements FixedSystem {
       duck: {
         state: "alive",
         petrifyTimer: 0,
-        isBoss: opts.isBoss,
+        isBoss,
+        isFlyer,
         petrifyCost: opts.petrifyCost,
         hitRadius: opts.hitRadius,
         speedScale: opts.speedScale,
@@ -203,6 +248,7 @@ export class DuckSpawnSystem implements FixedSystem {
     if (!dayNight || dayNight.isDay) {
       this.timer = 0;
       this.bossTimer = 0;
+      this.flyerTimer = 0;
       for (const entity of [...world.entities]) {
         if (entity.duck && entity.duck.state !== "petrified") {
           if (entity.renderable) entity.renderable.removeFromParent();
@@ -216,10 +262,13 @@ export class DuckSpawnSystem implements FixedSystem {
     if (!player?.transform) return;
 
     const liveRegular = world.entities.filter(
-      (e) => e.duck && e.duck.state !== "petrified" && !e.duck.isBoss,
+      (e) => e.duck && e.duck.state !== "petrified" && !e.duck.isBoss && !e.duck.isFlyer,
     ).length;
     const liveBosses = world.entities.filter(
       (e) => e.duck && e.duck.state !== "petrified" && e.duck.isBoss,
+    ).length;
+    const liveFlyers = world.entities.filter(
+      (e) => e.duck && e.duck.state !== "petrified" && e.duck.isFlyer,
     ).length;
 
     if (liveRegular < difficulty.maxDucks) {
@@ -227,17 +276,17 @@ export class DuckSpawnSystem implements FixedSystem {
       if (this.timer >= difficulty.spawnInterval) {
         this.timer = 0;
         this.spawnOne(world, player.transform.x, player.transform.z, {
-          isBoss: false, scale: 1, petrifyCost: difficulty.petrifyCost,
+          kind: "regular", scale: 1, petrifyCost: difficulty.petrifyCost,
           hitRadius: difficulty.regularHitRadius, speedScale: 1,
         });
         if (
           difficulty.doubleSpawnChance > 0
           && Math.random() < difficulty.doubleSpawnChance
-          && world.entities.filter((e) => e.duck && e.duck.state !== "petrified" && !e.duck.isBoss).length
+          && world.entities.filter((e) => e.duck && e.duck.state !== "petrified" && !e.duck.isBoss && !e.duck.isFlyer).length
             < difficulty.maxDucks
         ) {
           this.spawnOne(world, player.transform.x, player.transform.z, {
-            isBoss: false, scale: 1, petrifyCost: difficulty.petrifyCost,
+            kind: "regular", scale: 1, petrifyCost: difficulty.petrifyCost,
             hitRadius: difficulty.regularHitRadius, speedScale: 1,
           });
         }
@@ -250,8 +299,19 @@ export class DuckSpawnSystem implements FixedSystem {
       if (this.bossTimer >= bossInterval) {
         this.bossTimer = 0;
         this.spawnOne(world, player.transform.x, player.transform.z, {
-          isBoss: true, scale: difficulty.bossScale, petrifyCost: difficulty.bossPetrifyCost,
-          hitRadius: difficulty.bossHitRadius, speedScale: 0.78,
+          kind: "boss", scale: difficulty.bossScale, petrifyCost: difficulty.bossPetrifyCost,
+          hitRadius: difficulty.bossHitRadius, speedScale: 0.85,
+        });
+      }
+    }
+
+    if (liveFlyers < difficulty.maxFlyers) {
+      this.flyerTimer += deltaSeconds;
+      if (this.flyerTimer >= difficulty.flyerSpawnInterval) {
+        this.flyerTimer = 0;
+        this.spawnOne(world, player.transform.x, player.transform.z, {
+          kind: "flyer", scale: 1.05, petrifyCost: difficulty.flyerPetrifyCost,
+          hitRadius: difficulty.flyerHitRadius, speedScale: 1.15,
         });
       }
     }
@@ -259,154 +319,127 @@ export class DuckSpawnSystem implements FixedSystem {
 }
 
 export class DuckAISystem implements FixedSystem {
-  private readonly worldSeed: string | number;
-  private animTime = 0;
   constructor(
-    worldSeed: string | number,
-    private readonly garlicLabel?: HTMLElement | null,
-    private readonly livesLabel?: HTMLElement | null,
-    private readonly scoreLabel?: HTMLElement | null,
-  ) {
-    this.worldSeed = worldSeed;
+    private readonly worldSeed: string,
+    private readonly garlicEl: HTMLElement | null,
+    private readonly livesEl: HTMLElement | null,
+    private readonly scoreEl: HTMLElement | null,
+  ) {}
+
+  private syncHud(combat: GameCombatState): void {
+    if (this.garlicEl) this.garlicEl.textContent = String(combat.garlicCount);
+    if (this.livesEl) this.livesEl.textContent = String(combat.lives);
+    if (this.scoreEl) this.scoreEl.textContent = String(combat.score);
   }
 
   fixedUpdate(world: EcsWorld, deltaSeconds: number): void {
-    const combat = world.entities.find((e) => e.combat)?.combat;
-    const player = world.entities.find((e) => e.playerControl && e.transform);
-    if (!combat || !player?.transform || combat.gameOver) return;
-
     const dayNight = world.entities.find((e) => e.dayNight)?.dayNight;
     const difficulty = getDifficulty(dayNight?.nightCount || 1);
-
-    this.animTime += deltaSeconds;
-    combat.score += deltaSeconds * 2;
-    this.syncHud(combat);
+    const player = world.entities.find((e) => e.playerControl && e.transform);
+    const combatEntity = world.entities.find((e) => e.combat);
+    if (!player?.transform || !combatEntity?.combat) return;
+    const combat = combatEntity.combat;
 
     if (combat.invulnTimer > 0) {
       combat.invulnTimer = Math.max(0, combat.invulnTimer - deltaSeconds);
-      if (player.renderable) {
-        player.renderable.visible = Math.floor(combat.invulnTimer * 10) % 2 === 0;
-      }
-    } else if (player.renderable) {
-      player.renderable.visible = true;
     }
 
     for (const entity of world.entities) {
       if (!entity.duck || !entity.transform || !entity.velocity) continue;
-      if (entity.duck.state === "petrified") {
-        entity.duck.petrifyTimer -= deltaSeconds;
-        if (entity.duck.petrifyTimer <= 0) {
+      const duck = entity.duck;
+
+      if (duck.state === "petrified") {
+        duck.petrifyTimer -= deltaSeconds;
+        if (duck.petrifyTimer <= 0) {
           if (entity.renderable) entity.renderable.removeFromParent();
           world.remove(entity);
         }
         continue;
       }
-      if (entity.previousTransform) Object.assign(entity.previousTransform, entity.transform);
 
+      const scale = duck.isBoss ? difficulty.bossScale : duck.isFlyer ? 1.05 : 1;
       const dx = player.transform.x - entity.transform.x;
       const dz = player.transform.z - entity.transform.z;
-      const dist = Math.hypot(dx, dz) || 1;
+      const dist = Math.hypot(dx, dz) || 0.001;
+      const speed = difficulty.duckSpeed * (duck.speedScale ?? 1);
 
-      const diveT = smoothstep(
-        (DIVE_START_DIST - dist) / (DIVE_START_DIST - DIVE_END_DIST),
-      );
-
-      const approachFactor = 0.42 + 0.58 * diveT;
-      const speed = difficulty.duckSpeed * (entity.duck.speedScale ?? 1) * approachFactor;
+      // Horizontal chase
       entity.velocity.x = (dx / dist) * speed;
       entity.velocity.z = (dz / dist) * speed;
       entity.transform.x += entity.velocity.x * deltaSeconds;
       entity.transform.z += entity.velocity.z * deltaSeconds;
-
-      const scale = entity.duck.isBoss ? difficulty.bossScale : 1;
-      const terrainY = sampleTerrainHeight(this.worldSeed, entity.transform.x, entity.transform.z);
-
-      const targetHover = (CRUISE_HEIGHT + (ATTACK_HEIGHT - CRUISE_HEIGHT) * diveT) * scale;
-      let currentHover = entity.duck.hoverHeight ?? targetHover;
-      const maxStep = HOVER_LERP_SPEED * deltaSeconds * scale;
-      if (Math.abs(targetHover - currentHover) <= maxStep) {
-        currentHover = targetHover;
-      } else {
-        currentHover += Math.sign(targetHover - currentHover) * maxStep;
-      }
-      entity.duck.hoverHeight = currentHover;
-
-      const bobAmp = HOVER_BOB * (1.15 - diveT * 0.55);
-      const bob = Math.sin(this.animTime * 2.6 + entity.transform.x * 0.28) * bobAmp * scale;
-      entity.transform.y = terrainY + currentHover + bob;
       entity.transform.yaw = Math.atan2(dx, dz);
 
-      if (entity.renderable) {
-        animateDuckMesh(entity.renderable, deltaSeconds, speed, diveT);
+      const terrainY = sampleTerrainHeight(this.worldSeed, entity.transform.x, entity.transform.z);
+
+      if (duck.isFlyer) {
+        // Visible canopy cruise while far, then smooth dive toward the character.
+        const diveT = smoothstep((DIVE_START_DIST - dist) / (DIVE_START_DIST - DIVE_END_DIST));
+        const cruise = cruiseHeightForPosition(this.worldSeed, entity.transform.x, entity.transform.z);
+        const targetHover = (cruise + (ATTACK_HEIGHT - cruise) * diveT) * scale;
+        const current = duck.hoverHeight ?? cruise * scale;
+        const maxStep = HOVER_LERP_SPEED * deltaSeconds * scale;
+        const next = current + Math.max(-maxStep, Math.min(maxStep, targetHover - current));
+        duck.hoverHeight = next;
+        const bobAmp = HOVER_BOB * (1.15 - diveT * 0.55);
+        const bob = Math.sin((entity.transform.x + entity.transform.z) * 0.35 + performance.now() * 0.002) * bobAmp * scale;
+        entity.transform.y = terrainY + next + bob;
+        if (entity.renderable) {
+          animateDuckMesh(entity.renderable, deltaSeconds, speed, diveT);
+        }
+      } else {
+        // Regular + boss: steady low hover with light bob.
+        const targetHover = HOVER_BASE * scale;
+        const current = duck.hoverHeight ?? targetHover;
+        const maxStep = HOVER_LERP_SPEED * deltaSeconds * scale;
+        const next = current + Math.max(-maxStep, Math.min(maxStep, targetHover - current));
+        duck.hoverHeight = next;
+        const bob = Math.sin((entity.transform.x + entity.transform.z) * 0.4 + performance.now() * 0.0025) * HOVER_BOB * 0.7 * scale;
+        entity.transform.y = terrainY + next + bob;
+        if (entity.renderable) {
+          animateDuckMesh(entity.renderable, deltaSeconds, speed, 0.15);
+        }
       }
 
-      if (combat.invulnTimer > 0) continue;
-      const hitRadius = entity.duck.hitRadius ?? difficulty.regularHitRadius;
-      if (dist < hitRadius) {
-        const cost = entity.duck.petrifyCost
-          ?? (entity.duck.isBoss ? difficulty.bossPetrifyCost : difficulty.petrifyCost);
+      // Contact combat
+      const hitR = duck.hitRadius ?? (duck.isBoss ? difficulty.bossHitRadius : difficulty.regularHitRadius);
+      const playerY = player.transform.y;
+      const vertOk = Math.abs(entity.transform.y - playerY) < 2.4 * scale;
+      if (vertOk && dist < hitR + 0.55 && combat.invulnTimer <= 0 && !combat.gameOver) {
+        const cost = duck.petrifyCost
+          ?? (duck.isBoss ? difficulty.bossPetrifyCost
+            : duck.isFlyer ? difficulty.flyerPetrifyCost
+            : difficulty.petrifyCost);
         if (combat.garlicCount >= cost) {
           combat.garlicCount -= cost;
-          combat.score += entity.duck.isBoss ? 250 : 50;
-          entity.duck.state = "petrified";
-          entity.duck.petrifyTimer = entity.duck.isBoss ? 12 : 8;
+          combat.score += duck.isBoss ? 250 : duck.isFlyer ? 80 : 50;
+          duck.state = "petrified";
+          duck.petrifyTimer = duck.isBoss ? 12 : 8;
           if (entity.renderable) {
-            entity.renderable.traverse((child) => {
-              if ((child as THREE.Mesh).isMesh) {
-                const mesh = child as THREE.Mesh;
-                if (mesh.material && !Array.isArray(mesh.material)) {
-                  (mesh.material as THREE.MeshStandardMaterial).color?.set(0x6688cc);
-                  (mesh.material as THREE.MeshStandardMaterial).emissive?.set(0x000000);
-                }
+            entity.renderable.traverse((c) => {
+              if ((c as THREE.Mesh).isMesh) {
+                const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial;
+                if (m?.color) m.color.setHex(0x88aacc);
+                if (m) { m.emissive?.setHex(0x000000); m.needsUpdate = true; }
               }
             });
           }
           this.syncHud(combat);
         } else {
-          combat.lives -= entity.duck.isBoss ? 2 : 1;
+          combat.lives -= duck.isBoss ? 2 : 1;
           combat.invulnTimer = INVULN_SECONDS;
           this.syncHud(combat);
           if (combat.lives <= 0) {
-            combat.lives = 0;
             combat.gameOver = true;
-            this.syncHud(combat);
-            window.dispatchEvent(
-              new CustomEvent(VD_GAME_OVER_EVENT, { detail: { score: Math.floor(combat.score) } }),
-            );
+            window.dispatchEvent(new CustomEvent(VD_GAME_OVER_EVENT, {
+              detail: { score: combat.score, night: dayNight?.nightCount ?? 1 },
+            }));
           }
         }
       }
     }
-  }
 
-  private syncHud(combat: GameCombatState): void {
-    const garlicText = String(combat.garlicCount);
-    if (this.garlicLabel) this.garlicLabel.textContent = garlicText;
-    const garlicHud = document.getElementById("garlic-count");
-    if (garlicHud) garlicHud.textContent = garlicText;
-    const mushroomHud = document.getElementById("mushroom-count");
-    if (mushroomHud && mushroomHud !== this.garlicLabel) mushroomHud.textContent = garlicText;
-    if (this.livesLabel) this.livesLabel.textContent = String(combat.lives);
-    if (this.scoreLabel) this.scoreLabel.textContent = String(Math.floor(combat.score));
-  }
-}
-
-export class GarlicScoreSystem implements FixedSystem {
-  private lastDiscovered = 0;
-  constructor(
-    private readonly garlicLabel?: HTMLElement | null,
-    private readonly onCollect?: (gained: number, isSuper: boolean) => void,
-  ) {}
-
-  fixedUpdate(world: EcsWorld): void {
-    const state = world.entities.find((e) => e.collectionState)?.collectionState;
-    const combat = world.entities.find((e) => e.combat)?.combat;
-    if (!state || !combat) return;
-    if (state.discovered > this.lastDiscovered) {
-      const gained = state.discovered - this.lastDiscovered;
-      this.lastDiscovered = state.discovered;
-      if (this.garlicLabel) this.garlicLabel.textContent = String(combat.garlicCount);
-      this.onCollect?.(gained, false);
-    }
+    // Keep HUD in sync with shared combat (garlic collected elsewhere).
+    this.syncHud(combat);
   }
 }
